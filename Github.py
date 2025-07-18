@@ -104,20 +104,27 @@ def Bankplot():
                         row=row,
                         col=col
                     )
-    #Sort x asis
-    date_order=df['Date_Quarter'].unique()
-    date_order.sort()
-
+  
     fig.update_layout(
         width=1400,
         height=1200,
         title_text=f"Banking Metrics: {', '.join(Z)}",
         legend_title="Ticker/Type"
     )
+    #Sort x asis
+    def quarter_sort_key(q):
+        # Example: "5Q21" → (21, 5)
+        if 'Q' in q:
+            parts = q.split('Q')
+            return (int(parts[1]), int(parts[0]))
+        return (0, 0)
+    date_order = df[['Date_Quarter']].drop_duplicates().copy()
+    date_order['Sortkey'] = date_order['Date_Quarter'].apply(quarter_sort_key)
+    date_order = date_order.sort_values(by='Sortkey')
+    fig.update_xaxes(categoryorder='array', categoryarray=date_order['Date_Quarter'])
 
     for i in range(1, len(Z)+1):
         fig.update_yaxes(tickformat=tick_format, row=(i-1)//2 + 1, col=(i-1)%2 + 1)    
-    fig.update_xaxes(categoryorder='array', categoryarray=date_order)
     st.plotly_chart(fig, use_container_width=True)
 
 def Banking_table():
@@ -194,6 +201,18 @@ def Banking_table():
     df_out.columns = df_out.iloc[0]
     df_out = df_out[1:]
     return df_out
+
+
+def quarter_sort_key(q):
+    # Example: "5Q21" → (21, 5)
+    if 'Q' in q:
+        parts = q.split('Q')
+        return (int(parts[1]), int(parts[0]))
+    return (0, 0)
+date_order = df_year[['Date_Quarter']].drop_duplicates().copy()
+date_order['Sortkey'] = date_order['Date_Quarter'].apply(quarter_sort_key)
+date_order = date_order.sort_values(by='Sortkey')
+
 
 def conditional_format(df):
     def human_format(num):
