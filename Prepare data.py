@@ -86,11 +86,11 @@ def Calculate(df):
     #CA.6: CIR: -IS.15/IS.14
     df['CA.6'] = -df['IS.15'] / df['IS.14']
     #CA.7: NPL Coverage Ratio Bs.14/(Nt.68+Nt.69+Nt.70)
-    df['CA.7'] = df['BS.14'] / (df['Nt.68'] + df['Nt.69'] + df['Nt.70'])
+    df['CA.7'] = -df['BS.14'] / (df['Nt.68'] + df['Nt.69'] + df['Nt.70'])
     #CA.8: Credit size: Bs.13+BS.16+Nt.97+Nt.112
     df['CA.8'] = df['BS.13'] + df['BS.16'] + df['Nt.97'] + df['Nt.112']
     #CA.9: Provision/ Total loan -Bs.14/Bs.13
-    df['CA.9'] = df['BS.14'] / df['BS.13']
+    df['CA.9'] = -df['BS.14'] / df['BS.13']
     #CA.10: Leverage Bs.1/Bs.65
     df['CA.10'] = df['BS.1'] / df['BS.65']
     #CA.11: IEA (Bs.3+Bs.5+Bs.6+Bs.9+Bs.13+Bs.16+Bs.19+Bs.20)
@@ -133,8 +133,6 @@ def Calculate(df):
         df['CA.20'] = (df['IS.6'] / (df['BS.1'] + df['BS.1'].shift(1))) * 2
     #CA.21: Individual/ Total loan: Nt.89/BS.12
     df['CA.21'] = df['Nt.89'] / df['BS.12']
-    #Reset Index
-    df = df.reset_index(drop=True)
     #CA.22: NPL Formation:
     df['CA.22'] = (df['CA.4'] - df['Nt.220']) - (df['CA.4'].shift(1))
     #CA.23: NPL Formation (%):
@@ -143,6 +141,8 @@ def Calculate(df):
     df['CA.24'] = (df['Nt.67'] + df['CA.22']) - df['Nt.67'].shift(1)
     #CA.25: Group 2 Formation (%):
     df['CA.25'] = df['CA.24'] /  df['BS.13'].shift(1)
+    #Reset Index
+    df = df.reset_index(drop=True)
     return df
 
 dfcompaniesquarter = Calculate(dfcompaniesquarter)

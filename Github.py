@@ -7,9 +7,9 @@ from plotly.subplots import make_subplots
 import numpy as np
 
 # Load your data
-df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
-df_year = pd.read_csv('Data/dfsectoryear.csv')
-keyitem=pd.read_excel('Data/Key_items.xlsx')
+df_quarter = pd.read_csv('Data\dfsectorquarter.csv')
+df_year = pd.read_csv('Data\dfsectoryear.csv')
+keyitem=pd.read_excel('Data\Key_items.xlsx')
 color_sequence=px.colors.qualitative.Bold
 
 # Sidebar: Choose pages
@@ -148,6 +148,7 @@ def Banking_table():
     if X in bank_type:
         # Filter by Type (e.g. Sector, SOCB, etc.)
         df_temp = df[(df['Type'] == X) & (df['TICKER'].apply(lambda t: len(t) > 3))]
+        df_temp = df_temp[df_temp['TICKER'] == df_temp['TICKER'].iloc[0]]
     else:
         # Filter by specific ticker
         df_temp = df[df['TICKER'] == X]
@@ -242,3 +243,4 @@ elif page == "Company Table":
 
     styled_df = formatted.style.apply(lambda _: style_alternate_rows(formatted), axis=None)
     st.write(styled_df)
+   
