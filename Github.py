@@ -1,4 +1,4 @@
-
+#%%
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -104,16 +104,20 @@ def Bankplot():
                         row=row,
                         col=col
                     )
-    
+    #Sort x asis
+    date_order=df['Date_Quarter'].unique()
+    date_order.sort()
+
     fig.update_layout(
         width=1400,
         height=1200,
         title_text=f"Banking Metrics: {', '.join(Z)}",
         legend_title="Ticker/Type"
     )
+
     for i in range(1, len(Z)+1):
-        fig.update_yaxes(tickformat=tick_format, row=(i-1)//2 + 1, col=(i-1)%2 + 1)
-    
+        fig.update_yaxes(tickformat=tick_format, row=(i-1)//2 + 1, col=(i-1)%2 + 1)    
+    fig.update_xaxes(categoryorder='array', categoryarray=date_order)
     st.plotly_chart(fig, use_container_width=True)
 
 def Banking_table():
