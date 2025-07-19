@@ -248,7 +248,7 @@ def conditional_format(df):
 
 
 def openai_comment(X):
-    
+    load_dotenv()
     def get_data(X):
         cols_keep = pd.DataFrame({
         'Name': [
