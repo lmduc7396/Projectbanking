@@ -14,6 +14,7 @@ df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
 df_year = pd.read_csv('Data/dfsectoryear.csv')
 keyitem=pd.read_excel('Data/Key_items.xlsx')
 color_sequence=px.colors.qualitative.Bold
+load_dotenv()
 
 # Sidebar: Choose pages
 page= st.sidebar.selectbox("Choose a page", ("Banking plot","Company Table","OpenAI Comment"))
@@ -248,7 +249,6 @@ def conditional_format(df):
 
 
 def openai_comment(X):
-    load_dotenv()
     def get_data(X):
         cols_keep = pd.DataFrame({
         'Name': [
@@ -272,7 +272,7 @@ def openai_comment(X):
 
 
 # 3. Build the analysis prompt
-    load_dotenv()
+    
     client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     prompt = f"""
     You are a financial analyst, looking for investment recommendations on the bank financial performance.
