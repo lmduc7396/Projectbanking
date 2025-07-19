@@ -272,8 +272,8 @@ def openai_comment(X):
 
 
 # 3. Build the analysis prompt
-    
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    api_key = st.secrets["OPENAI_API_KEY"]
+    client = openai.OpenAI(api_key=api_key)
     prompt = f"""
     You are a financial analyst, looking for investment recommendations on the bank financial performance.
     Analyze this bank for me
