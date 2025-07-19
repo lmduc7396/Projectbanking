@@ -6,6 +6,8 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import numpy as np
 import openai
+import os
+from dotenv import load_dotenv
 
 # Load your data
 df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
@@ -270,9 +272,8 @@ def openai_comment(X):
 
 
 # 3. Build the analysis prompt
-    client = openai.OpenAI(
-        api_key="REMOVEDproj-SY3Eu0hMa2lylml4FaIS1trKex5vi5kf886-MiJOmmm7rzxpK5fkztdvgUFPJnoUkwLLOhwdoFT3BlbkFJQiHv3oWBhSwESwg_Doyj1dXsKs5NMU46yTzxRAkk3jx3aU3QzdSp3WcZ-w8LbHESeEcsRGpWYA"
-    )
+    load_dotenv()
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     prompt = f"""
     You are a financial analyst, looking for investment recommendations on the bank financial performance.
     Analyze this bank for me
