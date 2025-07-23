@@ -1,14 +1,12 @@
 #%%
 import pandas as pd
-import plotly.graph_objects as go
-import matplotlib.pyplot as plt
 
-dfis=pd.read_csv('Data\IS_Bank1Q25.csv')
-dfbs=pd.read_csv('Data\BS_Bank1Q25.csv')
-dfnt=pd.read_csv('Data\\Note_Bank1Q25.csv')
-Type=pd.read_excel('Data\Bank_Type.xlsx')
-mapping=pd.read_excel('Data\IRIS KeyCodes - Bank.xlsx')
-dfwriteoff=pd.read_excel('Data\\writeoffs.xlsx')
+dfis=pd.read_csv('Data/IS_Bank.csv')
+dfbs=pd.read_csv('Data/BS_Bank.csv')
+dfnt=pd.read_csv('Data/Note_Bank.csv')
+Type=pd.read_excel('Data/Bank_Type.xlsx')
+mapping=pd.read_excel('Data/IRIS KeyCodes - Bank.xlsx')
+dfwriteoff=pd.read_excel('Data/writeoffs.xlsx')
 
 
 #Clean writeoff 

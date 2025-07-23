@@ -285,7 +285,16 @@ def openai_comment(ticker, sector):
 
 
 # 3. Build the analysis prompt
-    api_key = st.secrets["OPENAI_API_KEY"]
+    try:
+        # Try to get API key from Streamlit secrets first (for deployed apps)
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except:
+        # Fall back to environment variable (for local development)
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            st.error("OPENAI_API_KEY not found in secrets or environment variables")
+            return
+    
     client = openai.OpenAI(api_key=api_key)
     
     # Get data for both ticker and sector
@@ -300,48 +309,37 @@ def openai_comment(ticker, sector):
     - Never compare quarters from non-consecutive years (e.g., avoid comparing 1Q25 vs 1Q23)
     - Maintain this consistency throughout the analysis
 
-    2. Required Analysis Topics (in this exact order):
-    Section A - Profit & Returns
-        - Net profit analysis
-        - ROA and ROE trends
-        - Highlight any significant changes in profitability metrics
-
-    Section B - Loan Growth
-        - Loan growth rates (both QoQ and YoY)
-        - Loan mix changes
-        - Credit growth compared to industry average
-
-    Section C - Asset Quality
-        - NPL ratio trends
-        - Loan loss coverage ratio
-        - Write-offs and provisions
-        - Risk indicators changes
-
-    Section D - Profitability Metrics
-        - NIM trends and drivers
-        - Fee income composition
-        - Cost-to-income ratio
-        - Revenue mix changes
+    2. Key Analysis Areas to Cover:
+    Focus on these important banking performance areas, but organize them based on what's most significant in the data:
+    
+    - Profitability & Returns: Net profit trends, ROA and ROE performance, significant changes in profitability metrics
+    - Loan Growth & NIM: Loan growth rates (QoQ and YoY), NIM trends and drivers (loan yield, cost of funds), comparison with sectoral trends
+    - Asset Quality: NPL & G2 ratio trends, NPL & G2 formation ratios, loan loss coverage ratio, comparison with sectoral benchmarks
+    
+    Feel free to combine topics or emphasize what appears most significant in the current data rather than following a rigid structure.
 
     3. Data Accuracy:
     - Use exact numbers from the provided data
     - Do not extrapolate beyond given data points
     - When making comparisons, cite specific data points
-    - Temperature setting: 0.2 (stay strictly factual)
+    - Stay strictly factual and data-driven
 
-    4. Inflection Points Focus:
-    - Identify and highlight significant trend changes
-    - Flag any metrics that have reversed their previous trend
-    - Note any unusual patterns or deviations from historical trends
-    - Emphasize structural changes in key metrics
+    4. Analysis Approach:
+    - Prioritize the most significant trends and changes you observe
+    - Temperature 0.2, keep data factual
+    - Identify and highlight meaningful inflection points
+    - Flag metrics that have reversed their previous trend
+    - Note unusual patterns or deviations from historical trends
+    - Compare individual bank performance against sector benchmarks where relevant
 
-    Format all numbers consistently:
+    Format Guidelines:
     - Use one decimal point for percentages (e.g., 15.7%)
     - Use standard number formatting for large numbers (e.g., VND 1,234.5bn)
     - Always specify the time period for comparisons
-    - For all section be brief and concise, keep total words count to 400-500
+    - Keep the analysis concise and focused, around 400-500 words total
+    - Write in flowing paragraphs rather than rigid bullet points
 
-    End the analysis with a summary of key inflection points that investors should monitor.
+    Conclude with the most important inflection points or trends that investors should monitor into 2-3 key points. Bring the conclusion to the forefront, then write the analysis.
 
     Data for Bank: {ticker}
     {ticker_data.to_markdown(index=True, tablefmt='grid')}
