@@ -254,7 +254,7 @@ def openai_comment(ticker, sector):
         'Name': [
             'Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE', 'NIM', 'Loan yield',
             'NPL', 'NPL Formation (%)', 'GROUP 2', 'G2 Formation (%)',
-            'NPL Coverage ratio', 'Provision/ Total Loan'
+            'NPL Coverage ratio'
         ]
         })
         cols_code_keep = cols_keep.merge(keyitem, on='Name', how='left')
@@ -304,6 +304,7 @@ def openai_comment(ticker, sector):
     You are a banking analyst assistant. Analyze the provided banking data with the following guidelines:
 
     1. Growth Calculations Rules:
+    - The time code is written as 'XQYY' where X is the quarter number (1-4) and YY is the last two digits of the year.
     - Quarter-on-Quarter (QoQ): Always compare with the immediate previous quarter (e.g., 1Q25 vs 4Q24)
     - Year-on-Year (YoY): Always compare with the exact same quarter from the previous year (e.g., 1Q25 vs 1Q24)
     - Never compare quarters from non-consecutive years (e.g., avoid comparing 1Q25 vs 1Q23)
@@ -348,7 +349,7 @@ def openai_comment(ticker, sector):
         ]
     )
 
-    st.text_area("AI Analysis", response.choices[0].message.content, height=300)
+    st.markdown(response.choices[0].message.content)
 
 
 if page == "Banking plot":
