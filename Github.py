@@ -322,6 +322,7 @@ def openai_comment(X):
     - Use one decimal point for percentages (e.g., 15.7%)
     - Use standard number formatting for large numbers (e.g., VND 1,234.5bn)
     - Always specify the time period for comparisons
+    - For all section be brief and concise, keep total words count to 400-500
 
     End the analysis with a summary of key inflection points that investors should monitor.
 
