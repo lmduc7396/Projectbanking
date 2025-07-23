@@ -320,6 +320,7 @@ def openai_comment(ticker, sector):
     PRIMARY FOCUS: The bank's own performance evolution and trend changes. Use sector data only for brief context when relevant.
 
     3. Analysis Approach:
+    - Think about what are the upside/downside to each of the metrics. what should the investors watch for, how would these factors impact the financial performance? What are your expectations on the previous metrics?
     - Focus primarily on the bank's own performance trajectory and improvements/deteriorations
     - Identify the most significant trend changes and inflection points in the bank's metrics
     - Use sector comparison sparingly - only when it adds meaningful context
