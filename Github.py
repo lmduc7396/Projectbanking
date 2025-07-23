@@ -310,36 +310,27 @@ def openai_comment(ticker, sector):
     - Maintain this consistency throughout the analysis
 
     2. Key Analysis Areas to Cover:
-    Focus on these important banking performance areas, but organize them based on what's most significant in the data:
+    Focus on these important banking performance areas, prioritizing the bank's own trends:
     
-    - Profitability & Returns: Net profit trends, ROA and ROE performance, significant changes in profitability metrics
-    - Loan Growth & NIM: Loan growth rates (QoQ and YoY), NIM trends and drivers (loan yield, cost of funds), comparison with sectoral trends
-    - Asset Quality: NPL & G2 ratio trends, NPL & G2 formation ratios, loan loss coverage ratio, comparison with sectoral benchmarks
+    - Profitability & Returns: Net profit trends, ROA and ROE performance trajectory
+    - Loan Growth & NIM: Loan growth momentum (QoQ and YoY), NIM direction and drivers
+    - Asset Quality: NPL & G2 ratio evolution, formation trends, coverage ratios
     
-    Feel free to combine topics or emphasize what appears most significant in the current data rather than following a rigid structure.
+    PRIMARY FOCUS: The bank's own performance evolution and trend changes. Use sector data only for brief context when relevant.
 
-    3. Data Accuracy:
-    - Use exact numbers from the provided data
-    - Do not extrapolate beyond given data points
-    - When making comparisons, cite specific data points
+    3. Analysis Approach:
+    - Focus primarily on the bank's own performance trajectory and improvements/deteriorations
+    - Identify the most significant trend changes and inflection points in the bank's metrics
+    - Use sector comparison sparingly - only when it adds meaningful context
     - Stay strictly factual and data-driven
-
-    4. Analysis Approach:
-    - Prioritize the most significant trends and changes you observe
-    - Temperature 0.2, keep data factual
-    - Identify and highlight meaningful inflection points
-    - Flag metrics that have reversed their previous trend
-    - Note unusual patterns or deviations from historical trends
-    - Compare individual bank performance against sector benchmarks where relevant
 
     Format Guidelines:
     - Use one decimal point for percentages (e.g., 15.7%)
-    - Use standard number formatting for large numbers (e.g., VND 1,234.5bn)
     - Always specify the time period for comparisons
-    - Keep the analysis concise and focused, around 400-500 words total
-    - Write in flowing paragraphs rather than rigid bullet points
+    - Keep the analysis very concise: 250-300 words maximum
+    - Write in flowing paragraphs, focus on the most important trends only
 
-    Conclude with the most important inflection points or trends that investors should monitor into 2-3 key points. Bring the conclusion to the forefront, then write the analysis.
+    Start with 2-3 key takeaway points, then provide brief supporting analysis.
 
     Data for Bank: {ticker}
     {ticker_data.to_markdown(index=True, tablefmt='grid')}
