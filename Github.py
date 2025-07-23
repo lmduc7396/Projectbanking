@@ -248,8 +248,8 @@ def conditional_format(df):
     return formatted
 
 
-def openai_comment(X):
-    def get_data(X):
+def openai_comment(ticker, sector):
+    def get_data(ticker, sector):
         cols_keep = pd.DataFrame({
         'Name': [
             'Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE', 'NIM', 'Loan yield',
@@ -261,19 +261,36 @@ def openai_comment(X):
         cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
         rename_dict = dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name']))
 
+        # Get ticker data
+        df_ticker = df_quarter[df_quarter['TICKER'] == ticker]
+        df_ticker = df_ticker[cols_keep_final]
+        df_ticker_out = df_ticker.rename(columns=rename_dict).tail(6).T
+        df_ticker_out.columns = df_ticker_out.iloc[0]
+        df_ticker_out = df_ticker_out[1:]
+        
+        # Get sector data (filter out individual tickers - length = 3)
+        df_sector = df_quarter[(df_quarter['Type'] == sector) & (df_quarter['TICKER'].apply(lambda t: len(t) > 3))]
+        if not df_sector.empty:
+            # Take the first representative ticker for the sector
+            sector_ticker = df_sector['TICKER'].iloc[0]
+            df_sector = df_sector[df_sector['TICKER'] == sector_ticker]
+            df_sector = df_sector[cols_keep_final]
+            df_sector_out = df_sector.rename(columns=rename_dict).tail(6).T
+            df_sector_out.columns = df_sector_out.iloc[0]
+            df_sector_out = df_sector_out[1:]
+        else:
+            df_sector_out = pd.DataFrame()
 
-        df_temp = df_quarter[df_quarter['TICKER'] == X]
-        df_temp = df_temp[cols_keep_final]
-
-        df_out = df_temp.rename(columns=rename_dict).tail(6).T
-        df_out.columns = df_out.iloc[0]
-        df_out = df_out[1:]
-        return df_out
+        return df_ticker_out, df_sector_out
 
 
 # 3. Build the analysis prompt
     api_key = st.secrets["OPENAI_API_KEY"]
     client = openai.OpenAI(api_key=api_key)
+    
+    # Get data for both ticker and sector
+    ticker_data, sector_data = get_data(ticker, sector)
+    
     prompt = f"""
     You are a banking analyst assistant. Analyze the provided banking data with the following guidelines:
 
@@ -326,8 +343,11 @@ def openai_comment(X):
 
     End the analysis with a summary of key inflection points that investors should monitor.
 
-    Data: The bank: {X}
-    {get_data(X).to_markdown(index=True, tablefmt='grid')}
+    Data for Bank: {ticker}
+    {ticker_data.to_markdown(index=True, tablefmt='grid')}
+    
+    Sector Benchmark ({sector}):
+    {sector_data.to_markdown(index=True, tablefmt='grid') if not sector_data.empty else 'No sector data available'}
     """
 
     # 4. Send to OpenAI
@@ -365,8 +385,18 @@ elif page == "Company Table":
     st.write(styled_df)
 elif page == "OpenAI Comment":
     st.subheader("OpenAI Comment")
-    X = st.text_input("Enter Stock Ticker or Bank Type (e.g., ACB, Sector):", value='ACB')
-    if X:
-        openai_comment(X)
+    
+    # Define options
+    bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+    tickers = sorted([x for x in df_quarter['TICKER'].unique() if isinstance(x, str) and len(x) == 3])
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        ticker = st.selectbox("Select Bank Ticker:", tickers, index=tickers.index('ACB') if 'ACB' in tickers else 0)
+    with col2:
+        sector = st.selectbox("Select Sector for Comparison:", bank_type, index=0)
+    
+    if ticker and sector:
+        openai_comment(ticker, sector)
 
    
