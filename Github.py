@@ -275,10 +275,54 @@ def openai_comment(X):
     api_key = st.secrets["OPENAI_API_KEY"]
     client = openai.OpenAI(api_key=api_key)
     prompt = f"""
-    You are a financial analyst, looking for investment recommendations on the bank financial performance.
-    Analyze this bank for me
-    Your response MUST be in bullet points format, be concise with about 3-4 bullet points and maximum 300 words.
-    Focus on trend and the most recent quarter's changes. Don't just describe the number for me but intepret further
+    You are a banking analyst assistant. Analyze the provided banking data with the following guidelines:
+
+    1. Growth Calculations Rules:
+    - Quarter-on-Quarter (QoQ): Always compare with the immediate previous quarter
+    - Year-on-Year (YoY): Always compare with the same quarter of the previous year
+    - Maintain this consistency throughout the analysis
+
+    2. Required Analysis Topics (in this exact order):
+    a) Profit & Returns
+        - Net profit analysis
+        - ROA and ROE trends
+        - Highlight any significant changes in profitability metrics
+
+    b) Loan Growth
+        - Loan growth rates (both QoQ and YoY)
+        - Loan mix changes
+        - Credit growth compared to industry average
+
+    c) Asset Quality
+        - NPL ratio trends
+        - Loan loss coverage ratio
+        - Write-offs and provisions
+        - Risk indicators changes
+
+    d) Profitability Metrics
+        - NIM trends and drivers
+        - Fee income composition
+        - Cost-to-income ratio
+        - Revenue mix changes
+
+    3. Data Accuracy:
+    - Use exact numbers from the provided data
+    - Do not extrapolate beyond given data points
+    - When making comparisons, cite specific data points
+    - Temperature setting: 0.2 (stay strictly factual)
+
+    4. Inflection Points Focus:
+    - Identify and highlight significant trend changes
+    - Flag any metrics that have reversed their previous trend
+    - Note any unusual patterns or deviations from historical trends
+    - Emphasize structural changes in key metrics
+
+    Format all numbers consistently:
+    - Use one decimal point for percentages (e.g., 15.7%)
+    - Use standard number formatting for large numbers (e.g., VND 1,234.5bn)
+    - Always specify the time period for comparisons
+
+    End the analysis with a summary of key inflection points that investors should monitor.
 
     Data: The bank: {X}
     {get_data(X).to_markdown(index=True, tablefmt='grid')}
