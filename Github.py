@@ -213,8 +213,7 @@ def Banking_table(X, Y, Z):
         df_out.columns = df_out.iloc[0]
         df_out = df_out[1:]
         
-        # Display the table
-        st.subheader(table_name)
+        # Return the table without displaying the title here
         return df_out
 
     # Create and display both tables
@@ -277,12 +276,19 @@ def Stock_price_plot(X):
     # Fetch historical price data
     df = fetch_historical_price(X)
     if df is not None:
+        # Filter data to show only last 3 years (2022-2025)
+        current_year = datetime.now().year
+        three_years_ago = current_year - 3
+        df['year'] = df['tradingDate'].dt.year
+        df = df[df['year'] >= three_years_ago].copy()
+        df = df.drop('year', axis=1)  # Remove the helper column
+        
         # Create subplots with secondary y-axis for volume
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.05,
-            subplot_titles=(f'{X} Stock Price', 'Volume'),
+            subplot_titles=(f'{X} Stock Price (Last 3 Years)', 'Volume'),
             row_width=[0.2, 0.7]
         )
         
@@ -509,6 +515,7 @@ elif page == "Company Table":
     df_table1, df_table2 = Banking_table(X, Y, Z)
     
     # Format and display first table
+    st.subheader("Earnings metrics")
     formatted1 = conditional_format(df_table1)   # DataFrame with formatted strings
     # Define zebra coloring on DataFrame of strings
     def style_alternate_rows(df):
@@ -522,6 +529,7 @@ elif page == "Company Table":
     st.write(styled_df1)
     
     # Format and display second table
+    st.subheader("Ratios")
     formatted2 = conditional_format(df_table2)
     styled_df2 = formatted2.style.apply(lambda _: style_alternate_rows(formatted2), axis=None)
     st.write(styled_df2)
