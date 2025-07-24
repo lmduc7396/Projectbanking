@@ -601,7 +601,7 @@ def openai_comment(ticker, sector):
 
     Format Guidelines:
     - Use one decimal point for percentages (e.g., 15.7%) when citing specific figures
-    - Weave data points naturally into the narrative rather than listing them
+    - Weave data points naturally into the narrative rather than listing them. Writing style should be punchy
     - Temperature: 0.2, keep it factual
     - Keep the analysis concise: 250-300 words maximum
 
