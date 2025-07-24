@@ -8,6 +8,8 @@ import numpy as np
 import openai
 import os
 from dotenv import load_dotenv
+import requests
+from datetime import datetime
 
 # Load your data
 df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
@@ -131,22 +133,7 @@ def Bankplot():
         fig.update_yaxes(tickformat=tick_format, row=(i-1)//2 + 1, col=(i-1)%2 + 1)    
     st.plotly_chart(fig, use_container_width=True)
 
-def Banking_table():
-    # --- Define User Selection Options ---
-    bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
-    tickers = sorted([x for x in df['TICKER'].unique() if isinstance(x, str) and len(x) == 3])
-    x_options = bank_type + tickers
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        X = st.selectbox("Select Stock Ticker or Bank Type (X):", x_options)
-    with col2:
-        Y = st.number_input("Number of latest periods to plot (Y):", min_value=1, max_value=20, value=6)
-    with col3:
-        if db_option == "Quarterly":
-            Z = st.selectbox("QoQ or YoY growth (Z):", ['QoQ', 'YoY'], index=0)
-        else:
-            Z = st.selectbox("QoQ or YoY growth (Z):", ['YoY'], index=0)
+def Banking_table(X, Y, Z):
 
     # --- Prepare List of Columns to Keep ---
     cols_keep_table1 = pd.DataFrame({
@@ -169,6 +156,7 @@ def Banking_table():
     cols_keep_final_table2 = ['Date_Quarter'] + cols_code_keep_table2['KeyCode'].tolist()
 
     # --- Filter Data for Table ---
+    bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
     if X in bank_type:
         # Filter by Type (e.g. Sector, SOCB, etc.)
         df_temp = df[(df['Type'] == X) & (df['TICKER'].apply(lambda t: len(t) > 3))]
@@ -235,6 +223,113 @@ def Banking_table():
     
     return df_table1, df_table2
 
+def fetch_historical_price(ticker: str) -> pd.DataFrame:
+    """Fetch stock historical price and volume data from TCBS API"""
+    
+    # TCBS API endpoint for historical data
+    url = "https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term"
+    
+    # Parameters for HPG stock - get more data for better visualization
+    params = {
+        "ticker": ticker,
+        "type": "stock",
+        "resolution": "D",  # Daily data
+        "from": "0",
+        "to": str(int(datetime.now().timestamp()))
+    }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "application/json"
+    }
+    
+    try:
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'data' in data:
+            # Convert to DataFrame for easier manipulation
+            df = pd.DataFrame(data['data'])
+            
+            # Convert timestamp to datetime
+            if 'tradingDate' in df.columns:
+                # Check if tradingDate is already in ISO format
+                if df['tradingDate'].dtype == 'object' and df['tradingDate'].str.contains('T').any():
+                    df['tradingDate'] = pd.to_datetime(df['tradingDate'])
+                else:
+                    df['tradingDate'] = pd.to_datetime(df['tradingDate'], unit='ms')
+            
+            # Select relevant columns
+            columns_to_keep = ['tradingDate', 'open', 'high', 'low', 'close', 'volume']
+            df = df[[col for col in columns_to_keep if col in df.columns]]
+            
+            return df
+        else:
+            print("No data found in response")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching data: {e}")
+        return None
+
+def Stock_price_plot(X):
+    # Fetch historical price data
+    df = fetch_historical_price(X)
+    if df is not None:
+        # Create subplots with secondary y-axis for volume
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            subplot_titles=(f'{X} Stock Price', 'Volume'),
+            row_width=[0.2, 0.7]
+        )
+        
+        # Add candlestick chart
+        fig.add_trace(
+            go.Candlestick(
+                x=df['tradingDate'],
+                open=df['open'],
+                high=df['high'],
+                low=df['low'],
+                close=df['close'],
+                name='Price',
+                increasing_line_color='green',
+                decreasing_line_color='red'
+            ),
+            row=1, col=1
+        )
+        
+        # Add volume bars
+        fig.add_trace(
+            go.Bar(
+                x=df['tradingDate'],
+                y=df['volume'],
+                name='Volume',
+                marker_color='lightblue',
+                opacity=0.7
+            ),
+            row=2, col=1
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=f'{X} Stock Analysis',
+            xaxis_rangeslider_visible=False,
+            height=800,
+            showlegend=False
+        )
+        
+        # Update y-axes
+        fig.update_yaxes(title_text="Price (VND)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        fig.update_xaxes(title_text="Date", row=2, col=1)
+        
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("No data available for plotting.")
 
 def quarter_sort_key(q):
     # Example: "5Q21" → (21, 5)
@@ -391,8 +486,27 @@ if page == "Banking plot":
     Bankplot()
 
 elif page == "Company Table":
-    st.subheader("Table")
-    df_table1, df_table2 = Banking_table()
+    st.subheader("Company Table")
+    # --- Define User Selection Options ---
+    bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+    tickers = sorted([x for x in df['TICKER'].unique() if isinstance(x, str) and len(x) == 3])
+    x_options = bank_type + tickers
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        X = st.selectbox("Select Stock Ticker or Bank Type (X):", x_options)
+    with col2:
+        Y = st.number_input("Number of latest periods to plot (Y):", min_value=1, max_value=20, value=6)
+    with col3:
+        if db_option == "Quarterly":
+            Z = st.selectbox("QoQ or YoY growth (Z):", ['QoQ', 'YoY'], index=0)
+        else:
+            Z = st.selectbox("QoQ or YoY growth (Z):", ['YoY'], index=0)
+
+    if len(X) == 3:
+        Stock_price_plot(X)
+
+    df_table1, df_table2 = Banking_table(X, Y, Z)
     
     # Format and display first table
     formatted1 = conditional_format(df_table1)   # DataFrame with formatted strings
