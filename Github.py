@@ -592,7 +592,8 @@ def openai_comment(ticker, sector):
     PRIMARY FOCUS: The bank's own performance evolution and trend changes. Use sector data only for brief context when relevant.
 
     3. Writing Approach:
-    - Create a narrative thread connecting the bank's key performance drivers
+    - Create a narrative thread connecting the bank's key performance drivers. 
+    - The writing style should be punchy.
     - Focus on the 'why' behind the numbers - what business dynamics are driving changes?
     - Identify the most compelling performance themes and investment implications
     - Assess historical trends and projected performance, then evaluate whether the latest figures represent a positive or negative surprise versus expectations.
@@ -603,7 +604,6 @@ def openai_comment(ticker, sector):
     - Weave data points naturally into the narrative rather than listing them
     - Temperature: 0.2, keep it factual
     - Keep the analysis concise: 250-300 words maximum
-    - Write in flowing, engaging paragraphs that tell a coherent story
 
     Start with 2-3 key takeaway points, then provide brief supporting analysis.
 
