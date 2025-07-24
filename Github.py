@@ -288,7 +288,7 @@ def Stock_price_plot(X):
             rows=2, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.05,
-            subplot_titles=(f'{X} Stock Price (Last 3 Years)', 'Volume'),
+            subplot_titles=(f'{X} Stock Price', 'Volume'),
             row_width=[0.2, 0.7]
         )
         
@@ -541,13 +541,15 @@ elif page == "OpenAI Comment":
     bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
     tickers = sorted([x for x in df_quarter['TICKER'].unique() if isinstance(x, str) and len(x) == 3])
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         ticker = st.selectbox("Select Bank Ticker:", tickers, index=tickers.index('ACB') if 'ACB' in tickers else 0)
     with col2:
         sector = st.selectbox("Select Sector for Comparison:", bank_type, index=0)
+    with col3:
+        generate_button = st.button("Generate", type="primary")
     
-    if ticker and sector:
+    if ticker and sector and generate_button:
         openai_comment(ticker, sector)
 
    
