@@ -173,7 +173,42 @@ def Banking_table(X, Y, Z):
         growth = df_filtered.iloc[:, 1:].pct_change(periods=period)
         growth.columns = growth.columns.map(dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name'])))
         growth = growth.add_suffix(f' {suffix} (%)')
-        return pd.concat([df_filtered['Date_Quarter'], growth.iloc[:, :4]], axis=1)
+        return pd.concat([df_filtered['Date_Quarter'], growth], axis=1)
+
+    def get_ytd_growth_table(df_, cols_code_keep):
+        """Calculate YTD growth (%) from current quarter to Q4 of previous year."""
+        cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
+        df_filtered = df_[cols_keep_final].copy()
+        
+        # Extract year and quarter from Date_Quarter (format: XQ##)
+        df_filtered['Quarter'] = df_filtered['Date_Quarter'].str.extract(r'(\d+)Q').astype(int)
+        df_filtered['Year'] = df_filtered['Date_Quarter'].str.extract(r'Q(\d+)').astype(int)
+        
+        # Calculate YTD growth
+        ytd_growth = pd.DataFrame(index=df_filtered.index)
+        ytd_growth['Date_Quarter'] = df_filtered['Date_Quarter']
+        
+        for col in cols_code_keep['KeyCode']:
+            friendly_name = dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name']))[col]
+            ytd_growth[f'{friendly_name} YTD (%)'] = np.nan
+            
+            for i in range(len(df_filtered)):
+                current_year = df_filtered.iloc[i]['Year']
+                current_value = df_filtered.iloc[i][col]
+                
+                # Find Q4 of previous year
+                prev_year_q4 = df_filtered[
+                    (df_filtered['Year'] == current_year - 1) & 
+                    (df_filtered['Quarter'] == 4)
+                ]
+                
+                if not prev_year_q4.empty and pd.notnull(current_value):
+                    prev_q4_value = prev_year_q4.iloc[0][col]
+                    if pd.notnull(prev_q4_value) and prev_q4_value != 0:
+                        ytd_growth.iloc[i, ytd_growth.columns.get_loc(f'{friendly_name} YTD (%)')] = \
+                            (current_value - prev_q4_value) / prev_q4_value
+        
+        return ytd_growth[['Date_Quarter'] + [col for col in ytd_growth.columns if 'YTD (%)' in col]]
 
     def create_table(cols_code_keep, table_name):
         cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
@@ -391,10 +426,89 @@ def openai_comment(ticker, sector):
         cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
         rename_dict = dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name']))
 
+        # Helper functions for growth calculations
+        def calculate_growth(df_data, period, suffix):
+            """Calculate growth (%) and return formatted DataFrame."""
+            growth = df_data.iloc[:, 1:].pct_change(periods=period)
+            growth.columns = growth.columns.map(rename_dict)
+            growth = growth.add_suffix(f' {suffix} (%)')
+            return pd.concat([df_data['Date_Quarter'], growth], axis=1)
+
+        def calculate_ytd_growth(df_data):
+            """Calculate YTD growth (%) from current quarter to Q4 of previous year."""
+            df_filtered = df_data.copy()
+            
+            # Extract year and quarter from Date_Quarter (format: XQ##)
+            df_filtered['Quarter'] = df_filtered['Date_Quarter'].str.extract(r'(\d+)Q').astype(int)
+            df_filtered['Year'] = df_filtered['Date_Quarter'].str.extract(r'Q(\d+)').astype(int)
+            
+            # Calculate YTD growth for Loan only
+            ytd_growth = pd.DataFrame(index=df_filtered.index)
+            ytd_growth['Date_Quarter'] = df_filtered['Date_Quarter']
+            
+            # Find Loan column
+            loan_col = None
+            for col in df_filtered.columns:
+                if col in rename_dict and rename_dict[col] == 'Loan':
+                    loan_col = col
+                    break
+            
+            if loan_col:
+                ytd_growth['Loan YTD (%)'] = np.nan
+                
+                for i in range(len(df_filtered)):
+                    current_year = df_filtered.iloc[i]['Year']
+                    current_value = df_filtered.iloc[i][loan_col]
+                    
+                    # Find Q4 of previous year
+                    prev_year_q4 = df_filtered[
+                        (df_filtered['Year'] == current_year - 1) & 
+                        (df_filtered['Quarter'] == 4)
+                    ]
+                    
+                    if not prev_year_q4.empty and pd.notnull(current_value):
+                        prev_q4_value = prev_year_q4.iloc[0][loan_col]
+                        if pd.notnull(prev_q4_value) and prev_q4_value != 0:
+                            ytd_growth.iloc[i, ytd_growth.columns.get_loc('Loan YTD (%)')] = \
+                                (current_value - prev_q4_value) / prev_q4_value
+            
+            return ytd_growth[['Date_Quarter'] + [col for col in ytd_growth.columns if 'YTD (%)' in col]]
+
         # Get ticker data
         df_ticker = df_quarter[df_quarter['TICKER'] == ticker]
         df_ticker = df_ticker[cols_keep_final]
-        df_ticker_out = df_ticker.rename(columns=rename_dict).tail(6).T
+        df_ticker_base = df_ticker.rename(columns=rename_dict).tail(6)
+        
+        # Calculate growth metrics for ticker
+        df_ticker_qoq = calculate_growth(df_ticker.tail(6), 1, 'QoQ')
+        df_ticker_yoy = calculate_growth(df_ticker.tail(6), 4, 'YoY')
+        df_ticker_ytd = calculate_ytd_growth(df_ticker.tail(6))
+        
+        # Combine ticker data with growth metrics
+        ticker_combined = df_ticker_base.copy()
+        
+        # Add specific growth columns
+        if not df_ticker_qoq.empty:
+            # Add QoQ for Loan, TOI, Provision expense, PBT
+            for metric in ['Loan', 'TOI', 'Provision expense', 'PBT']:
+                qoq_col = f'{metric} QoQ (%)'
+                if qoq_col in df_ticker_qoq.columns:
+                    ticker_combined[qoq_col] = df_ticker_qoq[qoq_col]
+        
+        if not df_ticker_yoy.empty:
+            # Add YoY for TOI, Provision expense, PBT
+            for metric in ['TOI', 'Provision expense', 'PBT']:
+                yoy_col = f'{metric} YoY (%)'
+                if yoy_col in df_ticker_yoy.columns:
+                    ticker_combined[yoy_col] = df_ticker_yoy[yoy_col]
+        
+        if not df_ticker_ytd.empty:
+            # Add YTD for Loan
+            if 'Loan YTD (%)' in df_ticker_ytd.columns:
+                ticker_combined['Loan YTD (%)'] = df_ticker_ytd['Loan YTD (%)']
+        
+        # Transpose ticker data
+        df_ticker_out = ticker_combined.T
         df_ticker_out.columns = df_ticker_out.iloc[0]
         df_ticker_out = df_ticker_out[1:]
         
@@ -405,7 +519,35 @@ def openai_comment(ticker, sector):
             sector_ticker = df_sector['TICKER'].iloc[0]
             df_sector = df_sector[df_sector['TICKER'] == sector_ticker]
             df_sector = df_sector[cols_keep_final]
-            df_sector_out = df_sector.rename(columns=rename_dict).tail(6).T
+            df_sector_base = df_sector.rename(columns=rename_dict).tail(6)
+            
+            # Calculate growth metrics for sector
+            df_sector_qoq = calculate_growth(df_sector.tail(6), 1, 'QoQ')
+            df_sector_yoy = calculate_growth(df_sector.tail(6), 4, 'YoY')
+            df_sector_ytd = calculate_ytd_growth(df_sector.tail(6))
+            
+            # Combine sector data with growth metrics
+            sector_combined = df_sector_base.copy()
+            
+            # Add specific growth columns
+            if not df_sector_qoq.empty:
+                for metric in ['Loan', 'TOI', 'Provision expense', 'PBT']:
+                    qoq_col = f'{metric} QoQ (%)'
+                    if qoq_col in df_sector_qoq.columns:
+                        sector_combined[qoq_col] = df_sector_qoq[qoq_col]
+            
+            if not df_sector_yoy.empty:
+                for metric in ['TOI', 'Provision expense', 'PBT']:
+                    yoy_col = f'{metric} YoY (%)'
+                    if yoy_col in df_sector_yoy.columns:
+                        sector_combined[yoy_col] = df_sector_yoy[yoy_col]
+            
+            if not df_sector_ytd.empty:
+                if 'Loan YTD (%)' in df_sector_ytd.columns:
+                    sector_combined['Loan YTD (%)'] = df_sector_ytd['Loan YTD (%)']
+            
+            # Transpose sector data
+            df_sector_out = sector_combined.T
             df_sector_out.columns = df_sector_out.iloc[0]
             df_sector_out = df_sector_out[1:]
         else:
