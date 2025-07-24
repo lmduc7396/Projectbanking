@@ -575,7 +575,7 @@ def openai_comment(ticker, sector):
     prompt = f"""
     You are a banking analyst assistant. Analyze the provided banking data with the following guidelines:
 
-    1. Growth Calculations Rules:
+    1. Growth Context Rules:
     - The time code is written as 'XQYY' where X is the quarter number (1-4) and YY is the last two digits of the year.
     - Quarter-on-Quarter (QoQ): Always compare with the immediate previous quarter (e.g., 1Q25 vs 4Q24)
     - Year-on-Year (YoY): Always compare with the exact same quarter from the previous year (e.g., 1Q25 vs 1Q24)
@@ -591,18 +591,19 @@ def openai_comment(ticker, sector):
     
     PRIMARY FOCUS: The bank's own performance evolution and trend changes. Use sector data only for brief context when relevant.
 
-    3. Analysis Approach:
-    - Think about what are the upside/downside to each of the metrics. what should the investors watch for, how would these factors impact the financial performance? What are your expectations on the previous metrics?
-    - Focus primarily on the bank's own performance trajectory and improvements/deteriorations
-    - Identify the most significant trend changes and inflection points in the bank's metrics
-    - Use sector comparison sparingly - only when it adds meaningful context
-    - Stay strictly factual and data-driven
+    3. Writing Approach:
+    - Create a narrative thread connecting the bank's key performance drivers
+    - Focus on the 'why' behind the numbers - what business dynamics are driving changes?
+    - Identify the most compelling performance themes and investment implications
+    - Assess historical trends and projected performance, then evaluate whether the latest figures represent a positive or negative surprise versus expectations.
+    - Think like an equity analyst telling investors what matters most
 
     Format Guidelines:
-    - Use one decimal point for percentages (e.g., 15.7%)
-    - Always specify the time period for comparisons
-    - Keep the analysis very concise: 250-300 words maximum
-    - Write in flowing paragraphs, focus on the most important trends only
+    - Use one decimal point for percentages (e.g., 15.7%) when citing specific figures
+    - Weave data points naturally into the narrative rather than listing them
+    - Temperature: 0.2, keep it factual
+    - Keep the analysis concise: 250-300 words maximum
+    - Write in flowing, engaging paragraphs that tell a coherent story
 
     Start with 2-3 key takeaway points, then provide brief supporting analysis.
 
