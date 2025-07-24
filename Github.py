@@ -190,30 +190,28 @@ def Banking_table(X, Y, Z):
             
             # --- Combine Data Based on User Choice (QoQ or YoY) ---
             if Z == 'QoQ':
-                df_out = pd.concat([df_temp_table, QoQ_change], axis=1)
+                df_out = pd.concat([df_temp[['Date_Quarter']], df_temp_table, QoQ_change.iloc[:, 1:]], axis=1)
                 # Create column order dynamically
-                col_order = []
+                col_order = ['Date_Quarter']
                 for i, name in enumerate(cols_code_keep['Name'].tolist()):
                     col_order.append(name)
                     if i < 4:  # Only first 4 get growth columns
                         col_order.append(f"{name} QoQ (%)")
-                col_order = ['Date_Quarter'] + col_order
             else:
-                df_out = pd.concat([df_temp_table, YoY_change], axis=1)
+                df_out = pd.concat([df_temp[['Date_Quarter']], df_temp_table, YoY_change.iloc[:, 1:]], axis=1)
                 # Create column order dynamically
-                col_order = []
+                col_order = ['Date_Quarter']
                 for i, name in enumerate(cols_code_keep['Name'].tolist()):
                     col_order.append(name)
                     if i < 4:  # Only first 4 get growth columns
                         col_order.append(f"{name} YoY (%)")
-                col_order = ['Date_Quarter'] + col_order
         else:
             # For table 2 (Ratios), don't add growth columns
-            df_out = df_temp_table.copy()
+            df_out = pd.concat([df_temp[['Date_Quarter']], df_temp_table], axis=1)
             col_order = ['Date_Quarter'] + cols_code_keep['Name'].tolist()
 
         # --- Reindex, Select Last Y Periods, Transpose for Display ---
-        df_out = df_out.reindex(columns=col_order).tail(Y).T
+        df_out = df_out[col_order].tail(Y).T
         df_out.columns = df_out.iloc[0]
         df_out = df_out[1:]
         
