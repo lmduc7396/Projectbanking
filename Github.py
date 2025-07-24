@@ -276,11 +276,11 @@ def Stock_price_plot(X):
     # Fetch historical price data
     df = fetch_historical_price(X)
     if df is not None:
-        # Filter data to show only last 3 years (2022-2025)
+        # Filter data to show only last 2 years
         current_year = datetime.now().year
-        three_years_ago = current_year - 3
+        two_years_ago = current_year - 2
         df['year'] = df['tradingDate'].dt.year
-        df = df[df['year'] >= three_years_ago].copy()
+        df = df[df['year'] >= two_years_ago].copy()
         df = df.drop('year', axis=1)  # Remove the helper column
         
         # Create subplots with secondary y-axis for volume
