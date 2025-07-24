@@ -598,6 +598,7 @@ def openai_comment(ticker, sector):
     - Identify the most compelling performance themes and investment implications
     - Assess historical trends and projected performance, then evaluate whether the latest figures represent a positive or negative surprise versus expectations.
     - Think like an equity analyst telling investors what matters most
+    - Use simle and neutral words and  tone. Avoid all words like "roaring, resurgence, ..."
 
     Format Guidelines:
     - Use one decimal point for percentages (e.g., 15.7%) when citing specific figures
