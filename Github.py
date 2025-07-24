@@ -327,7 +327,7 @@ def Stock_price_plot(X):
         fig.update_layout(
             title=f'{X} Stock Analysis',
             xaxis_rangeslider_visible=False,
-            height=400,
+            height=600,
             showlegend=False
         )
         
@@ -363,22 +363,20 @@ def conditional_format(df):
             return f"{num/1_000_000_000:,.0f}"
         else:
             return f"{num:.1f}"
+    
     def format_row(row):
         vals = pd.to_numeric(row, errors='coerce').values  # Ensures a NumPy array
         numeric_vals = vals[~np.isnan(vals)]
         if len(numeric_vals) == 0:
-            return [str(v) if v is not None else "" for v in row]
+            return pd.Series([str(v) if v is not None else "" for v in row], index=row.index)
         median_val = np.median(np.abs(numeric_vals))
         if median_val > 100:
-            return [human_format(v) if pd.notnull(v) and v != '' else "" for v in row]
+            return pd.Series([human_format(v) if pd.notnull(v) and v != '' else "" for v in row], index=row.index)
         else:
-            return ["{:.2f}%".format(float(v)*100) if pd.notnull(v) and v != '' else "" for v in row]
-    formatted = df.apply(format_row, axis=1, result_type='broadcast')
-    return formatted
-        
+            return pd.Series(["{:.2f}%".format(float(v)*100) if pd.notnull(v) and v != '' else "" for v in row], index=row.index)
     
     # Apply formatting row-wise, axis=1
-    formatted = df.apply(format_row, axis=1, result_type='broadcast')
+    formatted = df.apply(format_row, axis=1)
     return formatted
 
 
