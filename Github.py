@@ -583,11 +583,11 @@ def openai_comment(ticker, sector):
     - Maintain this consistency throughout the analysis
 
     2. Key Analysis Areas to Cover:
-    Focus on these important banking performance areas, prioritizing the bank's own trends:
+    Focus on these important banking performance areas, prioritizing the bank's own trends. Divide the analysis into 3 segments in this exact order and title:
     
-    - Profitability & Returns: Net profit trends, ROA and ROE performance trajectory
+    - Profitability: TOI and Net profit trends, ROA and ROE performance trajectory
     - Loan Growth & NIM: Loan growth momentum (QoQ and YoY), NIM direction and drivers
-    - Asset Quality: NPL & G2 ratio evolution, formation trends, coverage ratios
+    - Asset Quality: NPL & G2 ratio evolution, formation trends, coverage ratios. 
     
     PRIMARY FOCUS: The bank's own performance evolution and trend changes. Use sector data only for brief context when relevant.
 
