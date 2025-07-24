@@ -179,34 +179,38 @@ def Banking_table(X, Y, Z):
         cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
         df_temp_table = df_temp[cols_keep_final]
         
-        QoQ_change = get_growth_table(df_temp, 1, 'QoQ', cols_code_keep)
-        YoY_change = get_growth_table(df_temp, 4, 'YoY', cols_code_keep)
-
         # --- Rename Columns to Friendly Names, Remove Date_Quarter ---
         df_temp_table.columns = df_temp_table.columns.map(dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name'])))
         df_temp_table = df_temp_table.iloc[:, 1:]
 
-        # --- Combine Data Based on User Choice (QoQ or YoY) ---
-        if Z == 'QoQ':
-            df_out = pd.concat([df_temp_table, QoQ_change], axis=1)
-            # Create column order dynamically
-            base_cols = ['Date_Quarter'] + cols_code_keep['Name'].tolist()
-            growth_cols = [f"{name} QoQ (%)" for name in cols_code_keep['Name'].tolist()[:4]]
-            col_order = []
-            for i, name in enumerate(cols_code_keep['Name'].tolist()):
-                col_order.append(name)
-                if i < 4:  # Only first 4 get growth columns
-                    col_order.append(f"{name} QoQ (%)")
-            col_order = ['Date_Quarter'] + col_order
+        # --- Only add growth columns for table 1 (Earnings metrics) ---
+        if table_name == "Earnings metrics":
+            QoQ_change = get_growth_table(df_temp, 1, 'QoQ', cols_code_keep)
+            YoY_change = get_growth_table(df_temp, 4, 'YoY', cols_code_keep)
+            
+            # --- Combine Data Based on User Choice (QoQ or YoY) ---
+            if Z == 'QoQ':
+                df_out = pd.concat([df_temp_table, QoQ_change], axis=1)
+                # Create column order dynamically
+                col_order = []
+                for i, name in enumerate(cols_code_keep['Name'].tolist()):
+                    col_order.append(name)
+                    if i < 4:  # Only first 4 get growth columns
+                        col_order.append(f"{name} QoQ (%)")
+                col_order = ['Date_Quarter'] + col_order
+            else:
+                df_out = pd.concat([df_temp_table, YoY_change], axis=1)
+                # Create column order dynamically
+                col_order = []
+                for i, name in enumerate(cols_code_keep['Name'].tolist()):
+                    col_order.append(name)
+                    if i < 4:  # Only first 4 get growth columns
+                        col_order.append(f"{name} YoY (%)")
+                col_order = ['Date_Quarter'] + col_order
         else:
-            df_out = pd.concat([df_temp_table, YoY_change], axis=1)
-            # Create column order dynamically
-            col_order = []
-            for i, name in enumerate(cols_code_keep['Name'].tolist()):
-                col_order.append(name)
-                if i < 4:  # Only first 4 get growth columns
-                    col_order.append(f"{name} YoY (%)")
-            col_order = ['Date_Quarter'] + col_order
+            # For table 2 (Ratios), don't add growth columns
+            df_out = df_temp_table.copy()
+            col_order = ['Date_Quarter'] + cols_code_keep['Name'].tolist()
 
         # --- Reindex, Select Last Y Periods, Transpose for Display ---
         df_out = df_out.reindex(columns=col_order).tail(Y).T
@@ -323,7 +327,7 @@ def Stock_price_plot(X):
         fig.update_layout(
             title=f'{X} Stock Analysis',
             xaxis_rangeslider_visible=False,
-            height=800,
+            height=400,
             showlegend=False
         )
         
