@@ -498,19 +498,20 @@ elif page == "Company Table":
     tickers = sorted([x for x in df['TICKER'].unique() if isinstance(x, str) and len(x) == 3])
     x_options = bank_type + tickers
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         X = st.selectbox("Select Stock Ticker or Bank Type (X):", x_options)
     with col2:
         Y = st.number_input("Number of latest periods to plot (Y):", min_value=1, max_value=20, value=6)
-    with col3:
-        if db_option == "Quarterly":
-            Z = st.selectbox("QoQ or YoY growth (Z):", ['QoQ', 'YoY'], index=0)
-        else:
-            Z = st.selectbox("QoQ or YoY growth (Z):", ['YoY'], index=0)
 
     if len(X) == 3:
         Stock_price_plot(X)
+
+    # QoQ/YoY selection underneath the stock price plot
+    if db_option == "Quarterly":
+        Z = st.selectbox("QoQ or YoY growth (Z):", ['QoQ', 'YoY'], index=0)
+    else:
+        Z = st.selectbox("QoQ or YoY growth (Z):", ['YoY'], index=0)
 
     df_table1, df_table2 = Banking_table(X, Y, Z)
     
