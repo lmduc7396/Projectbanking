@@ -149,15 +149,24 @@ def Banking_table():
             Z = st.selectbox("QoQ or YoY growth (Z):", ['YoY'], index=0)
 
     # --- Prepare List of Columns to Keep ---
-    cols_keep = pd.DataFrame({
+    cols_keep_table1 = pd.DataFrame({
         'Name': [
-            'Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE', 'NIM', 'Loan yield',
-            'NPL', 'NPL Formation (%)', 'GROUP 2', 'G2 Formation (%)',
+            'Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE'
+        ]
+    })
+    
+    cols_keep_table2 = pd.DataFrame({
+        'Name': [
+            'NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 'GROUP 2', 'G2 Formation (%)',
             'NPL Coverage ratio', 'Provision/ Total Loan'
         ]
     })
-    cols_code_keep = cols_keep.merge(keyitem, on='Name', how='left')
-    cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
+    
+    cols_code_keep_table1 = cols_keep_table1.merge(keyitem, on='Name', how='left')
+    cols_code_keep_table2 = cols_keep_table2.merge(keyitem, on='Name', how='left')
+    
+    cols_keep_final_table1 = ['Date_Quarter'] + cols_code_keep_table1['KeyCode'].tolist()
+    cols_keep_final_table2 = ['Date_Quarter'] + cols_code_keep_table2['KeyCode'].tolist()
 
     # --- Filter Data for Table ---
     if X in bank_type:
@@ -167,44 +176,64 @@ def Banking_table():
     else:
         # Filter by specific ticker
         df_temp = df[df['TICKER'] == X]
-    df_temp = df_temp[cols_keep_final]
 
     # --- Calculate Growth Tables ---
-    def get_growth_table(df_, period, suffix):
+    def get_growth_table(df_, period, suffix, cols_code_keep):
         """Calculate growth (%) and return formatted DataFrame."""
-        growth = df_.iloc[:, 1:].pct_change(periods=period)
+        cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
+        df_filtered = df_[cols_keep_final]
+        growth = df_filtered.iloc[:, 1:].pct_change(periods=period)
         growth.columns = growth.columns.map(dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name'])))
         growth = growth.add_suffix(f' {suffix} (%)')
-        return pd.concat([df_['Date_Quarter'], growth.iloc[:, :4]], axis=1)
+        return pd.concat([df_filtered['Date_Quarter'], growth.iloc[:, :4]], axis=1)
 
-    QoQ_change = get_growth_table(df_temp, 1, 'QoQ')
-    YoY_change = get_growth_table(df_temp, 4, 'YoY')
+    def create_table(cols_code_keep, table_name):
+        cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
+        df_temp_table = df_temp[cols_keep_final]
+        
+        QoQ_change = get_growth_table(df_temp, 1, 'QoQ', cols_code_keep)
+        YoY_change = get_growth_table(df_temp, 4, 'YoY', cols_code_keep)
 
-    # --- Rename Columns to Friendly Names, Remove Date_Quarter ---
-    df_temp.columns = df_temp.columns.map(dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name'])))
-    df_temp = df_temp.iloc[:, 1:]
+        # --- Rename Columns to Friendly Names, Remove Date_Quarter ---
+        df_temp_table.columns = df_temp_table.columns.map(dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name'])))
+        df_temp_table = df_temp_table.iloc[:, 1:]
 
-    # --- Combine Data Based on User Choice (QoQ or YoY) ---
-    if Z == 'QoQ':
-        df_out = pd.concat([df_temp, QoQ_change], axis=1)
-        col_order = [
-            'Date_Quarter', 'Loan', 'Loan QoQ (%)', 'TOI', 'TOI QoQ (%)', 'Provision expense', 'Provision expense QoQ (%)',
-            'PBT', 'PBT QoQ (%)', 'ROA', 'ROE', 'NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 'GROUP 2',
-            'G2 Formation (%)', 'NPL Coverage ratio', 'Provision/ Total Loan'
-        ]
-    else:
-        df_out = pd.concat([df_temp, YoY_change], axis=1)
-        col_order = [
-            'Date_Quarter', 'Loan', 'Loan YoY (%)', 'TOI', 'TOI YoY (%)', 'Provision expense', 'Provision expense YoY (%)',
-            'PBT', 'PBT YoY (%)', 'ROA', 'ROE', 'NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 'GROUP 2',
-            'G2 Formation (%)', 'NPL Coverage ratio', 'Provision/ Total Loan'
-        ]
+        # --- Combine Data Based on User Choice (QoQ or YoY) ---
+        if Z == 'QoQ':
+            df_out = pd.concat([df_temp_table, QoQ_change], axis=1)
+            # Create column order dynamically
+            base_cols = ['Date_Quarter'] + cols_code_keep['Name'].tolist()
+            growth_cols = [f"{name} QoQ (%)" for name in cols_code_keep['Name'].tolist()[:4]]
+            col_order = []
+            for i, name in enumerate(cols_code_keep['Name'].tolist()):
+                col_order.append(name)
+                if i < 4:  # Only first 4 get growth columns
+                    col_order.append(f"{name} QoQ (%)")
+            col_order = ['Date_Quarter'] + col_order
+        else:
+            df_out = pd.concat([df_temp_table, YoY_change], axis=1)
+            # Create column order dynamically
+            col_order = []
+            for i, name in enumerate(cols_code_keep['Name'].tolist()):
+                col_order.append(name)
+                if i < 4:  # Only first 4 get growth columns
+                    col_order.append(f"{name} YoY (%)")
+            col_order = ['Date_Quarter'] + col_order
 
-    # --- Reindex, Select Last Y Periods, Transpose for Display ---
-    df_out = df_out.reindex(columns=col_order).tail(Y).T
-    df_out.columns = df_out.iloc[0]
-    df_out = df_out[1:]
-    return df_out
+        # --- Reindex, Select Last Y Periods, Transpose for Display ---
+        df_out = df_out.reindex(columns=col_order).tail(Y).T
+        df_out.columns = df_out.iloc[0]
+        df_out = df_out[1:]
+        
+        # Display the table
+        st.subheader(table_name)
+        return df_out
+
+    # Create and display both tables
+    df_table1 = create_table(cols_code_keep_table1, "Earnings metrics")
+    df_table2 = create_table(cols_code_keep_table2, "Ratios")
+    
+    return df_table1, df_table2
 
 
 def quarter_sort_key(q):
@@ -360,10 +389,13 @@ if page == "Banking plot":
         layout="wide")
     st.subheader("Project Banking Online")
     Bankplot()
+
 elif page == "Company Table":
     st.subheader("Table")
-    df_out = Banking_table()
-    formatted = conditional_format(df_out)   # DataFrame with formatted strings
+    df_table1, df_table2 = Banking_table()
+    
+    # Format and display first table
+    formatted1 = conditional_format(df_table1)   # DataFrame with formatted strings
     # Define zebra coloring on DataFrame of strings
     def style_alternate_rows(df):
         colors = ["#f2f2f2", "#ffffff"]
@@ -372,8 +404,14 @@ elif page == "Company Table":
             styled.append([f"background-color: {colors[i % 2]}"] * df.shape[1])
         return pd.DataFrame(styled, index=df.index, columns=df.columns)
 
-    styled_df = formatted.style.apply(lambda _: style_alternate_rows(formatted), axis=None)
-    st.write(styled_df)
+    styled_df1 = formatted1.style.apply(lambda _: style_alternate_rows(formatted1), axis=None)
+    st.write(styled_df1)
+    
+    # Format and display second table
+    formatted2 = conditional_format(df_table2)
+    styled_df2 = formatted2.style.apply(lambda _: style_alternate_rows(formatted2), axis=None)
+    st.write(styled_df2)
+
 elif page == "OpenAI Comment":
     st.subheader("OpenAI Comment")
     
