@@ -518,23 +518,13 @@ elif page == "Company Table":
     
     # Format and display first table
     st.subheader("Earnings metrics")
-    formatted1 = conditional_format(df_table1)   # DataFrame with formatted strings
-    # Define zebra coloring on DataFrame of strings
-    def style_alternate_rows(df):
-        colors = ["#f2f2f2", "#ffffff"]
-        styled = []
-        for i in range(df.shape[0]):
-            styled.append([f"background-color: {colors[i % 2]}"] * df.shape[1])
-        return pd.DataFrame(styled, index=df.index, columns=df.columns)
-
-    styled_df1 = formatted1.style.apply(lambda _: style_alternate_rows(formatted1), axis=None)
-    st.write(styled_df1)
+    formatted1 = conditional_format(df_table1)
+    st.dataframe(formatted1, use_container_width=True)
     
     # Format and display second table
     st.subheader("Ratios")
     formatted2 = conditional_format(df_table2)
-    styled_df2 = formatted2.style.apply(lambda _: style_alternate_rows(formatted2), axis=None)
-    st.write(styled_df2)
+    st.dataframe(formatted2, use_container_width=True)
 
 elif page == "OpenAI Comment":
     st.subheader("OpenAI Comment")
