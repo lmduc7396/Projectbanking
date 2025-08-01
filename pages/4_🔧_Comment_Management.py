@@ -5,6 +5,7 @@ import subprocess
 import time
 from datetime import datetime
 import sys
+import platform
 
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -12,13 +13,28 @@ sys.path.append(project_root)
 
 # Import utilities
 from utilities import quarter_to_numeric
+from Check_laptopOS import get_data_path, get_comments_file_path
+
+def get_data_path():
+    """Get the appropriate data path based on operating system"""
+    if platform.system() == "Windows":
+        # Windows path (your work laptop)
+        return r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data"
+    else:
+        # Mac/Linux path (current directory)
+        return os.path.join(project_root, "Data")
+
+def get_comments_file_path():
+    """Get the full path to the banking comments file"""
+    data_path = get_data_path()
+    return os.path.join(data_path, "banking_comments.xlsx")
 
 def show_comment_management():
     st.title("🤖 Banking Comment Management")
     st.markdown("Manage bulk generation and cached comments for banking analysis")
     
-    # Check if comments file exists
-    comments_file = r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\banking_comments.xlsx"
+    # Check if comments file exists using dynamic path
+    comments_file = get_comments_file_path()
     comments_exist = os.path.exists(comments_file)
     
     # Sidebar for navigation
@@ -136,8 +152,9 @@ def show_comment_management():
         
         # Load data to show statistics
         try:
-            df_quarter = pd.read_csv(r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\dfsectorquarter.csv")
-            bank_type = pd.read_excel(r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\Bank_Type.xlsx")
+            data_path = get_data_path()
+            df_quarter = pd.read_csv(os.path.join(data_path, "dfsectorquarter.csv"))
+            bank_type = pd.read_excel(os.path.join(data_path, "Bank_Type.xlsx"))
             
             # Get statistics
             all_banks = df_quarter[df_quarter['TICKER'].str.len() == 3]['TICKER'].nunique()
@@ -268,7 +285,8 @@ def show_comment_management():
                 st.subheader("Coverage Analysis")
                 
                 # Load original data to check coverage
-                df_quarter = pd.read_csv(r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\dfsectorquarter.csv")
+                data_path = get_data_path()
+                df_quarter = pd.read_csv(os.path.join(data_path, "dfsectorquarter.csv"))
                 all_banks = df_quarter[df_quarter['TICKER'].str.len() == 3]['TICKER'].unique()
                 all_quarters = df_quarter['Date_Quarter'].unique()
                 
@@ -346,7 +364,7 @@ def show_comment_management():
 def delete_comment(ticker, quarter):
     """Delete a specific comment from the cache"""
     try:
-        comments_file = r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\banking_comments.xlsx"
+        comments_file = get_comments_file_path()
         comments_df = pd.read_excel(comments_file)
         
         # Remove the specific comment
@@ -360,10 +378,44 @@ def delete_comment(ticker, quarter):
         st.error(f"Error deleting comment: {e}")
         return False
 
+def run_bulk_generation(generation_mode):
+    """Run bulk generation using the Bulk_Comment_Generator script"""
+    try:
+        st.info("Starting bulk generation process...")
+        st.warning("⚠️ This process will run in the background. Check the terminal/console for progress updates.")
+        
+        # Import and run the bulk generator
+        try:
+            # Add project root to path if not already there
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.append(project_root)
+            
+            # Import the generator functions
+            from Bulk_Comment_Generator import generate_all_comments
+            
+            if generation_mode == "Regenerate All":
+                st.warning("Regenerate All mode is not implemented in this interface. Please use the command line script directly.")
+                return
+            else:  # Both "Missing Only" and "Skip Existing" use the same function
+                result = generate_all_comments()
+            
+            if result is not None:
+                st.success(f"✅ Bulk generation completed! Generated {len(result)} comments.")
+            else:
+                st.error("❌ Bulk generation failed or was cancelled.")
+                
+        except ImportError as e:
+            st.error(f"❌ Could not import bulk generator: {e}")
+            st.info("💡 Alternative: Run the bulk generator directly from the command line using `python Bulk_Comment_Generator.py`")
+        
+    except Exception as e:
+        st.error(f"❌ Error running bulk generation: {e}")
+
 def delete_all_comments():
     """Delete all cached comments"""
     try:
-        comments_file = r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\banking_comments.xlsx"
+        comments_file = get_comments_file_path()
         
         # Create empty DataFrame with same structure
         empty_df = pd.DataFrame(columns=['TICKER', 'SECTOR', 'QUARTER', 'COMMENT', 'GENERATED_DATE'])
