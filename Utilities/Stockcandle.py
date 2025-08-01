@@ -80,7 +80,7 @@ def Stock_price_plot(X):
         fig.update_yaxes(title_text="Volume", row=2, col=1)
         fig.update_xaxes(title_text="Date", row=2, col=1)
         
-        # Display in Streamlit
+        # Display in Streamlitp
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("No data available for plotting.")

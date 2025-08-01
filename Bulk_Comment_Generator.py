@@ -1,3 +1,4 @@
+#%%
 import pandas as pd
 import numpy as np
 import openai
@@ -420,6 +421,145 @@ def generate_all_comments():
         print("\n✗ No comments were generated")
         return None
 
+def force_generate_quarter_comments(target_quarter, force_regenerate=True):
+    """Force generate comments for a specific quarter, replacing existing ones"""
+    
+    print(f"Force generating comments for quarter: {target_quarter}")
+    print(f"Force regenerate existing comments: {force_regenerate}")
+    
+    # Get bank-sector mapping
+    bank_sector_mapping = get_bank_sector_mapping()
+    print(f"Found {len(bank_sector_mapping)} banks")
+    
+    # Validate quarter exists in data
+    all_quarters = df_quarter['Date_Quarter'].unique()
+    if target_quarter not in all_quarters:
+        print(f"Error: Quarter {target_quarter} not found in data")
+        print(f"Available quarters: {sorted(all_quarters)}")
+        return None
+    
+    # Get all individual bank tickers (length = 3)
+    all_banks = [ticker for ticker in bank_sector_mapping.keys() if len(str(ticker)) == 3]
+    print(f"Processing {len(all_banks)} individual banks for {target_quarter}")
+    
+    # Load existing comments
+    comments_file = 'Data/banking_comments.xlsx'
+    if os.path.exists(comments_file):
+        existing_comments = pd.read_excel(comments_file)
+        print(f"Found existing comments file with {len(existing_comments)} entries")
+        
+        # Remove existing comments for this quarter if force_regenerate is True
+        if force_regenerate:
+            before_count = len(existing_comments)
+            existing_comments = existing_comments[existing_comments['QUARTER'] != target_quarter]
+            removed_count = before_count - len(existing_comments)
+            print(f"Removed {removed_count} existing comments for {target_quarter}")
+    else:
+        existing_comments = pd.DataFrame(columns=['TICKER', 'SECTOR', 'QUARTER', 'COMMENT', 'GENERATED_DATE'])
+        print("Creating new comments file")
+    
+    # Generate comments for the specific quarter
+    new_comments = []
+    processed = 0
+    errors = 0
+    
+    for ticker in all_banks:
+        sector = bank_sector_mapping.get(ticker, 'Unknown')
+        processed += 1
+        
+        # Check if bank has data for this quarter
+        bank_data = df_quarter[
+            (df_quarter['TICKER'] == ticker) & 
+            (df_quarter['Date_Quarter'] == target_quarter)
+        ]
+        
+        if bank_data.empty:
+            print(f"[{processed}/{len(all_banks)}] No data found for {ticker} in {target_quarter} - skipping")
+            continue
+        
+        print(f"[{processed}/{len(all_banks)}] Generating comment for {ticker} ({sector}) - {target_quarter}")
+        
+        try:
+            comment = openai_comment_bulk(ticker, sector, target_quarter, df_quarter, keyitem)
+            
+            if comment:
+                new_comments.append({
+                    'TICKER': ticker,
+                    'SECTOR': sector,
+                    'QUARTER': target_quarter,
+                    'COMMENT': comment,
+                    'GENERATED_DATE': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                })
+                print(f"  ✓ Generated successfully")
+            else:
+                errors += 1
+                print(f"  ✗ Failed to generate comment")
+            
+            # Add small delay to avoid rate limiting
+            time.sleep(1)
+            
+        except Exception as e:
+            errors += 1
+            print(f"  ✗ Error: {str(e)}")
+            continue
+    
+    # Combine existing comments with new ones
+    if new_comments:
+        new_comments_df = pd.DataFrame(new_comments)
+        
+        # Combine with existing comments (excluding the target quarter)
+        final_df = pd.concat([existing_comments, new_comments_df], ignore_index=True)
+        
+        # Save to file
+        final_df.to_excel(comments_file, index=False)
+        
+        print(f"\n✓ Completed! Generated {len(new_comments)} comments for {target_quarter}")
+        print(f"✓ Total comments in file: {len(final_df)}")
+        print(f"✓ Saved to: {comments_file}")
+        print(f"✗ Errors encountered: {errors}")
+        
+        # Show summary for this quarter
+        quarter_summary = new_comments_df.groupby('SECTOR').size()
+        print(f"\nComments generated for {target_quarter} by sector:")
+        print(quarter_summary)
+        
+        return new_comments_df
+    else:
+        print(f"\n✗ No comments were generated for {target_quarter}")
+        return None
+
+def run_quarter_generation():
+    """Interactive function to generate comments for a specific quarter"""
+    print("=== Force Generate Comments for Specific Quarter ===")
+    
+    # Show available quarters
+    available_quarters = sorted(df_quarter['Date_Quarter'].unique())
+    print(f"\nAvailable quarters: {available_quarters}")
+    
+    # Get target quarter from user
+    target_quarter = input("\nEnter the quarter to generate comments for (e.g., 2Q25): ").strip()
+    
+    if target_quarter not in available_quarters:
+        print(f"Error: '{target_quarter}' is not a valid quarter.")
+        print(f"Available quarters: {available_quarters}")
+        return None
+    
+    # Ask about force regeneration
+    force_regen = input(f"\nDo you want to replace existing comments for {target_quarter}? (y/n): ").strip().lower()
+    force_regenerate = force_regen == 'y'
+    
+    # Confirmation
+    action = "replace existing and generate new" if force_regenerate else "generate only missing"
+    print(f"\nYou are about to {action} comments for {target_quarter}")
+    confirm = input("Do you want to proceed? (y/n): ").strip().lower()
+    
+    if confirm == 'y':
+        result = force_generate_quarter_comments(target_quarter, force_regenerate)
+        return result
+    else:
+        print("Generation cancelled.")
+        return None
+
 def run_with_confirmation():
     """Run with user confirmation"""
     print("Starting bulk comment generation...")
@@ -434,5 +574,25 @@ def run_with_confirmation():
         print("Generation cancelled.")
         return None
 
+def main_menu():
+    """Main menu for different generation options"""
+    print("=== Banking Comment Generator ===")
+    print("1. Generate all missing comments (bulk)")
+    print("2. Force generate comments for specific quarter")
+    print("3. Exit")
+    
+    choice = input("\nSelect an option (1-3): ").strip()
+    
+    if choice == '1':
+        return run_with_confirmation()
+    elif choice == '2':
+        return run_quarter_generation()
+    elif choice == '3':
+        print("Exiting...")
+        return None
+    else:
+        print("Invalid choice. Please select 1, 2, or 3.")
+        return main_menu()
+
 if __name__ == "__main__":
-    run_with_confirmation()
+    main_menu()
