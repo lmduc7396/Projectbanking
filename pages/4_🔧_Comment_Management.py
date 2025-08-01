@@ -6,6 +6,11 @@ import time
 from datetime import datetime
 import sys
 import platform
+import openai
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,20 +19,6 @@ sys.path.append(project_root)
 # Import utilities
 from utilities import quarter_to_numeric
 from Check_laptopOS import get_data_path, get_comments_file_path
-
-def get_data_path():
-    """Get the appropriate data path based on operating system"""
-    if platform.system() == "Windows":
-        # Windows path (your work laptop)
-        return r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data"
-    else:
-        # Mac/Linux path (current directory)
-        return os.path.join(project_root, "Data")
-
-def get_comments_file_path():
-    """Get the full path to the banking comments file"""
-    data_path = get_data_path()
-    return os.path.join(data_path, "banking_comments.xlsx")
 
 def show_comment_management():
     st.title("🤖 Banking Comment Management")
@@ -41,9 +32,8 @@ def show_comment_management():
     st.sidebar.subheader("Comment Management")
     tab = st.sidebar.radio("Choose Action", [
         "📊 View Cached Comments", 
-        "🔄 Bulk Generation", 
         "📈 Statistics",
-        "🗑️ Manage Cache"
+        "🔍 Quarterly Analysis"
     ])
     
     if tab == "📊 View Cached Comments":
@@ -130,14 +120,6 @@ def show_comment_management():
                         
                         with st.container():
                             st.markdown(selected_comment['COMMENT'])
-                        
-                        # Option to delete this comment
-                        if st.button("🗑️ Delete This Comment", key=f"delete_{selected_comment['TICKER']}_{selected_comment['QUARTER']}"):
-                            if delete_comment(selected_comment['TICKER'], selected_comment['QUARTER']):
-                                st.success("Comment deleted successfully!")
-                                st.rerun()
-                            else:
-                                st.error("Failed to delete comment")
                 
                 else:
                     st.info("No comments found matching the selected filters.")
@@ -146,101 +128,6 @@ def show_comment_management():
                 st.error(f"Error loading comments: {e}")
         else:
             st.info("No cached comments found. Run bulk generation first.")
-    
-    elif tab == "🔄 Bulk Generation":
-        st.header("Bulk Comment Generation")
-        
-        # Load data to show statistics
-        try:
-            data_path = get_data_path()
-            df_quarter = pd.read_csv(os.path.join(data_path, "dfsectorquarter.csv"))
-            bank_type = pd.read_excel(os.path.join(data_path, "Bank_Type.xlsx"))
-            
-            # Get statistics
-            all_banks = df_quarter[df_quarter['TICKER'].str.len() == 3]['TICKER'].nunique()
-            all_quarters = df_quarter['Date_Quarter'].nunique()
-            
-            # Filter quarters from 2023
-            quarters_2023_plus = [q for q in df_quarter['Date_Quarter'].unique() 
-                                if quarter_to_numeric(q) >= 20231]
-            
-            total_combinations = all_banks * len(quarters_2023_plus)
-            
-            # Show generation statistics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Banks to Process", all_banks)
-            with col2:
-                st.metric("Quarters (2023+)", len(quarters_2023_plus))
-            with col3:
-                st.metric("Total Combinations", total_combinations)
-            
-            # Show existing progress
-            if comments_exist:
-                existing_comments = pd.read_excel(comments_file)
-                existing_count = len(existing_comments)
-                progress_pct = (existing_count / total_combinations) * 100
-                
-                st.subheader("Current Progress")
-                st.progress(progress_pct / 100)
-                st.info(f"Progress: {existing_count:,} / {total_combinations:,} comments ({progress_pct:.1f}%)")
-                
-                # Show recent activity
-                if not existing_comments.empty:
-                    # Convert GENERATED_DATE to datetime for proper sorting
-                    existing_comments_copy = existing_comments.copy()
-                    existing_comments_copy['GENERATED_DATE'] = pd.to_datetime(existing_comments_copy['GENERATED_DATE'])
-                    recent_comments = existing_comments_copy.nlargest(5, 'GENERATED_DATE')
-                    # Convert back to string for display
-                    recent_comments['GENERATED_DATE'] = recent_comments['GENERATED_DATE'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                    st.subheader("Recent Comments")
-                    st.dataframe(
-                        recent_comments[['TICKER', 'SECTOR', 'QUARTER', 'GENERATED_DATE']],
-                        use_container_width=True,
-                        hide_index=True
-                    )
-            
-            # Generation options
-            st.subheader("Generation Options")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                generation_mode = st.radio(
-                    "Generation Mode:",
-                    ["Skip Existing (Recommended)", "Regenerate All", "Missing Only"]
-                )
-            
-            with col2:
-                estimate_cost = st.checkbox("Show Cost Estimate")
-                if estimate_cost:
-                    # Rough cost estimate (GPT-4 pricing as of 2024)
-                    avg_tokens_per_request = 2000  # Rough estimate
-                    cost_per_1k_tokens = 0.03  # GPT-4 input cost
-                    estimated_cost = (total_combinations * avg_tokens_per_request * cost_per_1k_tokens) / 1000
-                    st.warning(f"⚠️ Estimated API cost: ${estimated_cost:.2f}")
-            
-            # Warning about API costs and time
-            st.warning("⚠️ **Important Notes:**\n"
-                      "- This will make many API calls to OpenAI (costs money)\n"
-                      "- Process may take several hours depending on the number of combinations\n"
-                      "- Progress is saved incrementally\n"
-                      "- Make sure you have sufficient OpenAI API credits")
-            
-            # Start generation button
-            if st.button("🚀 Start Bulk Generation", type="primary"):
-                if st.session_state.get('confirm_generation', False):
-                    run_bulk_generation(generation_mode)
-                else:
-                    st.session_state['confirm_generation'] = True
-                    st.warning("Click again to confirm and start generation")
-            
-            # Reset confirmation
-            if st.button("Cancel"):
-                st.session_state['confirm_generation'] = False
-                st.info("Generation cancelled")
-                
-        except Exception as e:
-            st.error(f"Error loading data for bulk generation: {e}")
     
     elif tab == "📈 Statistics":
         st.header("Comment Statistics")
@@ -307,125 +194,238 @@ def show_comment_management():
         else:
             st.info("No comments data available for statistics.")
     
-    elif tab == "🗑️ Manage Cache":
-        st.header("Cache Management")
+    elif tab == "🔍 Quarterly Analysis":
+        st.header("Quarterly Banking Analysis")
+        st.markdown("Analyze all banking comments for a specific quarter using AI")
         
         if comments_exist:
             try:
                 comments_df = pd.read_excel(comments_file)
                 
-                st.subheader("Cache Information")
-                file_size = os.path.getsize(comments_file) / (1024 * 1024)  # MB
-                st.info(f"Cache file size: {file_size:.2f} MB")
+                # Get available quarters
+                available_quarters = sorted(comments_df['QUARTER'].unique().tolist(), reverse=True)
                 
-                # Cleanup options
-                st.subheader("Cleanup Options")
+                # Quarter selection
+                st.subheader("Select Quarter for Analysis")
+                col1, col2 = st.columns([2, 1])
                 
-                # Delete by date
-                col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("🗑️ Delete All Comments"):
-                        if st.session_state.get('confirm_delete_all', False):
-                            if delete_all_comments():
-                                st.success("All comments deleted!")
-                                st.rerun()
-                            else:
-                                st.error("Failed to delete comments")
-                        else:
-                            st.session_state['confirm_delete_all'] = True
-                            st.warning("Click again to confirm deletion of ALL comments")
+                    selected_quarter = st.selectbox(
+                        "Choose Quarter:",
+                        available_quarters,
+                        help="Select the quarter you want to analyze"
+                    )
                 
                 with col2:
-                    # Delete old comments
-                    days_old = st.number_input("Delete comments older than (days):", min_value=1, value=30)
-                    if st.button(f"🗑️ Delete Comments Older Than {days_old} Days"):
-                        try:
-                            cutoff_date = datetime.now() - pd.Timedelta(days=days_old)
-                            comments_df_temp = comments_df.copy()
-                            comments_df_temp['GENERATED_DATE'] = pd.to_datetime(comments_df_temp['GENERATED_DATE'])
-                            old_comments = comments_df_temp[comments_df_temp['GENERATED_DATE'] < cutoff_date]
-                            if len(old_comments) > 0:
-                                st.warning(f"This will delete {len(old_comments)} comments. Click again to confirm.")
-                            else:
-                                st.info("No comments older than specified date.")
-                        except Exception as e:
-                            st.error(f"Error checking old comments: {e}")
+                    # Show number of comments for selected quarter
+                    quarter_comments = comments_df[comments_df['QUARTER'] == selected_quarter]
+                    st.metric("Comments Available", len(quarter_comments))
                 
-                # Reset confirmations
-                if st.button("Cancel All"):
-                    st.session_state['confirm_delete_all'] = False
-                    st.info("All confirmations cancelled")
+                if selected_quarter and len(quarter_comments) > 0:
+                    # Display quarter summary
+                    st.subheader(f"Quarter {selected_quarter} Overview")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Banks", quarter_comments['TICKER'].nunique())
+                    with col2:
+                        sectors = quarter_comments['SECTOR'].nunique()
+                        st.metric("Sectors Covered", sectors)
+                    with col3:
+                        avg_length = quarter_comments['COMMENT'].str.len().mean()
+                        st.metric("Avg Comment Length", f"{avg_length:.0f} chars")
+                    
+                    # Show sector breakdown
+                    sector_breakdown = quarter_comments['SECTOR'].value_counts()
+                    st.write("**Sector Breakdown:**")
+                    st.write(sector_breakdown.to_dict())
+                    
+                    # Analysis button
+                    if st.button("🤖 Generate AI Analysis", type="primary"):
+                        if st.session_state.get('confirm_analysis', False):
+                            with st.spinner("Analyzing comments with ChatGPT..."):
+                                analysis_result = analyze_quarterly_comments(quarter_comments, selected_quarter)
+                                if analysis_result:
+                                    st.success("✅ Analysis completed!")
+                                    
+                                    # Display results
+                                    st.subheader(f"AI Analysis for {selected_quarter}")
+                                    
+                                    # Create tabs for different analysis sections
+                                    analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs([
+                                        "📋 Key Changes Summary", 
+                                        "😊 Sentiment Analysis", 
+                                        "🏦 Bank Performance Changes"
+                                    ])
+                                    
+                                    with analysis_tab1:
+                                        st.markdown("### Key Changes Across All Banks")
+                                        st.markdown(analysis_result.get('summary', 'No summary available'))
+                                    
+                                    with analysis_tab2:
+                                        st.markdown("### Sentiment Analysis & Notable Banks")
+                                        st.markdown(analysis_result.get('sentiment', 'No sentiment analysis available'))
+                                    
+                                    with analysis_tab3:
+                                        st.markdown("### Significant Bank Changes by Topic")
+                                        st.markdown(analysis_result.get('bank_changes', 'No bank change analysis available'))
+                                    
+                                    # Option to download analysis
+                                    if st.button("📥 Download Analysis Report"):
+                                        download_analysis_report(analysis_result, selected_quarter)
+                                else:
+                                    st.error("❌ Failed to generate analysis. Please check your OpenAI API key and try again.")
+                        else:
+                            st.session_state['confirm_analysis'] = True
+                            st.warning("⚠️ This will use OpenAI API credits. Click again to confirm.")
+                    
+                    # Reset confirmation
+                    if st.button("Cancel Analysis"):
+                        st.session_state['confirm_analysis'] = False
+                        st.info("Analysis cancelled")
+                    
+                    # Show raw data option
+                    with st.expander("📄 View Raw Comments Data"):
+                        st.dataframe(
+                            quarter_comments[['TICKER', 'SECTOR', 'COMMENT']],
+                            use_container_width=True,
+                            hide_index=True
+                        )
                 
+                else:
+                    st.warning(f"No comments found for quarter {selected_quarter}")
+                    
             except Exception as e:
-                st.error(f"Error managing cache: {e}")
+                st.error(f"Error loading quarterly analysis: {e}")
         else:
-            st.info("No cache file found.")
-            
-def delete_comment(ticker, quarter):
-    """Delete a specific comment from the cache"""
+            st.info("No comments data available. Please generate comments first.")
+
+def analyze_quarterly_comments(quarter_comments_df, quarter):
+    """Analyze quarterly comments using ChatGPT"""
     try:
-        comments_file = get_comments_file_path()
-        comments_df = pd.read_excel(comments_file)
+        # Get OpenAI API key
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            st.error("OPENAI_API_KEY not found in environment variables")
+            return None
         
-        # Remove the specific comment
-        comments_df = comments_df[~((comments_df['TICKER'] == ticker) & (comments_df['QUARTER'] == quarter))]
+        client = openai.OpenAI(api_key=api_key)
         
-        # Save back to file
-        comments_df.to_excel(comments_file, index=False)
-        return True
+        # Prepare comments data for analysis
+        comments_text = ""
+        for _, row in quarter_comments_df.iterrows():
+            comments_text += f"\n\n**{row['TICKER']} ({row['SECTOR']}):**\n{row['COMMENT']}"
+        
+        # Create the analysis prompt
+        prompt = f"""
+        You are a senior banking analyst. Please analyze the following banking comments for Q{quarter} and provide a comprehensive analysis.
+
+        BANKING COMMENTS FOR {quarter}:
+        {comments_text}
+
+        Please provide analysis in the following three sections:
+
+        ## 1. KEY CHANGES SUMMARY
+        Summarize the most significant trends and changes across all banks in this quarter. Focus on:
+        - Overall market conditions and banking environment
+        - Common themes and patterns across the sector
+        - Major regulatory or economic impacts
+        - Key performance indicators trends
+
+        ## 2. SENTIMENT ANALYSIS & NOTABLE BANKS  
+        Analyze the tone and sentiment of comments:
+        - Overall sentiment (positive/neutral/negative) with percentages
+        - List banks with most positive outlook and why
+        - List banks with most concerning developments and why
+        - Rate overall market confidence level (1-10)
+
+        ## 3. SIGNIFICANT BANK CHANGES BY TOPIC
+        Identify which banks showed the most significant changes in each area:
+
+        **Net Interest Margin (NIM):**
+        - Most improved: [Bank] - [reason]
+        - Most concerning: [Bank] - [reason]
+
+        **Credit Growth:**
+        - Strongest growth: [Bank] - [reason] 
+        - Weakest/declining: [Bank] - [reason]
+
+        **Asset Quality:**
+        - Most improved: [Bank] - [reason]
+        - Most deteriorated: [Bank] - [reason]
+
+        Please be specific with bank names and provide clear reasoning based on the comments provided.
+        """
+
+        # Send to OpenAI
+        response = client.chat.completions.create(
+            model="gpt-4.1",
+            messages=[
+                {"role": "system", "content": "You are a senior banking analyst with expertise in financial analysis and market trends."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            max_tokens=2000
+        )
+        
+        # Parse the response into sections
+        full_response = response.choices[0].message.content
+        
+        # Split response into sections (basic parsing)
+        sections = full_response.split("## ")
+        
+        result = {}
+        for section in sections:
+            if "KEY CHANGES SUMMARY" in section:
+                result['summary'] = section.replace("1. KEY CHANGES SUMMARY", "").strip()
+            elif "SENTIMENT ANALYSIS" in section:
+                result['sentiment'] = section.replace("2. SENTIMENT ANALYSIS & NOTABLE BANKS", "").strip()
+            elif "SIGNIFICANT BANK CHANGES" in section:
+                result['bank_changes'] = section.replace("3. SIGNIFICANT BANK CHANGES BY TOPIC", "").strip()
+        
+        # If parsing fails, return the full response
+        if not result:
+            result = {
+                'summary': full_response,
+                'sentiment': "Analysis completed - see summary section",
+                'bank_changes': "Analysis completed - see summary section"
+            }
+        
+        return result
         
     except Exception as e:
-        st.error(f"Error deleting comment: {e}")
-        return False
+        st.error(f"Error calling OpenAI API: {str(e)}")
+        return None
 
-def run_bulk_generation(generation_mode):
-    """Run bulk generation using the Bulk_Comment_Generator script"""
+def download_analysis_report(analysis_result, quarter):
+    """Create a downloadable analysis report"""
     try:
-        st.info("Starting bulk generation process...")
-        st.warning("⚠️ This process will run in the background. Check the terminal/console for progress updates.")
+        report_content = f"""
+# Banking Analysis Report - {quarter}
+Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Key Changes Summary
+{analysis_result.get('summary', 'No summary available')}
+
+## Sentiment Analysis & Notable Banks
+{analysis_result.get('sentiment', 'No sentiment analysis available')}
+
+## Significant Bank Changes by Topic
+{analysis_result.get('bank_changes', 'No bank change analysis available')}
+
+---
+Report generated by Banking Comment Management System
+        """
         
-        # Import and run the bulk generator
-        try:
-            # Add project root to path if not already there
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if project_root not in sys.path:
-                sys.path.append(project_root)
-            
-            # Import the generator functions
-            from Bulk_Comment_Generator import generate_all_comments
-            
-            if generation_mode == "Regenerate All":
-                st.warning("Regenerate All mode is not implemented in this interface. Please use the command line script directly.")
-                return
-            else:  # Both "Missing Only" and "Skip Existing" use the same function
-                result = generate_all_comments()
-            
-            if result is not None:
-                st.success(f"✅ Bulk generation completed! Generated {len(result)} comments.")
-            else:
-                st.error("❌ Bulk generation failed or was cancelled.")
-                
-        except ImportError as e:
-            st.error(f"❌ Could not import bulk generator: {e}")
-            st.info("💡 Alternative: Run the bulk generator directly from the command line using `python Bulk_Comment_Generator.py`")
+        st.download_button(
+            label="📥 Download Report as Text",
+            data=report_content,
+            file_name=f"banking_analysis_{quarter}_{datetime.now().strftime('%Y%m%d')}.txt",
+            mime="text/plain"
+        )
         
     except Exception as e:
-        st.error(f"❌ Error running bulk generation: {e}")
-
-def delete_all_comments():
-    """Delete all cached comments"""
-    try:
-        comments_file = get_comments_file_path()
-        
-        # Create empty DataFrame with same structure
-        empty_df = pd.DataFrame(columns=['TICKER', 'SECTOR', 'QUARTER', 'COMMENT', 'GENERATED_DATE'])
-        empty_df.to_excel(comments_file, index=False)
-        
-        return True
-        
-    except Exception as e:
-        st.error(f"Error deleting all comments: {e}")
-        return False
-
+        st.error(f"Error creating download: {e}")
+            
 if __name__ == "__main__":
     show_comment_management()
