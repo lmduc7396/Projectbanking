@@ -201,7 +201,7 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
         
         ## 2. SENTIMENT ANALYSIS & NOTABLE BANKS  
         Analyze the tone and sentiment of comments:
-        - Overall sector sentiment (positive/neutral/negative) with estimated percentages
+        - Overall sector sentiment (positive/neutral/negative)
         - Banks with most positive developments and specific reasons why
         - Banks with most concerning issues and specific reasons for concern
 
@@ -235,7 +235,7 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
                 {"role": "system", "content": "You are a senior banking analyst with deep expertise in financial analysis, market trends, and Vietnamese banking sector dynamics. Provide detailed, professional analysis."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.2,
+            temperature=0.3,
             max_tokens=5000,  # Increased for more detailed analysis
             top_p=0.9
         )
