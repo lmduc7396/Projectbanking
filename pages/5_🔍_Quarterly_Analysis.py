@@ -198,17 +198,12 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
         Summarize the most significant trends and changes across all banks in this quarter. Focus on:
         - Overall banking sector performance and market conditions
         - Common themes and patterns across different bank types
-        - Major regulatory, economic, or policy impacts affecting the sector
-        - Key performance indicators trends (profitability, growth, efficiency)
-        - Notable sector-wide developments or challenges
-
+        
         ## 2. SENTIMENT ANALYSIS & NOTABLE BANKS  
         Analyze the tone and sentiment of comments:
         - Overall sector sentiment (positive/neutral/negative) with estimated percentages
         - Banks with most positive developments and specific reasons why
         - Banks with most concerning issues and specific reasons for concern
-        - Market confidence level assessment (rate 1-10) based on overall performance
-        - Highlight any standout performers or underperformers
 
         ## 3. SIGNIFICANT BANK CHANGES BY TOPIC
         Identify which specific banks showed the most significant changes in each key area:
