@@ -222,6 +222,7 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
 
         **Instructions:**
         - Be specific with actual bank names (tickers) mentioned in the comments
+        - Write in bullet points format, be punchy and concise
         - Provide clear, data-driven reasoning based on the comments provided
         - Use quantitative insights where available in the comments
         - Maintain professional banking analyst tone
