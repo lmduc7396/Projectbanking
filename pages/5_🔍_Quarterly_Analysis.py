@@ -198,10 +198,22 @@ def quarterly_analysis_page():
 def analyze_quarterly_comments(quarter_comments_df, quarter):
     """Analyze quarterly comments using ChatGPT"""
     try:
-        # Get OpenAI API key
-        api_key = os.getenv("OPENAI_API_KEY")
+        # Get OpenAI API key from Streamlit secrets or environment variables
+        api_key = None
+        
+        # Try Streamlit secrets first
+        try:
+            api_key = st.secrets["OPENAI_API_KEY"]
+        except (KeyError, FileNotFoundError):
+            # Fallback to environment variables
+            api_key = os.getenv("OPENAI_API_KEY")
+        
         if not api_key:
-            st.error("OPENAI_API_KEY not found in environment variables")
+            st.error("OPENAI_API_KEY not found in Streamlit secrets or environment variables")
+            st.info("💡 **To fix this:**\n"
+                   "1. Create a `.streamlit/secrets.toml` file in your project root\n"
+                   "2. Add: `OPENAI_API_KEY = \"your_api_key_here\"`\n"
+                   "3. Or set the OPENAI_API_KEY environment variable")
             return None
         
         client = openai.OpenAI(api_key=api_key)
