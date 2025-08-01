@@ -54,7 +54,7 @@ st.set_page_config(
 st.session_state.df_quarter = df_quarter
 st.session_state.keyitem = keyitem
 
-st.title("🤖 AI-Powered Banking Analysis")
+st.title("AI-Powered Banking Analysis")
 st.markdown("Generate intelligent banking analysis using OpenAI with cached results for faster access")
 
 # Check if comments cache exists
