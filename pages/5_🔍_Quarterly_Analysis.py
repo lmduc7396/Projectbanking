@@ -112,19 +112,8 @@ def quarterly_analysis_page():
                             # Display results in a single section
                             st.subheader(f"📊 AI Analysis Results for {selected_quarter}")
                             
-                            # Display all analysis sections together
-                            st.markdown("### 📋 Key Changes Summary")
-                            st.markdown(analysis_result.get('summary', 'No summary available'))
-                            
-                            st.markdown("---")
-                            
-                            st.markdown("### 😊 Sentiment Analysis & Notable Banks")
-                            st.markdown(analysis_result.get('sentiment', 'No sentiment analysis available'))
-                            
-                            st.markdown("---")
-                            
-                            st.markdown("### 🏦 Significant Bank Changes by Topic")
-                            st.markdown(analysis_result.get('bank_changes', 'No bank change analysis available'))
+                            # Display the complete analysis
+                            st.markdown(analysis_result.get('full_analysis', 'No analysis available'))
                         else:
                             st.error("❌ Failed to generate analysis. Please check your OpenAI API key and connection.")
                 
@@ -246,7 +235,7 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
 
         # Send to OpenAI with improved parameters
         response = client.chat.completions.create(
-            model="gpt-4o",  # Use latest model
+            model="gpt-4.1",  # Use latest model
             messages=[
                 {"role": "system", "content": "You are a senior banking analyst with deep expertise in financial analysis, market trends, and Vietnamese banking sector dynamics. Provide detailed, professional analysis."},
                 {"role": "user", "content": prompt}
@@ -256,45 +245,11 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
             top_p=0.9
         )
         
-        # Parse the response into sections
+        # Get the full response without parsing
         full_response = response.choices[0].message.content
         
-        # Enhanced parsing with better section detection
-        sections = full_response.split("## ")
-        
-        result = {}
-        for section in sections:
-            section_lower = section.lower()
-            if "key changes" in section_lower or "summary" in section_lower:
-                content = section.replace("1. KEY CHANGES SUMMARY", "").replace("KEY CHANGES SUMMARY", "").strip()
-                result['summary'] = content
-            elif "sentiment" in section_lower:
-                content = section.replace("2. SENTIMENT ANALYSIS & NOTABLE BANKS", "").replace("SENTIMENT ANALYSIS & NOTABLE BANKS", "").strip()
-                result['sentiment'] = content
-            elif "significant bank" in section_lower or "bank changes" in section_lower:
-                content = section.replace("3. SIGNIFICANT BANK CHANGES BY TOPIC", "").replace("SIGNIFICANT BANK CHANGES BY TOPIC", "").strip()
-                result['bank_changes'] = content
-        
-        # If parsing fails, try alternative approach
-        if not result or len(result) < 2:
-            # Try splitting by numbered sections
-            import re
-            sections = re.split(r'\n\s*(?:\d+\.|\##)\s*', full_response)
-            if len(sections) >= 3:
-                result = {
-                    'summary': sections[1] if len(sections) > 1 else "Analysis completed",
-                    'sentiment': sections[2] if len(sections) > 2 else "See main analysis", 
-                    'bank_changes': sections[3] if len(sections) > 3 else "See main analysis"
-                }
-            else:
-                # Fallback: return full response
-                result = {
-                    'summary': full_response,
-                    'sentiment': "Analysis completed - see summary section",
-                    'bank_changes': "Analysis completed - see summary section"
-                }
-        
-        return result
+        # Return the complete analysis as one text
+        return {'full_analysis': full_response}
         
     except Exception as e:
         st.error(f"Error calling OpenAI API: {str(e)}")
