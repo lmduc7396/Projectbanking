@@ -104,50 +104,29 @@ def quarterly_analysis_page():
                 
                 # Analysis button
                 if st.button("🤖 Generate AI Analysis", type="primary", use_container_width=True):
-                    if st.session_state.get('confirm_analysis', False):
-                        with st.spinner("Analyzing comments with ChatGPT... This may take a moment."):
-                            analysis_result = analyze_quarterly_comments(quarter_comments, selected_quarter)
-                            if analysis_result:
-                                st.success("✅ Analysis completed successfully!")
-                                
-                                # Display results
-                                st.subheader(f"📊 AI Analysis Results for {selected_quarter}")
-                                
-                                # Create tabs for different analysis sections
-                                analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs([
-                                    "📋 Key Changes Summary", 
-                                    "😊 Sentiment Analysis", 
-                                    "🏦 Bank Performance Changes"
-                                ])
-                                
-                                with analysis_tab1:
-                                    st.markdown("### Key Changes Across All Banks")
-                                    st.markdown(analysis_result.get('summary', 'No summary available'))
-                                
-                                with analysis_tab2:
-                                    st.markdown("### Sentiment Analysis & Notable Banks")
-                                    st.markdown(analysis_result.get('sentiment', 'No sentiment analysis available'))
-                                
-                                with analysis_tab3:
-                                    st.markdown("### Significant Bank Changes by Topic")
-                                    st.markdown(analysis_result.get('bank_changes', 'No bank change analysis available'))
-                                
-                                # Option to download analysis
-                                st.markdown("---")
-                                download_analysis_report(analysis_result, selected_quarter)
-                            else:
-                                st.error("❌ Failed to generate analysis. Please check your OpenAI API key and connection.")
-                        
-                        # Reset confirmation state
-                        st.session_state['confirm_analysis'] = False
-                    else:
-                        st.session_state['confirm_analysis'] = True
-                        st.warning("⚠️ This will use OpenAI API credits. Click the button again to confirm and proceed.")
-                
-                # Reset confirmation
-                if st.button("❌ Cancel Analysis"):
-                    st.session_state['confirm_analysis'] = False
-                    st.info("Analysis cancelled")
+                    with st.spinner("Analyzing comments with ChatGPT... This may take a moment."):
+                        analysis_result = analyze_quarterly_comments(quarter_comments, selected_quarter)
+                        if analysis_result:
+                            st.success("✅ Analysis completed successfully!")
+                            
+                            # Display results in a single section
+                            st.subheader(f"📊 AI Analysis Results for {selected_quarter}")
+                            
+                            # Display all analysis sections together
+                            st.markdown("### 📋 Key Changes Summary")
+                            st.markdown(analysis_result.get('summary', 'No summary available'))
+                            
+                            st.markdown("---")
+                            
+                            st.markdown("### 😊 Sentiment Analysis & Notable Banks")
+                            st.markdown(analysis_result.get('sentiment', 'No sentiment analysis available'))
+                            
+                            st.markdown("---")
+                            
+                            st.markdown("### 🏦 Significant Bank Changes by Topic")
+                            st.markdown(analysis_result.get('bank_changes', 'No bank change analysis available'))
+                        else:
+                            st.error("❌ Failed to generate analysis. Please check your OpenAI API key and connection.")
                 
                 st.markdown("---")
                 
@@ -207,14 +186,6 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
         except (KeyError, FileNotFoundError):
             # Fallback to environment variables
             api_key = os.getenv("OPENAI_API_KEY")
-        
-        if not api_key:
-            st.error("OPENAI_API_KEY not found in Streamlit secrets or environment variables")
-            st.info("💡 **To fix this:**\n"
-                   "1. Create a `.streamlit/secrets.toml` file in your project root\n"
-                   "2. Add: `OPENAI_API_KEY = \"your_api_key_here\"`\n"
-                   "3. Or set the OPENAI_API_KEY environment variable")
-            return None
         
         client = openai.OpenAI(api_key=api_key)
         
@@ -281,7 +252,7 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=3000,  # Increased for more detailed analysis
+            max_tokens=5000,  # Increased for more detailed analysis
             top_p=0.9
         )
         
@@ -328,81 +299,6 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
     except Exception as e:
         st.error(f"Error calling OpenAI API: {str(e)}")
         return None
-
-def download_analysis_report(analysis_result, quarter):
-    """Create a downloadable analysis report"""
-    try:
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        filename_timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-        
-        report_content = f"""
-# Banking Quarterly Analysis Report - {quarter}
-Generated on: {timestamp}
-Analysis System: AI-Powered Banking Comment Analysis
-
-## Executive Summary
-This report provides comprehensive analysis of banking sector performance for {quarter} based on AI-generated banking comments and financial data analysis.
-
-## 1. KEY CHANGES SUMMARY
-{analysis_result.get('summary', 'No summary available')}
-
-## 2. SENTIMENT ANALYSIS & NOTABLE BANKS
-{analysis_result.get('sentiment', 'No sentiment analysis available')}
-
-## 3. SIGNIFICANT BANK CHANGES BY TOPIC
-{analysis_result.get('bank_changes', 'No bank change analysis available')}
-
-## Methodology
-- Data Source: Banking financial statements and performance metrics
-- Analysis Period: {quarter}
-- AI Model: OpenAI GPT-4o for natural language analysis
-- Analysis Framework: Key performance indicators across profitability, growth, and risk metrics
-
-## Disclaimer
-This analysis is generated using AI technology and should be used for informational purposes only. 
-Investment decisions should be based on comprehensive due diligence and professional financial advice.
-
----
-Report generated by Banking Comment Management System
-© 2025 Banking Analysis Platform
-        """
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.download_button(
-                label="📥 Download Full Report (TXT)",
-                data=report_content,
-                file_name=f"banking_quarterly_analysis_{quarter}_{filename_timestamp}.txt",
-                mime="text/plain",
-                use_container_width=True
-            )
-        
-        with col2:
-            # Create a summary version
-            summary_content = f"""
-Banking Analysis Summary - {quarter}
-Generated: {timestamp}
-
-KEY FINDINGS:
-{analysis_result.get('summary', 'No summary available')[:500]}...
-
-SENTIMENT OVERVIEW:
-{analysis_result.get('sentiment', 'No sentiment analysis available')[:300]}...
-
-For full analysis, download the complete report.
-            """
-            
-            st.download_button(
-                label="📋 Download Summary (TXT)",
-                data=summary_content,
-                file_name=f"banking_summary_{quarter}_{filename_timestamp}.txt",
-                mime="text/plain",
-                use_container_width=True
-            )
-        
-    except Exception as e:
-        st.error(f"Error creating download: {e}")
 
 if __name__ == "__main__":
     quarterly_analysis_page()
