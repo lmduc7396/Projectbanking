@@ -132,14 +132,14 @@ class BulkQuarterlyAnalysisGenerator:
 
             # Send to OpenAI
             response = self.client.chat.completions.create(
-                model="gpt-4o",  # Use GPT-4o instead of 4.1
+                model="gpt-4.1", 
                 messages=[
                     {"role": "system", "content": "You are a senior banking analyst with deep expertise in financial analysis, market trends, and Vietnamese banking sector dynamics. Provide detailed, professional analysis."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
-                max_tokens=5000,
-                top_p=0.9
+                max_tokens=7000,
+       ''         top_p=0.9
             )
             
             analysis_text = response.choices[0].message.content
