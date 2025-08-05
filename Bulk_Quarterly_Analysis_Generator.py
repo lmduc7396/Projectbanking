@@ -49,11 +49,18 @@ class BulkQuarterlyAnalysisGenerator:
         all_quarters = comments_df['QUARTER'].unique().tolist()
         sorted_quarters = sort_quarters(all_quarters)
         
-        # Filter for only 2Q25
+        # Filter quarters from 1Q24 onwards
         quarters_to_analyze = []
         for quarter in sorted_quarters:
-            if quarter == '2Q25':  # Only analyze 2Q25
-                quarters_to_analyze.append(quarter)
+            # Extract year from quarter (e.g., "1Q24" -> 24)
+            if 'Q' in quarter:
+                year_part = quarter.split('Q')[1]
+                try:
+                    year = int(year_part)
+                    if year >= 24:  # 2024 onwards
+                        quarters_to_analyze.append(quarter)
+                except ValueError:
+                    continue
         
         return quarters_to_analyze
     
@@ -276,12 +283,22 @@ def main():
     try:
         generator = BulkQuarterlyAnalysisGenerator()
         
-        print("🏦 Banking Quarterly Analysis - Bulk Generator (2Q25 Only)")
-        print("This tool will generate AI analysis for 2Q25 specifically")
+        print("🏦 Banking Quarterly Analysis - Bulk Generator")
+        print("This tool will generate AI analysis for all quarters from 1Q24 onwards")
         print()
         
-        # Run bulk analysis for 2Q25, skip existing by default
-        success = generator.run_bulk_analysis(skip_existing=False)  # Set to False to regenerate 2Q25
+        # Check if analysis file already exists
+        if os.path.exists(generator.analysis_file):
+            existing_df = pd.read_excel(generator.analysis_file)
+            print(f"📋 Existing analysis file found with {len(existing_df)} quarters")
+            
+            choice = input("Options:\n1. Skip existing quarters (recommended)\n2. Regenerate all quarters\nChoose (1/2): ").strip()
+            skip_existing = choice != '2'
+        else:
+            skip_existing = True
+        
+        # Run bulk analysis
+        success = generator.run_bulk_analysis(skip_existing=skip_existing)
         
         if success:
             print("\n✅ Process completed successfully!")
