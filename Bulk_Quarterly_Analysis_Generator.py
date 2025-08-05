@@ -49,18 +49,11 @@ class BulkQuarterlyAnalysisGenerator:
         all_quarters = comments_df['QUARTER'].unique().tolist()
         sorted_quarters = sort_quarters(all_quarters)
         
-        # Filter quarters from 1Q24 onwards
+        # Filter for only 2Q25
         quarters_to_analyze = []
         for quarter in sorted_quarters:
-            # Extract year from quarter (e.g., "1Q24" -> 24)
-            if 'Q' in quarter:
-                year_part = quarter.split('Q')[1]
-                try:
-                    year = int(year_part)
-                    if year >= 24:  # 2024 onwards
-                        quarters_to_analyze.append(quarter)
-                except ValueError:
-                    continue
+            if quarter == '2Q25':  # Only analyze 2Q25
+                quarters_to_analyze.append(quarter)
         
         return quarters_to_analyze
     
@@ -132,14 +125,14 @@ class BulkQuarterlyAnalysisGenerator:
 
             # Send to OpenAI
             response = self.client.chat.completions.create(
-                model="gpt-4.1", 
+                model="gpt-4o", 
                 messages=[
                     {"role": "system", "content": "You are a senior banking analyst with deep expertise in financial analysis, market trends, and Vietnamese banking sector dynamics. Provide detailed, professional analysis."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
                 max_tokens=7000,
-       ''         top_p=0.9
+                top_p=0.9
             )
             
             analysis_text = response.choices[0].message.content
@@ -283,22 +276,12 @@ def main():
     try:
         generator = BulkQuarterlyAnalysisGenerator()
         
-        print("🏦 Banking Quarterly Analysis - Bulk Generator")
-        print("This tool will generate AI analysis for all quarters from 1Q24 onwards")
+        print("🏦 Banking Quarterly Analysis - Bulk Generator (2Q25 Only)")
+        print("This tool will generate AI analysis for 2Q25 specifically")
         print()
         
-        # Check if analysis file already exists
-        if os.path.exists(generator.analysis_file):
-            existing_df = pd.read_excel(generator.analysis_file)
-            print(f"📋 Existing analysis file found with {len(existing_df)} quarters")
-            
-            choice = input("Options:\n1. Skip existing quarters (recommended)\n2. Regenerate all quarters\nChoose (1/2): ").strip()
-            skip_existing = choice != '2'
-        else:
-            skip_existing = True
-        
-        # Run bulk analysis
-        success = generator.run_bulk_analysis(skip_existing=skip_existing)
+        # Run bulk analysis for 2Q25, skip existing by default
+        success = generator.run_bulk_analysis(skip_existing=False)  # Set to False to regenerate 2Q25
         
         if success:
             print("\n✅ Process completed successfully!")
