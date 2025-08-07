@@ -166,7 +166,7 @@ class DataDiscoveryAgent:
     def _select_columns(self, df: pd.DataFrame, query_analysis: Dict[str, Any]) -> pd.DataFrame:
         """Select only relevant columns"""
         
-        # Always include identifier columns
+        # Always include identifier columns  
         id_cols = []
         for col in ['TICKER', 'Date_Quarter', 'Year', 'Type']:
             if col in df.columns:

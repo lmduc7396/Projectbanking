@@ -129,9 +129,10 @@ class QueryRouter:
         
         3. TIMEFRAME: The time period(s) mentioned
            - For single quarter, return one quarter like ["2Q25"]
-           - If user ask for current, latest, or recent data, return the latest quarter ["{self.latest_quarter}"]
+           - If user asks for "current" or "latest ", return ["{self.latest_quarter}"]
+           - For year ranges (e.g., "2024 to 2025"), return ["2024", "2025"]
            - For quarter ranges (from X to Y), return ALL quarters in between
-             Example: "from 1Q24 to 2Q25" -> ["1Q24", "2Q24", "3Q24", "4Q24", "1Q25", "2Q25"]
+           - Example: "from 1Q24 to 2Q25" -> ["1Q24", "2Q24", "3Q24", "4Q24", "1Q25", "2Q25"]
            - For full year data (annual/yearly), return just the year(s): "2024" -> ["2024"], "2023 and 2024" -> ["2023", "2024"]
            - If user mentions "quarterly" with a year, then return quarters: "quarterly data for 2024" -> ["1Q24", "2Q24", "3Q24", "4Q24"]
            - If no timeframe mentioned, return the latest 4 quarters: {latest_4_quarters}
@@ -155,9 +156,10 @@ class QueryRouter:
         Examples:
         - "Show me ROE for VCB in 2Q25" -> {{"tickers": ["VCB"], "items": ["ROE"], "timeframe": ["2Q25"], "need_components": false}}
         - "What's the NIM for SOCB in 2024?" -> {{"tickers": ["SOCB"], "items": ["NIM"], "timeframe": ["2024"], "need_components": false}}
-        - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": ["3Q24", "4Q24", "1Q25", "2Q25"], "need_components": true}}
-        - "Compare Private_1 banks performance" -> {{"tickers": ["Private_1"], "items": [], "timeframe": ["3Q24", "4Q24", "1Q25", "2Q25"], "need_components": true}}
-        - "Show NPL for Sector" -> {{"tickers": ["Sector"], "items": ["NPL"], "timeframe": ["3Q24", "4Q24", "1Q25", "2Q25"], "need_components": false}}
+        - "Show ROE for current quarter" -> {{"tickers": [], "items": ["ROE"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
+        - "What's the current NPL?" -> {{"tickers": [], "items": ["NPL"], "timeframe": {latest_4_quarters}, "need_components": false}}
+        - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": {latest_4_quarters}, "need_components": true}}
+        - "Compare Private_1 banks performance" -> {{"tickers": ["Private_1"], "items": [], "timeframe": {latest_4_quarters}, "need_components": true}}
         """
         
         try:

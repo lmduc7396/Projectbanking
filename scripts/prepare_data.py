@@ -49,7 +49,12 @@ dfall=dfall.sort_values(by=['TICKER','ENDDATE_x'])
 bank_type=['SOCB','Private_1','Private_2','Private_3','Sector']
 
 #Add in date columns
-dfall['Date_Quarter']=dfall['LENGTHREPORT'].astype(str)+'Q'+dfall['YEARREPORT'].astype(str).str[-2:]
+# For yearly data (LENGTHREPORT=5), use full year; for quarterly, use XQyy format
+dfall['Date_Quarter'] = dfall.apply(
+    lambda row: str(int(row['YEARREPORT'])) if row['LENGTHREPORT'] == 5 
+    else str(int(row['LENGTHREPORT'])) + 'Q' + str(int(row['YEARREPORT']))[-2:], 
+    axis=1
+)
 dfall=dfall.dropna(subset='ENDDATE_x')
 dfall=dfall.groupby(['TICKER','Date_Quarter'],as_index=False).first()
 dfall=dfall[dfall['YEARREPORT']>2017]
@@ -67,7 +72,7 @@ dfprivate1quarter=dfcompaniesquarter[dfcompaniesquarter['Type']=='Private_1'].gr
 dfprivate2quarter=dfcompaniesquarter[dfcompaniesquarter['Type']=='Private_2'].groupby('Date_Quarter',as_index=False).agg(agg_dict)
 dfprivate3quarter=dfcompaniesquarter[dfcompaniesquarter['Type']=='Private_3'].groupby('Date_Quarter',as_index=False).agg(agg_dict)
 
-#Set up yearly only
+#Set up yearly only - Date_Quarter now contains full year (e.g., "2024")
 dfcompaniesyear=dfall[(dfall.LENGTHREPORT==5)]
 dfsectoryear=dfcompaniesyear.groupby('Date_Quarter',as_index=False).agg(agg_dict)
 dfsocbyear=dfcompaniesyear[dfcompaniesyear['Type']=='SOCB'].groupby('Date_Quarter',as_index=False).agg(agg_dict)
@@ -173,5 +178,9 @@ dfsectorquarter=pd.concat([dfcompaniesquarter,dfsectorquarter,dfsocbquarter,dfpr
 dfsectoryear.loc[dfsectoryear['TICKER'].str.len() > 3, 'TICKER'] = dfsectoryear.loc[dfsectoryear['TICKER'].str.len() > 3, 'Type']
 dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'TICKER'] = dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'Type']
 
+# Rename Date_Quarter to Year for yearly data for clarity
+dfsectoryear = dfsectoryear.rename(columns={'Date_Quarter': 'Year'})
+
+# Save files
 dfsectoryear.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
 dfsectorquarter.to_csv(os.path.join(data_dir, 'dfsectorquarter.csv'), index=False)
