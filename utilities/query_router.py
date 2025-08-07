@@ -54,7 +54,7 @@ class QueryRouter:
         self.bank_tickers = [
             'VCB', 'BID', 'CTG', 'TCB', 'MBB', 'VPB', 'ACB', 'STB', 
             'HDB', 'TPB', 'SHB', 'VIB', 'LPB', 'MSB', 'OCB', 'EIB',
-            'SSB', 'NAB', 'BAB', 'VAB', 'PGB', 'KLB', 'NCB', 'ABB'
+            'SSB', 'NAB', 'BAB', 'VAB', 'PGB', 'KLB', 'NCB', 'ABB', 'NVB'
         ]
         
         self.time_patterns = {

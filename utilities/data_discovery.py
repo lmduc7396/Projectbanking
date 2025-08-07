@@ -28,34 +28,10 @@ class DataDiscoveryAgent:
                 'metrics': ['All KeyCode columns'],
                 'update_frequency': 'Yearly'
             },
-            'BS_Bank.csv': {
-                'description': 'Balance sheet data for banks',
-                'key_columns': ['TICKER', 'Date'],
-                'metrics': ['Assets', 'Liabilities', 'Equity', 'Loans', 'Deposits'],
-                'update_frequency': 'Quarterly'
-            },
-            'IS_Bank.csv': {
-                'description': 'Income statement data for banks',
-                'key_columns': ['TICKER', 'Date'],
-                'metrics': ['Revenue', 'Net Income', 'NIM', 'Operating Income'],
-                'update_frequency': 'Quarterly'
-            },
-            'Note_Bank.csv': {
-                'description': 'Notes and additional metrics',
-                'key_columns': ['TICKER', 'Date'],
-                'metrics': ['NPL', 'Provision', 'Coverage Ratio'],
-                'update_frequency': 'Quarterly'
-            },
-            'banking_comments.xlsx': {
-                'description': 'AI-generated banking analysis comments',
-                'key_columns': ['TICKER', 'QUARTER'],
-                'metrics': ['Qualitative analysis'],
-                'update_frequency': 'On-demand'
-            },
-            'Bank_Type.xlsx': {
-                'description': 'Bank categorization and types',
-                'key_columns': ['TICKER', 'Type'],
-                'metrics': ['Bank classification'],
+            'IRIS KeyCodes - Bank.xlsx': {
+                'description': 'IRIS keycode definitions and mapping',
+                'key_columns': ['KeyCode', 'Name'],
+                'metrics': ['Metric definitions'],
                 'update_frequency': 'Static'
             },
             'Key_items.xlsx': {
@@ -116,44 +92,31 @@ class DataDiscoveryAgent:
     def _determine_files(self, query_analysis: Dict[str, Any]) -> List[str]:
         files = []
         
-        source_to_files = {
-            'quarterly_metrics': ['dfsectorquarter.csv'],
-            'yearly_metrics': ['dfsectoryear.csv'],
-            'balance_sheet': ['BS_Bank.csv', 'BS_Bank1Q25.csv'],
-            'income_statement': ['IS_Bank.csv', 'IS_Bank1Q25.csv'],
-            'notes': ['Note_Bank.csv', 'Note_Bank1Q25.csv'],
-            'comments': ['banking_comments.xlsx'],
-            'sector_analysis': ['quarterly_analysis_results.xlsx']
-        }
+        # Only use the 4 specified files
+        # Determine if we need quarterly or yearly data
+        time_context = query_analysis.get('time_context', {})
+        original_query = str(query_analysis.get('original_query', '')).lower()
         
-        # Handle data_source field from query router
+        # Check if query mentions quarters or years
+        if time_context.get('specific_quarters') or 'q' in original_query or 'quarter' in original_query:
+            files.append('dfsectorquarter.csv')
+        elif time_context.get('specific_years') or 'year' in original_query or 'annual' in original_query:
+            files.append('dfsectoryear.csv')
+        else:
+            # Default to quarterly if metrics are requested
+            if query_analysis.get('metrics_requested'):
+                files.append('dfsectorquarter.csv')
+        
+        # Handle data_source field from query router if present
         if 'data_source' in query_analysis:
             data_source_file = query_analysis['data_source']
-            if 'quarter' in data_source_file.lower():
+            if 'quarter' in data_source_file.lower() and 'dfsectorquarter.csv' not in files:
                 files.append('dfsectorquarter.csv')
-            elif 'year' in data_source_file.lower():
+            elif 'year' in data_source_file.lower() and 'dfsectoryear.csv' not in files:
                 files.append('dfsectoryear.csv')
         
-        # Also handle data_sources if provided
-        for source in query_analysis.get('data_sources', []):
-            if source in source_to_files:
-                files.extend(source_to_files[source])
-        
-        # If metrics are requested (like ROE), ensure we load the data files
-        if query_analysis.get('metrics_requested'):
-            # Always include the main data files when metrics are requested
-            if not any('dfsector' in f for f in files):
-                # Check time context to determine which file
-                time_context = query_analysis.get('time_context', {})
-                if time_context.get('specific_quarters') or 'Q' in str(query_analysis.get('original_query', '')):
-                    files.append('dfsectorquarter.csv')
-                else:
-                    files.append('dfsectoryear.csv')
-            
-            files.append('Key_items.xlsx')
-        
-        if query_analysis.get('aggregation_level') in ['sector', 'group']:
-            files.append('Bank_Type.xlsx')
+        # We don't need to load Key_items.xlsx or IRIS KeyCodes for data display
+        # They're only used internally for mapping
         
         return list(set(files))
     
@@ -184,14 +147,22 @@ class DataDiscoveryAgent:
             # Also check the 'banks' field directly
             banks = query_analysis.get('banks', [])
         
+        # IMPORTANT: Filter by banks FIRST to reduce data size
         if banks and 'TICKER' in df.columns:
+            print(f"Filtering for banks: {banks}")
             df = df[df['TICKER'].isin(banks)]
+            
+            # If no matching banks found, return empty dataframe
+            if df.empty:
+                print(f"No data found for banks: {banks}")
+                return df
         
         time_context = query_analysis.get('time_context', {})
         
         # Handle specific quarters
-        if time_context.get('specific_quarters') and 'Date_Quarter' in df.columns:
-            quarters = time_context['specific_quarters']
+        if 'Date_Quarter' in df.columns:
+            quarters = time_context.get('specific_quarters', [])
+            
             # Also check for quarters in the original query (e.g., "2Q25")
             if not quarters and query_analysis.get('original_query'):
                 import re
@@ -199,9 +170,11 @@ class DataDiscoveryAgent:
                 found_quarters = re.findall(quarter_pattern, query_analysis['original_query'])
                 if found_quarters:
                     quarters = found_quarters
+                    print(f"Found quarters in query: {quarters}")
             
             if quarters:
                 df = df[df['Date_Quarter'].isin(quarters)]
+                print(f"Filtered to quarters: {quarters}, rows remaining: {len(df)}")
         
         elif time_context.get('specific_years'):
             year_columns = ['Year', 'Date']
@@ -219,19 +192,22 @@ class DataDiscoveryAgent:
         if time_context.get('latest'):
             if 'Date_Quarter' in df.columns:
                 df['_quarter_sort'] = df['Date_Quarter'].apply(self._quarter_to_numeric)
-                df = df[df['_quarter_sort'] == df['_quarter_sort'].max()]
+                latest_quarter = df['_quarter_sort'].max()
+                df = df[df['_quarter_sort'] == latest_quarter]
                 df = df.drop('_quarter_sort', axis=1)
+                print(f"Filtered to latest quarter, rows: {len(df)}")
             elif 'Date' in df.columns:
                 df['Date'] = pd.to_datetime(df['Date'])
                 df = df[df['Date'] == df['Date'].max()]
         
-        # If no time filter was applied but we have ROE data, show recent data
-        if 'Date_Quarter' in df.columns and len(df) > 100:
+        # If no time filter was applied and we have too much data, limit it
+        if 'Date_Quarter' in df.columns and len(df) > 100 and not quarters and not time_context.get('latest'):
             # Only show last 4 quarters if too much data
             df['_quarter_sort'] = df['Date_Quarter'].apply(self._quarter_to_numeric)
-            top_quarters = df['_quarter_sort'].nlargest(4).unique()
+            top_quarters = sorted(df['_quarter_sort'].unique())[-4:]
             df = df[df['_quarter_sort'].isin(top_quarters)]
             df = df.drop('_quarter_sort', axis=1)
+            print(f"Limited to last 4 quarters, rows: {len(df)}")
         
         return df
     
@@ -280,15 +256,32 @@ class DataDiscoveryAgent:
     def _create_sample_data(self, extracted_data: Dict[str, pd.DataFrame], query_analysis: Dict[str, Any]) -> str:
         samples = []
         
+        # Only process the main data files
+        data_files = ['dfsectorquarter.csv', 'dfsectoryear.csv']
+        
         for file, df in extracted_data.items():
-            if len(df) > 0:
-                sample_df = df.head(5)
+            # Skip metadata files - we don't want to show Key_items or IRIS KeyCodes data
+            if file in ['Key_items.xlsx', 'IRIS KeyCodes - Bank.xlsx', 'Bank_Type.xlsx']:
+                continue
+                
+            if file in data_files and len(df) > 0:
+                # Get all data, not just head(5) if filtered properly
+                if len(df) <= 20:
+                    sample_df = df
+                else:
+                    sample_df = df.head(20)
                 
                 relevant_cols = self._select_relevant_columns(sample_df, query_analysis)
                 if relevant_cols:
                     sample_df = sample_df[relevant_cols]
                 
-                samples.append(f"\nSample from {file}:\n{sample_df.to_string()}")
+                # Sort by Date_Quarter if available for better readability
+                if 'Date_Quarter' in sample_df.columns:
+                    sample_df['_sort'] = sample_df['Date_Quarter'].apply(self._quarter_to_numeric)
+                    sample_df = sample_df.sort_values('_sort', ascending=False)
+                    sample_df = sample_df.drop('_sort', axis=1)
+                
+                samples.append(f"\nData from {file}:\n{sample_df.to_string()}")
         
         return "\n".join(samples) if samples else "No sample data available"
     
