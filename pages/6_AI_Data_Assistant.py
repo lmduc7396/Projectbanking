@@ -120,7 +120,7 @@ Data Table:
 {data_result['data_table']}
 
 Instructions:
-- Give a VERY concise and punchy answer (2-3 sentences max)
+- Give a concise and punchy answer. If asked for data only provide the most relevant data.
 - Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
 - Round numbers appropriately (billions, millions, percentages to 1 decimal)
 - Highlight only the most important findings

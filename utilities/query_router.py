@@ -82,7 +82,9 @@ class QueryRouter:
         
         4. NEED_COMPONENTS: Boolean - true if the question requires component bank data
            - true if asking for comparisons WITHIN a sector (e.g., "which bank in SOCB has highest ROE")
-           - true if asking for rankings or identifying specific banks within sectors
+           - true if asking for rankings or identifying specific banks within sectors]
+           - True if asking for detailed breakdowns of sector performance
+           - True if contains inclusive words like among, within, compare
            - false if only asking for aggregated sector data
         
         Return your answer in JSON format:
