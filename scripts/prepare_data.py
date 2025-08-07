@@ -1,12 +1,19 @@
 #%%
 import pandas as pd
+import os
 
-dfis=pd.read_csv('Data/IS_Bank.csv')
-dfbs=pd.read_csv('Data/BS_Bank.csv')
-dfnt=pd.read_csv('Data/Note_Bank.csv')
-Type=pd.read_excel('Data/Bank_Type.xlsx')
-mapping=pd.read_excel('Data/IRIS KeyCodes - Bank.xlsx')
-dfwriteoff=pd.read_excel('Data/writeoffs.xlsx')
+# Get the script directory and project root
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+data_dir = os.path.join(project_root, 'Data')
+
+# Read files using absolute paths
+dfis=pd.read_csv(os.path.join(data_dir, 'IS_Bank.csv'))
+dfbs=pd.read_csv(os.path.join(data_dir, 'BS_Bank.csv'))
+dfnt=pd.read_csv(os.path.join(data_dir, 'Note_Bank.csv'))
+Type=pd.read_excel(os.path.join(data_dir, 'Bank_Type.xlsx'))
+mapping=pd.read_excel(os.path.join(data_dir, 'IRIS KeyCodes - Bank.xlsx'))
+dfwriteoff=pd.read_excel(os.path.join(data_dir, 'writeoffs.xlsx'))
 
 
 #Clean writeoff 
@@ -162,5 +169,9 @@ dfsectorquarter['Type']='Sector'
 dfsectoryear=pd.concat([dfcompaniesyear,dfsectoryear,dfsocbyear,dfprivate1year,dfprivate2year,dfprivate3year],ignore_index=True)
 dfsectorquarter=pd.concat([dfcompaniesquarter,dfsectorquarter,dfsocbquarter,dfprivate1quarter,dfprivate2quarter,dfprivate3quarter],ignore_index=True)
 
-dfsectoryear.to_csv('./Data/dfsectoryear.csv')
-dfsectorquarter.to_csv('./Data/dfsectorquarter.csv')
+# Replace TICKER with Type when TICKER is longer than 3 characters
+dfsectoryear.loc[dfsectoryear['TICKER'].str.len() > 3, 'TICKER'] = dfsectoryear.loc[dfsectoryear['TICKER'].str.len() > 3, 'Type']
+dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'TICKER'] = dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'Type']
+
+dfsectoryear.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
+dfsectorquarter.to_csv(os.path.join(data_dir, 'dfsectorquarter.csv'), index=False)

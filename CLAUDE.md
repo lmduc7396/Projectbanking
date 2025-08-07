@@ -11,12 +11,6 @@ This is a Vietnamese banking analysis dashboard that combines financial data vis
 Before running any component:
 1. Ensure `OPENAI_API_KEY` is set in `.env` file
 2. Install dependencies: `pip install -r requirements.txt streamlit`
-3. Data files must exist in `Data/` directory:
-   - `dfsectorquarter.csv` - Quarterly banking metrics
-   - `dfsectoryear.csv` - Yearly banking metrics  
-   - `Key_items.xlsx` - Maps friendly names to KeyCode columns
-   - `Bank_Type.xlsx` - Bank sector classifications
-   - `banking_comments.xlsx` - Generated comments cache (created automatically)
 
 ## Common Commands
 

@@ -61,31 +61,44 @@ class QueryRouter:
         Query: "{query}"
         
         Extract:
-        1. TICKERS: List of bank ticker symbols mentioned (e.g., ACB, VCB, BID, etc.)
-           - If "all banks" or "sector" is mentioned, return ["ALL"]
-           - If no specific banks mentioned, return []
+        1. TICKERS: List of bank ticker symbols or sector names mentioned
+           - Individual banks: ACB, VCB, BID, etc. (3-letter codes)
+           - Sector groups: "Sector", "SOCB", "Private_1", "Private_2", "Private_3"
+           - If "all banks" is mentioned, return ["Sector"]
+           - If no specific banks/sectors mentioned, return []
         
         2. ITEMS: List of financial metrics/items mentioned (e.g., ROE, ROA, NIM, NPL, CAR, etc.)
            - Look for common banking metrics
            - If no specific metrics mentioned, return []
         
-        3. TIMEFRAME: The time period mentioned
-           - For quarters, use format like "2Q25", "1Q24"
-           - For years, use format like "2025", "2024"
-           - If "latest" or "current" mentioned, return "LATEST"
-           - If no timeframe mentioned, return "LATEST"
+        3. TIMEFRAME: The time period(s) mentioned
+           - For single quarter, return one quarter like ["2Q25"]
+           - For quarter ranges (from X to Y), return ALL quarters in between
+             Example: "from 1Q24 to 2Q25" -> ["1Q24", "2Q24", "3Q24", "4Q24", "1Q25", "2Q25"]
+           - For full year data (annual/yearly), return just the year(s): "2024" -> ["2024"], "2023 and 2024" -> ["2023", "2024"]
+           - If user mentions "quarterly" with a year, then return quarters: "quarterly data for 2024" -> ["1Q24", "2Q24", "3Q24", "4Q24"]
+           - If "latest" or no timeframe mentioned, return the latest 4 quarters: ["3Q24", "4Q24", "1Q25", "2Q25"]
+           - Always return as a list, even for single periods
+        
+        4. NEED_COMPONENTS: Boolean - true if the question requires component bank data
+           - true if asking for comparisons WITHIN a sector (e.g., "which bank in SOCB has highest ROE")
+           - true if asking for rankings or identifying specific banks within sectors
+           - false if only asking for aggregated sector data
         
         Return your answer in JSON format:
         {{
             "tickers": [...],
             "items": [...],
-            "timeframe": "..."
+            "timeframe": [...],
+            "need_components": true/false
         }}
         
         Examples:
-        - "Show me ROE for VCB in 2Q25" -> {{"tickers": ["VCB"], "items": ["ROE"], "timeframe": "2Q25"}}
-        - "What's the NIM trend for all banks in 2024?" -> {{"tickers": ["ALL"], "items": ["NIM"], "timeframe": "2024"}}
-        - "Compare ROA and ROE for ACB and BID" -> {{"tickers": ["ACB", "BID"], "items": ["ROA", "ROE"], "timeframe": "LATEST"}}
+        - "Show me ROE for VCB in 2Q25" -> {{"tickers": ["VCB"], "items": ["ROE"], "timeframe": ["2Q25"], "need_components": false}}
+        - "What's the NIM for SOCB in 2024?" -> {{"tickers": ["SOCB"], "items": ["NIM"], "timeframe": ["2024"], "need_components": false}}
+        - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": ["3Q24", "4Q24", "1Q25", "2Q25"], "need_components": true}}
+        - "Compare Private_1 banks performance" -> {{"tickers": ["Private_1"], "items": [], "timeframe": ["3Q24", "4Q24", "1Q25", "2Q25"], "need_components": true}}
+        - "Show NPL for Sector" -> {{"tickers": ["Sector"], "items": ["NPL"], "timeframe": ["3Q24", "4Q24", "1Q25", "2Q25"], "need_components": false}}
         """
         
         try:
@@ -111,12 +124,24 @@ class QueryRouter:
                 else:
                     print(f"Warning: No keycode found for item '{item}'")
             
+            # Handle timeframe as a list
+            timeframe = parsed.get('timeframe', ["3Q24", "4Q24", "1Q25", "2Q25"])
+            if not isinstance(timeframe, list):
+                timeframe = [timeframe] if timeframe else ["3Q24", "4Q24", "1Q25", "2Q25"]
+            
             # Determine data source based on timeframe
-            timeframe = parsed.get('timeframe', 'LATEST')
-            if 'Q' in timeframe:
+            # If any quarter format detected (e.g., "1Q24"), use quarterly data
+            # If only year format (e.g., "2024"), use yearly data
+            has_quarters = any('Q' in str(t) for t in timeframe)
+            has_only_years = all(str(t).isdigit() and len(str(t)) == 4 for t in timeframe)
+            
+            if has_quarters:
                 data_source = 'dfsectorquarter.csv'
-            else:
+            elif has_only_years:
                 data_source = 'dfsectoryear.csv'
+            else:
+                # Default to quarterly for mixed or latest
+                data_source = 'dfsectorquarter.csv'
             
             return {
                 'original_query': query,
@@ -124,7 +149,8 @@ class QueryRouter:
                 'items': parsed.get('items', []),
                 'keycodes': keycodes,
                 'timeframe': timeframe,
-                'data_source': data_source
+                'data_source': data_source,
+                'need_components': parsed.get('need_components', False)
             }
             
         except Exception as e:
@@ -136,13 +162,19 @@ class QueryRouter:
         """Fallback simple parser if OpenAI fails"""
         query_upper = query.upper()
         
-        # Extract tickers
+        # Extract tickers and sectors
         tickers = []
         common_tickers = ['VCB', 'BID', 'CTG', 'TCB', 'MBB', 'VPB', 'ACB', 'STB', 
                          'HDB', 'TPB', 'SHB', 'VIB', 'LPB', 'MSB', 'OCB', 'EIB']
+        sectors = ['SECTOR', 'SOCB', 'PRIVATE_1', 'PRIVATE_2', 'PRIVATE_3']
+        
         for ticker in common_tickers:
             if ticker in query_upper:
                 tickers.append(ticker)
+        
+        for sector in sectors:
+            if sector in query_upper.replace(' ', '_'):
+                tickers.append(sector.replace('_', '_'))
         
         # Extract items
         items = []
@@ -153,20 +185,37 @@ class QueryRouter:
                 keycodes.append(keycode)
         
         # Extract timeframe
-        timeframe = 'LATEST'
+        timeframe = ["3Q24", "4Q24", "1Q25", "2Q25"]  # Default to latest 4 quarters
         quarter_pattern = r'[1-4]Q\d{2}'
         quarter_matches = re.findall(quarter_pattern, query_upper)
+        
         if quarter_matches:
-            timeframe = quarter_matches[0]
+            timeframe = quarter_matches
             data_source = 'dfsectorquarter.csv'
         else:
             year_pattern = r'20\d{2}'
             year_matches = re.findall(year_pattern, query)
             if year_matches:
-                timeframe = year_matches[0]
-                data_source = 'dfsectoryear.csv'
+                # Check if "quarterly" is mentioned
+                if 'QUARTERLY' in query_upper or 'QUARTER' in query_upper:
+                    # Convert years to quarters
+                    timeframe = []
+                    for year in year_matches:
+                        year_suffix = year[-2:]
+                        timeframe.extend([f"1Q{year_suffix}", f"2Q{year_suffix}", f"3Q{year_suffix}", f"4Q{year_suffix}"])
+                    data_source = 'dfsectorquarter.csv'
+                else:
+                    # Use yearly data
+                    timeframe = year_matches
+                    data_source = 'dfsectoryear.csv'
             else:
                 data_source = 'dfsectorquarter.csv'
+        
+        # Check if need components (simple heuristic)
+        need_components = False
+        if any(word in query_upper for word in ['WHICH', 'AMONG', 'WITHIN', 'COMPARE', 'HIGHEST', 'LOWEST', 'BEST', 'WORST']):
+            if any(sector in tickers for sector in ['SECTOR', 'SOCB', 'PRIVATE_1', 'PRIVATE_2', 'PRIVATE_3']):
+                need_components = True
         
         return {
             'original_query': query,
@@ -174,5 +223,6 @@ class QueryRouter:
             'items': items,
             'keycodes': keycodes,
             'timeframe': timeframe,
-            'data_source': data_source
+            'data_source': data_source,
+            'need_components': need_components
         }

@@ -63,41 +63,63 @@ class DataDiscoveryAgent:
     def _apply_filters(self, df: pd.DataFrame, query_analysis: Dict[str, Any]) -> pd.DataFrame:
         """Apply filters for tickers and timeframe"""
         
-        # Filter by tickers
+        # Filter by tickers/sectors
         tickers = query_analysis.get('tickers', [])
-        if tickers and 'ALL' not in tickers and 'TICKER' in df.columns:
-            df = df[df['TICKER'].isin(tickers)]
-            print(f"Filtered to {len(tickers)} tickers: {tickers}, rows: {len(df)}")
+        need_components = query_analysis.get('need_components', False)
         
-        # Filter by timeframe
-        timeframe = query_analysis.get('timeframe', 'LATEST')
+        if tickers and 'TICKER' in df.columns:
+            # Check if any tickers are sector names
+            sector_names = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+            has_sectors = any(t in sector_names for t in tickers)
+            
+            if has_sectors and need_components:
+                # Include both sector data AND component banks
+                # First get the sector rows
+                sector_df = df[df['TICKER'].isin(tickers)]
+                
+                # Then get component banks by matching Type column
+                component_df = df[df['Type'].isin(tickers)]
+                
+                # Combine both
+                df = pd.concat([sector_df, component_df]).drop_duplicates()
+                print(f"Filtered to sectors {tickers} with components, rows: {len(df)}")
+            elif has_sectors:
+                # Only sector aggregated data
+                df = df[df['TICKER'].isin(tickers)]
+                print(f"Filtered to sectors only: {tickers}, rows: {len(df)}")
+            else:
+                # Regular ticker filtering
+                df = df[df['TICKER'].isin(tickers)]
+                print(f"Filtered to {len(tickers)} tickers: {tickers}, rows: {len(df)}")
+        
+        # Filter by timeframe (now expects a list)
+        timeframe = query_analysis.get('timeframe', ["3Q24", "4Q24", "1Q25", "2Q25"])
+        
+        # Ensure timeframe is a list
+        if not isinstance(timeframe, list):
+            if timeframe == 'LATEST':
+                timeframe = ["3Q24", "4Q24", "1Q25", "2Q25"]
+            else:
+                timeframe = [timeframe]
         
         if 'Date_Quarter' in df.columns:
-            # Quarterly data
-            if timeframe != 'LATEST' and 'Q' in timeframe:
-                df = df[df['Date_Quarter'] == timeframe]
-                print(f"Filtered to quarter {timeframe}, rows: {len(df)}")
-            elif timeframe == 'LATEST':
-                # Get the latest quarter
-                df['_quarter_sort'] = df['Date_Quarter'].apply(self._quarter_to_numeric)
-                latest_quarter = df['_quarter_sort'].max()
-                df = df[df['_quarter_sort'] == latest_quarter]
-                df = df.drop('_quarter_sort', axis=1)
-                print(f"Filtered to latest quarter, rows: {len(df)}")
-            elif timeframe.isdigit() and len(timeframe) == 4:
-                # Year specified but quarterly data - get all quarters of that year
-                year_suffix = timeframe[-2:]
-                quarters = [f"1Q{year_suffix}", f"2Q{year_suffix}", f"3Q{year_suffix}", f"4Q{year_suffix}"]
-                df = df[df['Date_Quarter'].isin(quarters)]
-                print(f"Filtered to year {timeframe}, rows: {len(df)}")
+            # Quarterly data - filter by the list of quarters
+            if timeframe:
+                df = df[df['Date_Quarter'].isin(timeframe)]
+                print(f"Filtered to quarters {timeframe}, rows: {len(df)}")
         
         elif 'Year' in df.columns:
-            # Yearly data
-            if timeframe != 'LATEST' and timeframe.isdigit():
-                df = df[df['Year'] == int(timeframe)]
-                print(f"Filtered to year {timeframe}, rows: {len(df)}")
-            elif timeframe == 'LATEST':
-                # Get the latest year
+            # Yearly data - extract years from timeframe if they're year values
+            years = []
+            for t in timeframe:
+                if isinstance(t, str) and t.isdigit() and len(t) == 4:
+                    years.append(int(t))
+            
+            if years:
+                df = df[df['Year'].isin(years)]
+                print(f"Filtered to years {years}, rows: {len(df)}")
+            else:
+                # If no valid years, get latest year
                 latest_year = df['Year'].max()
                 df = df[df['Year'] == latest_year]
                 print(f"Filtered to latest year, rows: {len(df)}")
