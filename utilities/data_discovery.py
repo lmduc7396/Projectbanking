@@ -8,6 +8,42 @@ class DataDiscoveryAgent:
     def __init__(self, data_dir: str = 'Data'):
         self.data_dir = data_dir
         self.data_cache = {}
+        self.latest_quarter = self._get_latest_quarter()
+        
+    def _get_latest_quarter(self) -> str:
+        """Get the latest quarter from dfsectorquarter.csv"""
+        try:
+            quarter_file = os.path.join(self.data_dir, 'dfsectorquarter.csv')
+            if os.path.exists(quarter_file):
+                df = pd.read_csv(quarter_file)
+                if 'Date_Quarter' in df.columns:
+                    quarters = df['Date_Quarter'].unique()
+                    quarters_sorted = sorted(quarters, key=self._quarter_to_numeric)
+                    return quarters_sorted[-1] if quarters_sorted else "2Q25"
+            return "2Q25"
+        except:
+            return "2Q25"
+    
+    def _get_latest_4_quarters(self) -> List[str]:
+        """Get the latest 4 quarters based on the latest quarter"""
+        try:
+            q = int(self.latest_quarter[0])
+            year = int(self.latest_quarter[2:4])
+            
+            quarters = []
+            for i in range(3, -1, -1):
+                calc_q = q - i
+                calc_year = year
+                
+                while calc_q <= 0:
+                    calc_q += 4
+                    calc_year -= 1
+                
+                quarters.append(f"{calc_q}Q{calc_year:02d}")
+            
+            return quarters
+        except:
+            return ["3Q24", "4Q24", "1Q25", "2Q25"]
     
     def find_relevant_data(self, query_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -93,12 +129,13 @@ class DataDiscoveryAgent:
                 print(f"Filtered to {len(tickers)} tickers: {tickers}, rows: {len(df)}")
         
         # Filter by timeframe (now expects a list)
-        timeframe = query_analysis.get('timeframe', ["3Q24", "4Q24", "1Q25", "2Q25"])
+        latest_4 = self._get_latest_4_quarters()
+        timeframe = query_analysis.get('timeframe', latest_4)
         
         # Ensure timeframe is a list
         if not isinstance(timeframe, list):
             if timeframe == 'LATEST':
-                timeframe = ["3Q24", "4Q24", "1Q25", "2Q25"]
+                timeframe = latest_4
             else:
                 timeframe = [timeframe]
         

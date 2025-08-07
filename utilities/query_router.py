@@ -10,6 +10,7 @@ class QueryRouter:
     def __init__(self):
         self.client = get_openai_client()
         self.keycode_mapping = self._load_keycode_mapping()
+        self.latest_quarter = self._get_latest_quarter()
         
     def _load_keycode_mapping(self) -> Dict[str, str]:
         """Load Key_items.xlsx and create mapping from item names to keycodes"""
@@ -46,6 +47,56 @@ class QueryRouter:
             print(f"Error loading Key_items.xlsx: {e}")
             return {}
     
+    def _get_latest_quarter(self) -> str:
+        """Get the latest quarter from dfsectorquarter.csv"""
+        try:
+            current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            quarter_file = os.path.join(current_dir, 'Data', 'dfsectorquarter.csv')
+            
+            df = pd.read_csv(quarter_file)
+            if 'Date_Quarter' in df.columns:
+                # Convert quarters to numeric for sorting
+                def quarter_to_numeric(q):
+                    try:
+                        quarter = int(q[0])
+                        year = 2000 + int(q[2:4])
+                        return year + (quarter - 1) / 4
+                    except:
+                        return 0
+                
+                quarters = df['Date_Quarter'].unique()
+                quarters_sorted = sorted(quarters, key=quarter_to_numeric)
+                latest = quarters_sorted[-1] if quarters_sorted else "2Q25"
+                print(f"Latest quarter detected: {latest}")
+                return latest
+            else:
+                return "2Q25"  # Fallback
+        except Exception as e:
+            print(f"Error getting latest quarter: {e}")
+            return "2Q25"  # Fallback
+    
+    def _get_latest_4_quarters(self) -> List[str]:
+        """Get the latest 4 quarters based on the latest quarter"""
+        try:
+            # Parse the latest quarter
+            q = int(self.latest_quarter[0])
+            year = int(self.latest_quarter[2:4])
+            
+            quarters = []
+            for i in range(3, -1, -1):  # Go back 3 quarters from latest
+                calc_q = q - i
+                calc_year = year
+                
+                while calc_q <= 0:
+                    calc_q += 4
+                    calc_year -= 1
+                
+                quarters.append(f"{calc_q}Q{calc_year:02d}")
+            
+            return quarters
+        except:
+            return ["3Q24", "4Q24", "1Q25", "2Q25"]  # Fallback
+    
     def analyze_query(self, query: str) -> Dict[str, Any]:
         """
         Use OpenAI to analyze the query and extract:
@@ -54,10 +105,15 @@ class QueryRouter:
         3. Timeframe (quarters like 2Q25 or years like 2025)
         """
         
+        # Get latest 4 quarters for the prompt
+        latest_4_quarters = self._get_latest_4_quarters()
+        
         # Use OpenAI to parse the query
         prompt = f"""
         Analyze this banking query and extract the following information:
         
+        IMPORTANT: The current/latest quarter is {self.latest_quarter}. 
+
         Query: "{query}"
         
         Extract:
@@ -73,11 +129,12 @@ class QueryRouter:
         
         3. TIMEFRAME: The time period(s) mentioned
            - For single quarter, return one quarter like ["2Q25"]
+           - If user ask for current, latest, or recent data, return the latest quarter ["{self.latest_quarter}"]
            - For quarter ranges (from X to Y), return ALL quarters in between
              Example: "from 1Q24 to 2Q25" -> ["1Q24", "2Q24", "3Q24", "4Q24", "1Q25", "2Q25"]
            - For full year data (annual/yearly), return just the year(s): "2024" -> ["2024"], "2023 and 2024" -> ["2023", "2024"]
            - If user mentions "quarterly" with a year, then return quarters: "quarterly data for 2024" -> ["1Q24", "2Q24", "3Q24", "4Q24"]
-           - If "latest" or no timeframe mentioned, return the latest 4 quarters: ["3Q24", "4Q24", "1Q25", "2Q25"]
+           - If no timeframe mentioned, return the latest 4 quarters: {latest_4_quarters}
            - Always return as a list, even for single periods
         
         4. NEED_COMPONENTS: Boolean - true if the question requires component bank data
@@ -127,9 +184,10 @@ class QueryRouter:
                     print(f"Warning: No keycode found for item '{item}'")
             
             # Handle timeframe as a list
-            timeframe = parsed.get('timeframe', ["3Q24", "4Q24", "1Q25", "2Q25"])
+            latest_4 = self._get_latest_4_quarters()
+            timeframe = parsed.get('timeframe', latest_4)
             if not isinstance(timeframe, list):
-                timeframe = [timeframe] if timeframe else ["3Q24", "4Q24", "1Q25", "2Q25"]
+                timeframe = [timeframe] if timeframe else latest_4
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data
@@ -187,7 +245,7 @@ class QueryRouter:
                 keycodes.append(keycode)
         
         # Extract timeframe
-        timeframe = ["3Q24", "4Q24", "1Q25", "2Q25"]  # Default to latest 4 quarters
+        timeframe = self._get_latest_4_quarters()  # Default to latest 4 quarters
         quarter_pattern = r'[1-4]Q\d{2}'
         quarter_matches = re.findall(quarter_pattern, query_upper)
         
