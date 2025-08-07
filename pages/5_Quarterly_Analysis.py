@@ -14,8 +14,14 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 # Import utilities
-from utilities import quarter_sort_key, sort_quarters
-from Check_laptopOS import get_data_path, get_comments_file_path
+from utilities.quarter_utils import quarter_sort_key, sort_quarters
+
+# Define path functions
+def get_data_path():
+    return os.path.join(project_root, 'Data')
+
+def get_comments_file_path():
+    return os.path.join(get_data_path(), 'banking_comments.xlsx')
 
 # Page configuration
 st.set_page_config(
