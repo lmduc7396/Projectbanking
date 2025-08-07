@@ -119,8 +119,12 @@ Question: {user_question}
 Data Table:
 {data_result['data_table']}
 
-Based on the data table above, please provide a comprehensive answer to the question.
-Include specific numbers from the data and explain any trends or patterns you observe.
+Instructions:
+- Give a VERY concise and punchy answer (2-3 sentences max)
+- Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
+- Round numbers appropriately (billions, millions, percentages to 1 decimal)
+- Highlight only the most important findings
+- Be direct and specific with bank names and numbers
 """
                     
                     st.info("Debug: Prompt Being Sent to OpenAI")
@@ -130,7 +134,7 @@ Include specific numbers from the data and explain any trends or patterns you ob
                     response = client.chat.completions.create(
                         model=model,
                         messages=[
-                            {"role": "system", "content": "You are a banking data analyst. Analyze the data provided and answer questions accurately based on the actual numbers in the data table."},
+                            {"role": "system", "content": "You are a concise banking analyst. Give short, punchy answers with properly formatted numbers. Convert decimals to percentages, use billions/millions for large numbers. Maximum 2-3 sentences."},
                             {"role": "user", "content": enhanced_prompt}
                         ],
                         temperature=temperature
