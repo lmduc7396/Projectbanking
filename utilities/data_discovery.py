@@ -13,6 +13,7 @@ class DataDiscoveryAgent:
         self.data_dir = data_dir
         self.data_cache = {}
         self._initialize_data_catalog()
+        self._load_keycode_mappings()
     
     def _initialize_data_catalog(self):
         self.data_catalog = {
@@ -41,6 +42,61 @@ class DataDiscoveryAgent:
                 'update_frequency': 'Static'
             }
         }
+    
+    def _load_keycode_mappings(self):
+        """Load keycode mappings from Key_items.xlsx and IRIS KeyCodes"""
+        self.metric_to_keycodes = {}
+        
+        try:
+            # Load Key_items.xlsx
+            key_items_path = os.path.join(self.data_dir, 'Key_items.xlsx')
+            if os.path.exists(key_items_path):
+                df_key = pd.read_excel(key_items_path)
+                
+                # Create mapping from metric name to keycode
+                for _, row in df_key.iterrows():
+                    name = str(row.get('Name', '')).upper().strip()
+                    keycode = str(row.get('KeyCode', '')).strip()
+                    
+                    if name and keycode:
+                        # Direct mapping
+                        self.metric_to_keycodes[name] = [keycode]
+                        
+                        # Also handle common variations
+                        if name == 'ROE':
+                            self.metric_to_keycodes['RETURN ON EQUITY'] = [keycode]
+                        elif name == 'ROA':
+                            self.metric_to_keycodes['RETURN ON ASSETS'] = [keycode]
+                        elif name == 'NIM':
+                            self.metric_to_keycodes['NET INTEREST MARGIN'] = [keycode]
+                
+                print(f"Loaded {len(self.metric_to_keycodes)} metric mappings from Key_items.xlsx")
+            
+            # Load IRIS KeyCodes for additional mappings
+            iris_path = os.path.join(self.data_dir, 'IRIS KeyCodes - Bank.xlsx')
+            if os.path.exists(iris_path):
+                df_iris = pd.read_excel(iris_path)
+                
+                # Add IRIS mappings for metrics not in Key_items
+                for _, row in df_iris.iterrows():
+                    name = str(row.get('Name', '')).upper().strip()
+                    keycode = str(row.get('KeyCode', '')).strip()
+                    
+                    # Only add if it's a CA.*, IS.*, BS.*, or NT.* keycode
+                    if keycode and any(keycode.startswith(prefix) for prefix in ['CA.', 'IS.', 'BS.', 'NT.']):
+                        if 'NPL' in name and 'NPL' not in self.metric_to_keycodes:
+                            self.metric_to_keycodes['NPL'] = [keycode]
+                        elif 'CAR' in name and 'CAR' not in self.metric_to_keycodes:
+                            self.metric_to_keycodes['CAR'] = [keycode]
+                        elif 'COVERAGE' in name and 'COVERAGE' not in self.metric_to_keycodes:
+                            self.metric_to_keycodes['COVERAGE'] = [keycode]
+                
+                print(f"Total metric mappings: {len(self.metric_to_keycodes)}")
+                
+        except Exception as e:
+            print(f"Warning: Could not load keycode mappings: {e}")
+            # Fallback to empty mappings
+            self.metric_to_keycodes = {}
     
     def get_available_sources(self) -> List[str]:
         available = []
@@ -297,35 +353,29 @@ class DataDiscoveryAgent:
         metrics = query_analysis.get('entities', {}).get('metrics', [])
         metrics.extend(query_analysis.get('metrics_requested', []))
         
-        # Get keycodes needed for the metrics
+        # Get keycodes needed for the metrics from query router
         keycodes_needed = query_analysis.get('keycodes_needed', {})
         
-        # Add columns based on keycodes
+        # Add columns based on keycodes from query router
         for metric, keycodes in keycodes_needed.items():
             for keycode in keycodes:
                 if keycode in df.columns and keycode not in relevant:
                     relevant.append(keycode)
         
-        # Also search for metric names in column names
+        # Use dynamically loaded keycode mappings
         for metric in metrics:
+            metric_upper = metric.upper()
+            
+            # Check our loaded mappings
+            if metric_upper in self.metric_to_keycodes:
+                for keycode in self.metric_to_keycodes[metric_upper]:
+                    if keycode in df.columns and keycode not in relevant:
+                        relevant.append(keycode)
+            
+            # Also search for metric names in column names
             for col in df.columns:
                 if metric.lower() in col.lower() and col not in relevant:
                     relevant.append(col)
-        
-        # Special handling for common banking metrics
-        metric_to_keycodes = {
-            'ROE': ['CA.19', 'CA.18', 'CA.17'],  # Common ROE keycodes
-            'ROA': ['CA.15', 'CA.14', 'CA.13'],  # Common ROA keycodes
-            'NIM': ['CA.7', 'CA.8'],
-            'NPL': ['CA.3', 'CA.4'],
-            'CAR': ['CA.1', 'CA.2']
-        }
-        
-        for metric in metrics:
-            if metric.upper() in metric_to_keycodes:
-                for keycode in metric_to_keycodes[metric.upper()]:
-                    if keycode in df.columns and keycode not in relevant:
-                        relevant.append(keycode)
         
         # If still not enough columns, add some keycode columns
         if len(relevant) < 5:
