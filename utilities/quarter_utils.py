@@ -23,6 +23,6 @@ def quarter_sort_key(quarter_str):
     """Sort key function for quarter strings"""
     return quarter_to_numeric(quarter_str)
 
-def sort_quarters(quarter_list):
+def sort_quarters(quarter_list, reverse=False):
     """Sort list of quarter strings chronologically"""
-    return sorted(quarter_list, key=quarter_sort_key)
+    return sorted(quarter_list, key=quarter_sort_key, reverse=reverse)
