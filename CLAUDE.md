@@ -57,7 +57,7 @@ All quarter strings use format `XQyy` where:
 
 ### Cross-Platform Path Handling
 The system auto-detects OS and adjusts paths:
-- Windows: `C:\Users\ducle\OneDrive\Work-related\VS - Code project`
+- Windows: `C:\Users\ducle\OneDrive\Work-related\projectbanking`
 - Mac/Linux: Current working directory
 
 Use `utilities.path_utils` for consistent path resolution.

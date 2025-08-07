@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 # Helper functions
 def get_base_path():
     if platform.system() == 'Windows':
-        return Path(r"c:\Users\ducle\OneDrive\Work-related\VS - Code project")
+        return Path(r"c:\Users\ducle\OneDrive\Work-related\projectbanking")
 
 # Connection string
 DIAMOND_STR = 'DRIVER={ODBC Driver 17 for SQL Server};Server=dcdwh-prod.sql.azuresynapse.net;Database=dcdwhproddedicatedpool;UID=researchlogin;PWD=353fsf*($%#sfsfe;MultipleActiveResultSets=true;Command Timeout=300;'
