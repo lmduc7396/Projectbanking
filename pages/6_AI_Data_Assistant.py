@@ -42,14 +42,14 @@ with st.sidebar:
         "Response Temperature",
         min_value=0.0,
         max_value=1.0,
-        value=0.7,
+        value=0.2,
         step=0.1
     )
     
     st.header("Available Data Sources")
-    data_sources = st.session_state.discovery_agent.get_available_sources()
-    for source in data_sources:
-        st.text(f"- {source}")
+    st.text("- dfsectorquarter.csv (Quarterly data)")
+    st.text("- dfsectoryear.csv (Yearly data)")
+    st.text("- Key_items.xlsx (Metric mappings)")
     
     if st.button("Clear Chat History"):
         st.session_state.chat_history = []
@@ -81,94 +81,73 @@ if user_question:
                 st.json(query_analysis)
         
         with st.spinner("Discovering relevant data..."):
-            data_context = st.session_state.discovery_agent.find_relevant_data(
+            data_result = st.session_state.discovery_agent.find_relevant_data(
                 query_analysis
             )
             
-            if data_context['data_found']:
-                with st.expander("Data Sources Found", expanded=False):
-                    for source in data_context['sources']:
-                        st.write(f"- {source['file']}: {source['description']}")
+            if data_result['data_found']:
+                st.success(f"Found {data_result['row_count']} rows with {data_result['column_count']} columns")
         
-        st.info("Debug: Data Context and Table")
-        with st.expander("Full Data Context (Debug)", expanded=True):
-            st.subheader("1. Raw Data Context Object:")
-            st.json(data_context)
+        st.info("Debug: Data Being Sent to OpenAI")
+        with st.expander("Data Table and Context (Debug)", expanded=True):
+            st.subheader("1. Data Summary:")
+            st.json(data_result.get('summary', {}))
             
-            st.subheader("2. Data Table Being Fed to OpenAI:")
-            if 'sample_data' in data_context and data_context['sample_data']:
-                st.code(data_context['sample_data'], language='text')
+            st.subheader("2. Actual Data Table:")
+            if data_result.get('data_table'):
+                st.code(data_result['data_table'], language='text')
                 
+                # Try to display as dataframe
                 try:
                     import io
-                    if isinstance(data_context['sample_data'], str):
-                        if '\t' in data_context['sample_data'] or '|' in data_context['sample_data']:
-                            st.write("Attempting to parse as table...")
-                            lines = data_context['sample_data'].strip().split('\n')
-                            if len(lines) > 1:
-                                if '|' in lines[0]:
-                                    headers = [h.strip() for h in lines[0].split('|') if h.strip()]
-                                    data_rows = []
-                                    for line in lines[1:]:
-                                        if '|' in line and not line.strip().startswith('-'):
-                                            row = [cell.strip() for cell in line.split('|') if cell.strip()]
-                                            if len(row) == len(headers):
-                                                data_rows.append(row)
-                                    if data_rows:
-                                        df_debug = pd.DataFrame(data_rows, columns=headers)
-                                        st.dataframe(df_debug)
-                                elif '\t' in lines[0]:
-                                    df_debug = pd.read_csv(io.StringIO(data_context['sample_data']), sep='\t')
-                                    st.dataframe(df_debug)
-                except Exception as e:
-                    st.write(f"Could not parse as DataFrame: {e}")
+                    df_display = pd.read_csv(io.StringIO(data_result['data_table']), sep=r'\s\s+', engine='python')
+                    st.dataframe(df_display)
+                except:
+                    pass
             else:
-                st.warning("No sample data found in context")
-            
-            st.subheader("3. Summary Being Used:")
-            if 'summary' in data_context:
-                st.json(data_context['summary'])
+                st.warning("No data found matching the query")
         
         with st.spinner("Generating response..."):
             try:
-                client = get_openai_client()
-                
-                enhanced_prompt = f"""
-                User Question: {user_question}
-                
-                Available Data Context:
-                {json.dumps(data_context['summary'], indent=2)}
-                
-                Relevant Data Samples:
-                {data_context['sample_data']}
-                
-                Please provide a comprehensive answer based on the data provided.
-                Include specific numbers and trends where relevant.
-                """
-                
-                st.info("Debug: Prompt Being Sent to OpenAI")
-                with st.expander("Full Prompt to OpenAI (Debug)", expanded=True):
-                    st.code(enhanced_prompt, language='text')
-                
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful banking data analyst assistant with access to real-time data."},
-                        {"role": "user", "content": enhanced_prompt}
-                    ],
-                    temperature=temperature
-                )
-                
-                answer = response.choices[0].message.content
-                
-                st.success("OpenAI Response:")
-                st.markdown(answer)
-                
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": answer,
-                    "data_context": data_context['summary']
-                })
+                if data_result['data_found']:
+                    client = get_openai_client()
+                    
+                    # Create prompt with question and data
+                    enhanced_prompt = f"""
+Question: {user_question}
+
+Data Table:
+{data_result['data_table']}
+
+Based on the data table above, please provide a comprehensive answer to the question.
+Include specific numbers from the data and explain any trends or patterns you observe.
+"""
+                    
+                    st.info("Debug: Prompt Being Sent to OpenAI")
+                    with st.expander("Full Prompt to OpenAI (Debug)", expanded=True):
+                        st.code(enhanced_prompt, language='text')
+                    
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": "You are a banking data analyst. Analyze the data provided and answer questions accurately based on the actual numbers in the data table."},
+                            {"role": "user", "content": enhanced_prompt}
+                        ],
+                        temperature=temperature
+                    )
+                    
+                    answer = response.choices[0].message.content
+                    
+                    st.success("OpenAI Response:")
+                    st.markdown(answer)
+                    
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": answer,
+                        "data_context": data_result.get('summary', {})
+                    })
+                else:
+                    st.warning("No data found to answer your question. Please try rephrasing or check if the data exists for the specified timeframe and banks.")
                 
             except Exception as e:
                 st.error(f"Error generating response: {str(e)}")
