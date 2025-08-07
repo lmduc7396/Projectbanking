@@ -24,8 +24,8 @@ color_sequence = px.colors.qualitative.Bold
 
 # Page configuration
 st.set_page_config(
-    page_title="Banking Plot",
-    page_icon="Chart",
+    page_title="Banking Charts",
+    page_icon="📊",
     layout="wide"
 )
 
