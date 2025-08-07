@@ -90,6 +90,45 @@ if user_question:
                     for source in data_context['sources']:
                         st.write(f"- {source['file']}: {source['description']}")
         
+        st.info("Debug: Data Context and Table")
+        with st.expander("Full Data Context (Debug)", expanded=True):
+            st.subheader("1. Raw Data Context Object:")
+            st.json(data_context)
+            
+            st.subheader("2. Data Table Being Fed to OpenAI:")
+            if 'sample_data' in data_context and data_context['sample_data']:
+                st.code(data_context['sample_data'], language='text')
+                
+                try:
+                    import io
+                    if isinstance(data_context['sample_data'], str):
+                        if '\t' in data_context['sample_data'] or '|' in data_context['sample_data']:
+                            st.write("Attempting to parse as table...")
+                            lines = data_context['sample_data'].strip().split('\n')
+                            if len(lines) > 1:
+                                if '|' in lines[0]:
+                                    headers = [h.strip() for h in lines[0].split('|') if h.strip()]
+                                    data_rows = []
+                                    for line in lines[1:]:
+                                        if '|' in line and not line.strip().startswith('-'):
+                                            row = [cell.strip() for cell in line.split('|') if cell.strip()]
+                                            if len(row) == len(headers):
+                                                data_rows.append(row)
+                                    if data_rows:
+                                        df_debug = pd.DataFrame(data_rows, columns=headers)
+                                        st.dataframe(df_debug)
+                                elif '\t' in lines[0]:
+                                    df_debug = pd.read_csv(io.StringIO(data_context['sample_data']), sep='\t')
+                                    st.dataframe(df_debug)
+                except Exception as e:
+                    st.write(f"Could not parse as DataFrame: {e}")
+            else:
+                st.warning("No sample data found in context")
+            
+            st.subheader("3. Summary Being Used:")
+            if 'summary' in data_context:
+                st.json(data_context['summary'])
+        
         with st.spinner("Generating response..."):
             try:
                 client = get_openai_client()
@@ -107,6 +146,10 @@ if user_question:
                 Include specific numbers and trends where relevant.
                 """
                 
+                st.info("Debug: Prompt Being Sent to OpenAI")
+                with st.expander("Full Prompt to OpenAI (Debug)", expanded=True):
+                    st.code(enhanced_prompt, language='text')
+                
                 response = client.chat.completions.create(
                     model=model,
                     messages=[
@@ -117,6 +160,8 @@ if user_question:
                 )
                 
                 answer = response.choices[0].message.content
+                
+                st.success("OpenAI Response:")
                 st.markdown(answer)
                 
                 st.session_state.chat_history.append({
