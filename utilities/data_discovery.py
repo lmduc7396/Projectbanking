@@ -126,11 +126,30 @@ class DataDiscoveryAgent:
             'sector_analysis': ['quarterly_analysis_results.xlsx']
         }
         
+        # Handle data_source field from query router
+        if 'data_source' in query_analysis:
+            data_source_file = query_analysis['data_source']
+            if 'quarter' in data_source_file.lower():
+                files.append('dfsectorquarter.csv')
+            elif 'year' in data_source_file.lower():
+                files.append('dfsectoryear.csv')
+        
+        # Also handle data_sources if provided
         for source in query_analysis.get('data_sources', []):
             if source in source_to_files:
                 files.extend(source_to_files[source])
         
+        # If metrics are requested (like ROE), ensure we load the data files
         if query_analysis.get('metrics_requested'):
+            # Always include the main data files when metrics are requested
+            if not any('dfsector' in f for f in files):
+                # Check time context to determine which file
+                time_context = query_analysis.get('time_context', {})
+                if time_context.get('specific_quarters') or 'Q' in str(query_analysis.get('original_query', '')):
+                    files.append('dfsectorquarter.csv')
+                else:
+                    files.append('dfsectoryear.csv')
+            
             files.append('Key_items.xlsx')
         
         if query_analysis.get('aggregation_level') in ['sector', 'group']:
@@ -159,14 +178,30 @@ class DataDiscoveryAgent:
             return None
     
     def _apply_filters(self, df: pd.DataFrame, query_analysis: Dict[str, Any]) -> pd.DataFrame:
+        # Filter by banks if specified
         banks = query_analysis.get('entities', {}).get('banks', [])
+        if not banks:
+            # Also check the 'banks' field directly
+            banks = query_analysis.get('banks', [])
+        
         if banks and 'TICKER' in df.columns:
             df = df[df['TICKER'].isin(banks)]
         
         time_context = query_analysis.get('time_context', {})
         
+        # Handle specific quarters
         if time_context.get('specific_quarters') and 'Date_Quarter' in df.columns:
-            df = df[df['Date_Quarter'].isin(time_context['specific_quarters'])]
+            quarters = time_context['specific_quarters']
+            # Also check for quarters in the original query (e.g., "2Q25")
+            if not quarters and query_analysis.get('original_query'):
+                import re
+                quarter_pattern = r'[1-4]Q\d{2}'
+                found_quarters = re.findall(quarter_pattern, query_analysis['original_query'])
+                if found_quarters:
+                    quarters = found_quarters
+            
+            if quarters:
+                df = df[df['Date_Quarter'].isin(quarters)]
         
         elif time_context.get('specific_years'):
             year_columns = ['Year', 'Date']
@@ -180,6 +215,7 @@ class DataDiscoveryAgent:
                         df = df.drop('_year', axis=1)
                     break
         
+        # Handle "latest" request
         if time_context.get('latest'):
             if 'Date_Quarter' in df.columns:
                 df['_quarter_sort'] = df['Date_Quarter'].apply(self._quarter_to_numeric)
@@ -188,6 +224,14 @@ class DataDiscoveryAgent:
             elif 'Date' in df.columns:
                 df['Date'] = pd.to_datetime(df['Date'])
                 df = df[df['Date'] == df['Date'].max()]
+        
+        # If no time filter was applied but we have ROE data, show recent data
+        if 'Date_Quarter' in df.columns and len(df) > 100:
+            # Only show last 4 quarters if too much data
+            df['_quarter_sort'] = df['Date_Quarter'].apply(self._quarter_to_numeric)
+            top_quarters = df['_quarter_sort'].nlargest(4).unique()
+            df = df[df['_quarter_sort'].isin(top_quarters)]
+            df = df.drop('_quarter_sort', axis=1)
         
         return df
     
@@ -251,22 +295,51 @@ class DataDiscoveryAgent:
     def _select_relevant_columns(self, df: pd.DataFrame, query_analysis: Dict[str, Any]) -> List[str]:
         relevant = []
         
-        id_cols = ['TICKER', 'Date', 'Date_Quarter', 'Year', 'QUARTER']
+        id_cols = ['TICKER', 'Date', 'Date_Quarter', 'Year', 'QUARTER', 'Type']
         for col in id_cols:
             if col in df.columns:
                 relevant.append(col)
         
+        # Get metrics from entities and metrics_requested
         metrics = query_analysis.get('entities', {}).get('metrics', [])
+        metrics.extend(query_analysis.get('metrics_requested', []))
+        
+        # Get keycodes needed for the metrics
+        keycodes_needed = query_analysis.get('keycodes_needed', {})
+        
+        # Add columns based on keycodes
+        for metric, keycodes in keycodes_needed.items():
+            for keycode in keycodes:
+                if keycode in df.columns and keycode not in relevant:
+                    relevant.append(keycode)
+        
+        # Also search for metric names in column names
         for metric in metrics:
             for col in df.columns:
                 if metric.lower() in col.lower() and col not in relevant:
                     relevant.append(col)
         
-        if len(relevant) < 5:
-            keycode_cols = [col for col in df.columns if col.startswith('KeyCode')]
-            relevant.extend(keycode_cols[:5-len(relevant)])
+        # Special handling for common banking metrics
+        metric_to_keycodes = {
+            'ROE': ['CA.19', 'CA.18', 'CA.17'],  # Common ROE keycodes
+            'ROA': ['CA.15', 'CA.14', 'CA.13'],  # Common ROA keycodes
+            'NIM': ['CA.7', 'CA.8'],
+            'NPL': ['CA.3', 'CA.4'],
+            'CAR': ['CA.1', 'CA.2']
+        }
         
-        return relevant[:10]
+        for metric in metrics:
+            if metric.upper() in metric_to_keycodes:
+                for keycode in metric_to_keycodes[metric.upper()]:
+                    if keycode in df.columns and keycode not in relevant:
+                        relevant.append(keycode)
+        
+        # If still not enough columns, add some keycode columns
+        if len(relevant) < 5:
+            keycode_cols = [col for col in df.columns if col.startswith('CA.') or col.startswith('IS.')]
+            relevant.extend(keycode_cols[:10-len(relevant)])
+        
+        return relevant[:15]  # Return more columns for better context
     
     def _identify_available_metrics(self, extracted_data: Dict[str, pd.DataFrame], metrics_requested: List[str]) -> Dict[str, List[str]]:
         available = {}
