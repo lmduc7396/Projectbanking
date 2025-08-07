@@ -164,7 +164,7 @@ class QueryRouter:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a banking data query parser. Extract structured information from user queries."},
                     {"role": "user", "content": prompt}
