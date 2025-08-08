@@ -129,6 +129,11 @@ class QueryRouter:
         
         3. TIMEFRAME: The time period(s) mentioned
            - CRITICAL: If user says "current", "latest", or "recent" - ALWAYS return ["{self.latest_quarter}"] which is the latest quarter
+           - SPECIAL HANDLING for QoQ and YoY:
+             * If query contains "QoQ" (quarter-on-quarter): Return the latest quarter AND the previous quarter
+               Example: "QoQ growth" with latest quarter 2Q25 -> ["1Q25", "2Q25"]
+             * If query contains "YoY" (year-on-year): Return the latest quarter AND the same quarter from previous year
+               Example: "YoY growth" with latest quarter 2Q25 -> ["2Q24", "2Q25"]
            - For single quarter, return one quarter like ["2Q25"]
            - For year ranges (e.g., "2024 to 2025"), return ["2024", "2025"] ONLY if explicitly asking for yearly/annual data
            - For quarter ranges (from X to Y), return ALL quarters in between
@@ -160,6 +165,8 @@ class QueryRouter:
         - "Show current quarter ROE" -> {{"tickers": [], "items": ["ROE"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
         - "What's the current NPL?" -> {{"tickers": [], "items": ["NPL"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
         - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": {latest_4_quarters}, "need_components": true}}
+        - "VCB loan growth QoQ" -> {{"tickers": ["VCB"], "items": ["LOAN"], "timeframe": ["1Q25", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
+        - "ACB NIM YoY comparison" -> {{"tickers": ["ACB"], "items": ["NIM"], "timeframe": ["2Q24", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
         """
         
         try:
@@ -190,6 +197,33 @@ class QueryRouter:
             timeframe = parsed.get('timeframe', latest_4)
             if not isinstance(timeframe, list):
                 timeframe = [timeframe] if timeframe else latest_4
+            
+            # Post-process for QoQ and YoY if not properly handled
+            query_upper = query.upper()
+            if 'QOQ' in query_upper and len(timeframe) == 1:
+                # If only one quarter returned but QoQ mentioned, add previous quarter
+                latest_q = self.latest_quarter
+                if timeframe[0] == latest_q:
+                    # Calculate previous quarter
+                    q = int(latest_q[0])
+                    year = int(latest_q[2:4])
+                    prev_q = q - 1
+                    prev_year = year
+                    if prev_q <= 0:
+                        prev_q = 4
+                        prev_year -= 1
+                    prev_quarter = f"{prev_q}Q{prev_year:02d}"
+                    timeframe = [prev_quarter, latest_q]
+            
+            elif 'YOY' in query_upper and len(timeframe) == 1:
+                # If only one quarter returned but YoY mentioned, add same quarter from previous year
+                latest_q = self.latest_quarter
+                if timeframe[0] == latest_q:
+                    # Calculate same quarter previous year
+                    q = int(latest_q[0])
+                    year = int(latest_q[2:4])
+                    prev_year_quarter = f"{q}Q{(year-1):02d}"
+                    timeframe = [prev_year_quarter, latest_q]
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data

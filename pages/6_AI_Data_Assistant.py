@@ -278,10 +278,10 @@ Available Analysis and Commentary:
 
 Instructions:
 - Provide a narrative response drawing from the available analysis
-- Write fluently and naturally, like a banking analyst report
+- Write fluently and naturally, like a banking analyst report.
 - Focus on key themes, trends, and insights
 - Use specific examples and data points from the analysis
-- Be comprehensive but clear, max 2 paragraphs. Don't divert from the question
+- Be comprehensive but punchy and assertive, max 2 paragraphs. Don't divert from the question
 - Reference specific quarters and banks when relevant
 """
                     
