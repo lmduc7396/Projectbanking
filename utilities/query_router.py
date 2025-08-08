@@ -129,6 +129,8 @@ class QueryRouter:
         
         3. TIMEFRAME: The time period(s) mentioned
            - CRITICAL: If user says "current", "latest", or "recent" - return ["{self.latest_quarter}"]
+           - IMPORTANT: Even if QoQ or YoY is mentioned, just return the specific quarter(s) mentioned
+           - Examples: "QoQ change in 2Q25" -> return ["2Q25"], "YoY growth in 1Q25" -> return ["1Q25"]
            - For single quarter, return one quarter like ["2Q25"]
            - For quarter ranges (from X to Y), return ALL quarters in between
            - For year data, return just the year(s): "2024" -> ["2024"]
@@ -200,23 +202,9 @@ class QueryRouter:
                            'YEARLY CHANGE', 'YOY CHANGE', 'YOY GROWTH', 'VS LAST YEAR',
                            'COMPARED TO LAST YEAR', 'FROM LAST YEAR']
             
-            # Check for keywords
-            has_qoq = any(keyword in query_upper for keyword in qoq_keywords)
-            has_yoy = any(keyword in query_upper for keyword in yoy_keywords)
-            
-            # Also check for patterns where QoQ/YoY might be separated from other words
-            import re
-            if not has_qoq:
-                # Check for patterns like "change QoQ", "NIM change QoQ", etc.
-                qoq_patterns = [r'\bCHANGE\b.*\bQOQ\b', r'\bQOQ\b.*\bCHANGE\b', 
-                               r'\bGROWTH\b.*\bQOQ\b', r'\bQOQ\b.*\bGROWTH\b']
-                has_qoq = any(re.search(pattern, query_upper) for pattern in qoq_patterns)
-            
-            if not has_yoy:
-                # Check for patterns like "change YoY", "growth YoY", etc.
-                yoy_patterns = [r'\bCHANGE\b.*\bYOY\b', r'\bYOY\b.*\bCHANGE\b',
-                               r'\bGROWTH\b.*\bYOY\b', r'\bYOY\b.*\bGROWTH\b']
-                has_yoy = any(re.search(pattern, query_upper) for pattern in yoy_patterns)
+            # Simple and aggressive QoQ/YoY detection
+            has_qoq = 'QOQ' in query_upper or 'Q-O-Q' in query_upper or 'QUARTER-ON-QUARTER' in query_upper.replace(' ', '-')
+            has_yoy = 'YOY' in query_upper or 'Y-O-Y' in query_upper or 'YEAR-ON-YEAR' in query_upper.replace(' ', '-')
             
             # Debug output
             if has_qoq or has_yoy:
