@@ -68,6 +68,17 @@ with st.sidebar:
 #%% Main chat interface
 st.header("Ask Your Question")
 
+#%% Rules section
+with st.expander("Rules for questions"):
+    st.markdown("""
+    1. Always include a timeframe (e.g: 1Q25, current, latest, 2024)
+    2. For quantitative questions, specify the metrics (e.g: ROE, NIM, NPL)
+    3. For qualitative questions, provide context (e.g: "What is the outlook for SOCB in 2024?")
+    4. Use clear bank codes (e.g: ACB, VCB, SOCB) or sector names (e.g: "Private_1", "SOCB")
+    5. If asking for comparisons, specify the banks or among which sectors (Best among Private_1)
+    6. If no timeframe is specified, the system will assume the latest 4 quarters
+    """)
+
 for message in st.session_state.chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -299,36 +310,3 @@ Instructions:
                     
                 except Exception as e:
                     st.error(f"Error generating qualitative response: {str(e)}")
-
-#%% Examples and export
-with st.expander("Rules for questions"):
-    st.markdown("""
-    1. Always incldue a timeframe (e.g: 1Q25, current, latest, 2024)
-    2. For quantitative questions, specify the metrics (e.g: ROE, NIM, NPL)
-    3. For qualitative questions, provide context (e.g: "What is the outlook for SOCB in 2024?")
-    4. Use clear bank codes (e.g: ACB, VCB, SOCB) or sector names (e.g: "Private_1", "SOCB")
-    5. If asking for comparisons, specify the banks or among which sectors (Best among Private_1)
-    6. If no timeframe is specified, the system will assume the latest 4 quarters)
-    """)
-
-st.divider()
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("Export Chat History"):
-        export_data = {
-            "timestamp": datetime.now().isoformat(),
-            "messages": st.session_state.chat_history
-        }
-        st.download_button(
-            label="Download JSON",
-            data=json.dumps(export_data, indent=2),
-            file_name=f"chat_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json"
-        )
-
-with col2:
-    if st.button("Analyze Data Quality"):
-        with st.spinner("Analyzing data quality..."):
-            quality_report = st.session_state.discovery_agent.analyze_data_quality()
-            st.json(quality_report)
