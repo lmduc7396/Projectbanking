@@ -52,7 +52,7 @@ with st.sidebar:
         "Response Temperature",
         min_value=0.0,
         max_value=1.0,
-        value=0.2 if question_type == "Quantitative" else 0.5,
+        value=0.2,
         step=0.1
     )
     
@@ -282,7 +282,7 @@ Instructions:
 - Write fluently and naturally, like a banking analyst report.
 - Focus on key themes, trends, and insights
 - Use specific examples and data points from the analysis
-- Be comprehensive but punchy and assertive, max 2 paragraphs. Don't divert from the question
+- Be punchy and assertive, max 2 paragraphs. Don't divert from the question
 - Reference specific quarters and banks when relevant
 """
                     
