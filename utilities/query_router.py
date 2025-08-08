@@ -128,22 +128,12 @@ class QueryRouter:
            - If no specific metrics mentioned, return []
         
         3. TIMEFRAME: The time period(s) mentioned
-           - CRITICAL: If user says "current", "latest", or "recent" - ALWAYS return ["{self.latest_quarter}"] which is the latest quarter
-           - SPECIAL HANDLING for QoQ and YoY:
-             * If query contains "QoQ" (quarter-on-quarter): Return the latest quarter AND the previous quarter
-               Example: "QoQ growth" with latest quarter 2Q25 -> ["1Q25", "2Q25"]
-             * If query contains "YoY" (year-on-year): Return the latest quarter AND the same quarter from previous year
-               Example: "YoY growth" with latest quarter 2Q25 -> ["2Q24", "2Q25"]
-             * If query contains BOTH "QoQ" AND "YoY": Return all three quarters needed for both comparisons
-               Example: "QoQ and YoY growth" with latest quarter 2Q25 -> ["2Q24", "1Q25", "2Q25"]
+           - CRITICAL: If user says "current", "latest", or "recent" - return ["{self.latest_quarter}"]
            - For single quarter, return one quarter like ["2Q25"]
-           - For year ranges (e.g., "2024 to 2025"), return ["2024", "2025"] ONLY if explicitly asking for yearly/annual data
            - For quarter ranges (from X to Y), return ALL quarters in between
-           - Example: "from 1Q24 to 2Q25" -> ["1Q24", "2Q24", "3Q24", "4Q24", "1Q25", "2Q25"]
-           - For full year data (annual/yearly), return just the year(s): "2024" -> ["2024"], "2023 and 2024" -> ["2023", "2024"]
-           - If user mentions "quarterly" with a year, then return quarters: "quarterly data for 2024" -> ["1Q24", "2Q24", "3Q24", "4Q24"]
+           - For year data, return just the year(s): "2024" -> ["2024"]
            - If no timeframe mentioned, return the latest 4 quarters: {latest_4_quarters}
-           - Always return as a list, even for single periods
+           - Always return as a list
         
         4. NEED_COMPONENTS: Boolean - true if the question requires component bank data
            - true if asking for comparisons WITHIN a sector (e.g., "which bank in SOCB has highest ROE")
@@ -164,12 +154,7 @@ class QueryRouter:
         - "Show me ROE for VCB in 2Q25" -> {{"tickers": ["VCB"], "items": ["ROE"], "timeframe": ["2Q25"], "need_components": false}}
         - "What's the NIM for SOCB in 2024?" -> {{"tickers": ["SOCB"], "items": ["NIM"], "timeframe": ["2024"], "need_components": false}}
         - "What's ACB current CASA?" -> {{"tickers": ["ACB"], "items": ["CASA"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
-        - "Show current quarter ROE" -> {{"tickers": [], "items": ["ROE"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
-        - "What's the current NPL?" -> {{"tickers": [], "items": ["NPL"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
         - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": {latest_4_quarters}, "need_components": true}}
-        - "VCB loan growth QoQ" -> {{"tickers": ["VCB"], "items": ["LOAN"], "timeframe": ["1Q25", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
-        - "ACB NIM YoY comparison" -> {{"tickers": ["ACB"], "items": ["NIM"], "timeframe": ["2Q24", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
-        - "VPB latest QoQ and YoY PBT growth" -> {{"tickers": ["VPB"], "items": ["PBT"], "timeframe": ["2Q24", "1Q25", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
         """
         
         try:
@@ -206,8 +191,19 @@ class QueryRouter:
             latest_q = self.latest_quarter
             quarters_to_add = set()
             
+            # Check for QoQ and YoY keywords and variations
+            qoq_keywords = ['QOQ', 'Q-O-Q', 'QUARTER-ON-QUARTER', 'QUARTER ON QUARTER', 
+                           'QUARTERLY CHANGE', 'QOQ CHANGE', 'QOQ GROWTH', 'VS PREVIOUS QUARTER',
+                           'COMPARED TO LAST QUARTER', 'FROM LAST QUARTER']
+            yoy_keywords = ['YOY', 'Y-O-Y', 'YEAR-ON-YEAR', 'YEAR ON YEAR', 
+                           'YEARLY CHANGE', 'YOY CHANGE', 'YOY GROWTH', 'VS LAST YEAR',
+                           'COMPARED TO LAST YEAR', 'FROM LAST YEAR']
+            
+            has_qoq = any(keyword in query_upper for keyword in qoq_keywords)
+            has_yoy = any(keyword in query_upper for keyword in yoy_keywords)
+            
             # Check if we need to add quarters for QoQ or YoY
-            if ('QOQ' in query_upper or 'YOY' in query_upper):
+            if has_qoq or has_yoy:
                 # Ensure we have the latest quarter
                 if latest_q not in timeframe:
                     timeframe = [latest_q]
@@ -216,7 +212,7 @@ class QueryRouter:
                 q = int(latest_q[0])
                 year = int(latest_q[2:4])
                 
-                if 'QOQ' in query_upper:
+                if has_qoq:
                     # Add previous quarter for QoQ
                     prev_q = q - 1
                     prev_year = year
@@ -226,7 +222,7 @@ class QueryRouter:
                     prev_quarter = f"{prev_q}Q{prev_year:02d}"
                     quarters_to_add.add(prev_quarter)
                 
-                if 'YOY' in query_upper:
+                if has_yoy:
                     # Add same quarter from previous year for YoY
                     prev_year_quarter = f"{q}Q{(year-1):02d}"
                     quarters_to_add.add(prev_year_quarter)
