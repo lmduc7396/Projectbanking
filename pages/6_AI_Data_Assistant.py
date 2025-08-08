@@ -176,7 +176,12 @@ Instructions:
                 
                 parse_prompt = f"""
 Analyze this qualitative banking question and extract:
-1. TICKER: The bank code (3 letters like ACB, VCB) or sector (SOCB, Private_1, SOCB, etc)
+1. TICKER: The bank code (3 letters like ACB, VCB) or sector name. Valid sectors are:
+   - Sector (overall banking sector)
+   - SOCB (state-owned commercial banks)
+   - Private_1, Private_2, Private_3 (private bank groups)
+   IMPORTANT: Preserve the exact format with underscore for Private sectors (e.g., "Private_1" not "Private 1")
+   
 2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
    - If "current" or "latest", return ["{st.session_state.query_router.latest_quarter}"]
    - If no timeframe, return latest 4 quarters: {st.session_state.query_router._get_latest_4_quarters()}
@@ -184,6 +189,11 @@ Analyze this qualitative banking question and extract:
 Question: "{user_question}"
 
 Return JSON: {{"ticker": "...", "timeframe": [...], "is_sector": true/false}}
+
+Examples:
+- "Private_1 in 2Q25" → {{"ticker": "Private_1", "timeframe": ["2Q25"], "is_sector": true}}
+- "SOCB performance in current quarter" → {{"ticker": "SOCB", "timeframe": ["{st.session_state.query_router.latest_quarter}"], "is_sector": true}}
+- "ACB outlook for 1Q25" → {{"ticker": "ACB", "timeframe": ["1Q25"], "is_sector": false}}
 """
                 
                 parse_response = client.chat.completions.create(
@@ -199,8 +209,16 @@ Return JSON: {{"ticker": "...", "timeframe": [...], "is_sector": true/false}}
                 import json
                 parsed = json.loads(parse_response.choices[0].message.content)
                 
+                # Ensure ticker preserves underscores for Private sectors
+                if parsed.get('ticker', '').startswith('Private'):
+                    # Normalize Private sector format
+                    ticker_parts = parsed['ticker'].replace(' ', '_').split('_')
+                    if len(ticker_parts) >= 2 and ticker_parts[1].isdigit():
+                        parsed['ticker'] = f"Private_{ticker_parts[1]}"
+                
                 with st.expander("Qualitative Query Analysis", expanded=False):
                     st.json(parsed)
+                    st.info(f"Parsed ticker: '{parsed.get('ticker', '')}' | Timeframe: {parsed.get('timeframe', [])}")
             
             with st.spinner("Retrieving qualitative data..."):
                 # Get qualitative data based on ticker type
