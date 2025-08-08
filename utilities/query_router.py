@@ -134,6 +134,8 @@ class QueryRouter:
                Example: "QoQ growth" with latest quarter 2Q25 -> ["1Q25", "2Q25"]
              * If query contains "YoY" (year-on-year): Return the latest quarter AND the same quarter from previous year
                Example: "YoY growth" with latest quarter 2Q25 -> ["2Q24", "2Q25"]
+             * If query contains BOTH "QoQ" AND "YoY": Return all three quarters needed for both comparisons
+               Example: "QoQ and YoY growth" with latest quarter 2Q25 -> ["2Q24", "1Q25", "2Q25"]
            - For single quarter, return one quarter like ["2Q25"]
            - For year ranges (e.g., "2024 to 2025"), return ["2024", "2025"] ONLY if explicitly asking for yearly/annual data
            - For quarter ranges (from X to Y), return ALL quarters in between
@@ -167,6 +169,7 @@ class QueryRouter:
         - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": {latest_4_quarters}, "need_components": true}}
         - "VCB loan growth QoQ" -> {{"tickers": ["VCB"], "items": ["LOAN"], "timeframe": ["1Q25", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
         - "ACB NIM YoY comparison" -> {{"tickers": ["ACB"], "items": ["NIM"], "timeframe": ["2Q24", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
+        - "VPB latest QoQ and YoY PBT growth" -> {{"tickers": ["VPB"], "items": ["PBT"], "timeframe": ["2Q24", "1Q25", "2Q25"], "need_components": false}} (assuming latest is 2Q25)
         """
         
         try:

@@ -277,7 +277,7 @@ Available Analysis and Commentary:
 {qualitative_data}
 
 Instructions:
-- Open with a concise conclusion of key findings, afterward followed with more detailed analysis
+- Open with a concise conclusion of key findings, afterward followed with detailed analysis
 - Provide a narrative response drawing from the available analysis
 - Write fluently and naturally, like a banking analyst report.
 - Focus on key themes, trends, and insights
