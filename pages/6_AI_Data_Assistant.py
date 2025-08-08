@@ -101,7 +101,7 @@ if user_question:
                     st.success(f"Found {data_result['row_count']} rows with {data_result['column_count']} columns")
             
             st.info("Debug: Data Being Sent to OpenAI")
-            with st.expander("Data Table and Context (Debug)", expanded=True):
+            with st.expander("Data Table and Context (Debug)", expanded=False):
                 st.subheader("1. Data Summary:")
                 st.json(data_result.get('summary', {}))
                 
@@ -140,7 +140,7 @@ Instructions:
 """
                         
                         st.info("Debug: Prompt Being Sent to OpenAI")
-                        with st.expander("Full Prompt to OpenAI (Debug)", expanded=True):
+                        with st.expander("Full Prompt to OpenAI (Debug)", expanded=False):
                             st.code(enhanced_prompt, language='text')
                         
                         response = client.chat.completions.create(
@@ -176,11 +176,13 @@ Instructions:
                 
                 parse_prompt = f"""
 Analyze this qualitative banking question and extract:
-1. TICKER: The bank code (3 letters like ACB, VCB) or sector name. Valid sectors are:
+1. TICKERS: List ALL bank codes or sector names mentioned. Valid sectors are:
    - Sector (overall banking sector)
    - SOCB (state-owned commercial banks)
    - Private_1, Private_2, Private_3 (private bank groups)
-   IMPORTANT: Preserve the exact format with underscore for Private sectors (e.g., "Private_1" not "Private 1")
+   IMPORTANT: 
+   - Return ALL tickers mentioned in the question as a list
+   - Preserve the exact format with underscore for Private sectors (e.g., "Private_1" not "Private 1")
    
 2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
    - If "current" or "latest", return ["{st.session_state.query_router.latest_quarter}"]
@@ -188,12 +190,13 @@ Analyze this qualitative banking question and extract:
 
 Question: "{user_question}"
 
-Return JSON: {{"ticker": "...", "timeframe": [...], "is_sector": true/false}}
+Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false}}
 
 Examples:
-- "Private_1 in 2Q25" → {{"ticker": "Private_1", "timeframe": ["2Q25"], "is_sector": true}}
-- "SOCB performance in current quarter" → {{"ticker": "SOCB", "timeframe": ["{st.session_state.query_router.latest_quarter}"], "is_sector": true}}
-- "ACB outlook for 1Q25" → {{"ticker": "ACB", "timeframe": ["1Q25"], "is_sector": false}}
+- "Compare Private_1 and Private_2 in 2Q25" → {{"tickers": ["Private_1", "Private_2"], "timeframe": ["2Q25"], "has_sectors": true}}
+- "Private_1 in 2Q25" → {{"tickers": ["Private_1"], "timeframe": ["2Q25"], "has_sectors": true}}
+- "Compare ACB, VCB and TCB performance" → {{"tickers": ["ACB", "VCB", "TCB"], "timeframe": {st.session_state.query_router._get_latest_4_quarters()}, "has_sectors": false}}
+- "SOCB vs Private_1 in current quarter" → {{"tickers": ["SOCB", "Private_1"], "timeframe": ["{st.session_state.query_router.latest_quarter}"], "has_sectors": true}}
 """
                 
                 parse_response = client.chat.completions.create(
@@ -209,31 +212,49 @@ Examples:
                 import json
                 parsed = json.loads(parse_response.choices[0].message.content)
                 
-                # Ensure ticker preserves underscores for Private sectors
-                if parsed.get('ticker', '').startswith('Private'):
-                    # Normalize Private sector format
-                    ticker_parts = parsed['ticker'].replace(' ', '_').split('_')
-                    if len(ticker_parts) >= 2 and ticker_parts[1].isdigit():
-                        parsed['ticker'] = f"Private_{ticker_parts[1]}"
+                # Ensure tickers preserve underscores for Private sectors
+                tickers = parsed.get('tickers', [])
+                normalized_tickers = []
+                for ticker in tickers:
+                    if ticker.startswith('Private'):
+                        # Normalize Private sector format
+                        ticker_parts = ticker.replace(' ', '_').split('_')
+                        if len(ticker_parts) >= 2 and ticker_parts[1].isdigit():
+                            normalized_tickers.append(f"Private_{ticker_parts[1]}")
+                        else:
+                            normalized_tickers.append(ticker)
+                    else:
+                        normalized_tickers.append(ticker)
+                parsed['tickers'] = normalized_tickers
                 
                 with st.expander("Qualitative Query Analysis", expanded=False):
                     st.json(parsed)
-                    st.info(f"Parsed ticker: '{parsed.get('ticker', '')}' | Timeframe: {parsed.get('timeframe', [])}")
+                    st.info(f"Parsed tickers: {parsed.get('tickers', [])} | Timeframe: {parsed.get('timeframe', [])}")
             
             with st.spinner("Retrieving qualitative data..."):
-                # Get qualitative data based on ticker type
-                ticker = parsed.get('ticker', '')
+                # Get qualitative data for all tickers mentioned
+                tickers = parsed.get('tickers', [])
                 timeframe = parsed.get('timeframe', [])
-                is_sector = parsed.get('is_sector', False)
+                has_sectors = parsed.get('has_sectors', False)
                 
-                qualitative_data = st.session_state.qualitative_handler.format_qualitative_data(
-                    ticker=ticker,
-                    timeframe=timeframe,
-                    is_sector=is_sector
-                )
+                # Collect data for all tickers
+                all_qualitative_data = []
+                for ticker in tickers:
+                    # Determine if this specific ticker is a sector
+                    is_sector = ticker in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+                    
+                    ticker_data = st.session_state.qualitative_handler.format_qualitative_data(
+                        ticker=ticker,
+                        timeframe=timeframe,
+                        is_sector=is_sector
+                    )
+                    all_qualitative_data.append(ticker_data)
                 
-                with st.expander("Qualitative Data Retrieved", expanded=True):
-                    st.text(qualitative_data[:2000] + "..." if len(qualitative_data) > 2000 else qualitative_data)
+                # Combine all data
+                qualitative_data = "\n\n".join(all_qualitative_data)
+                
+                with st.expander("Qualitative Data Retrieved", expanded=False):
+                    st.text(qualitative_data[:3000] + "..." if len(qualitative_data) > 3000 else qualitative_data)
             
             with st.spinner("Generating qualitative analysis..."):
                 try:
@@ -273,7 +294,7 @@ Instructions:
                     st.session_state.chat_history.append({
                         "role": "assistant",
                         "content": answer,
-                        "data_context": {"type": "qualitative", "ticker": ticker, "timeframe": timeframe}
+                        "data_context": {"type": "qualitative", "tickers": tickers, "timeframe": timeframe}
                     })
                     
                 except Exception as e:
