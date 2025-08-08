@@ -17,8 +17,11 @@ from utilities.openai_comments import openai_comment
 load_dotenv()
 
 # Load your data (same as main file)
+# Cache version: increment this when data structure changes to force cache refresh
+CACHE_VERSION = 2
+
 @st.cache_data
-def load_data():
+def load_data(version=CACHE_VERSION):
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
@@ -40,6 +43,13 @@ st.session_state.keyitem = keyitem
 
 st.title("AI-Powered Banking Analysis")
 st.markdown("Generate intelligent banking analysis using OpenAI with cached results for faster access")
+
+# Add cache control in sidebar
+with st.sidebar:
+    if st.button("Clear Data Cache", help="Click to refresh cached data if you see old values"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Page will reload with fresh data.")
+        st.rerun()
 
 # Check if comments cache exists
 comments_file = os.path.join(project_root, 'Data/banking_comments.xlsx')
