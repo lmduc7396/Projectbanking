@@ -193,14 +193,35 @@ class QueryRouter:
             
             # Check for QoQ and YoY keywords and variations
             qoq_keywords = ['QOQ', 'Q-O-Q', 'QUARTER-ON-QUARTER', 'QUARTER ON QUARTER', 
-                           'QUARTERLY CHANGE', 'QOQ CHANGE', 'QOQ GROWTH', 'VS PREVIOUS QUARTER',
-                           'COMPARED TO LAST QUARTER', 'FROM LAST QUARTER']
+                           'QUARTERLY CHANGE', 'CHANGE QOQ', 'GROWTH QOQ', 'VS PREVIOUS QUARTER',
+                           'COMPARED TO LAST QUARTER', 'FROM LAST QUARTER', 'VERSUS PREVIOUS QUARTER',
+                           'CHANGE FROM PREVIOUS QUARTER', 'CHANGE FROM LAST QUARTER']
             yoy_keywords = ['YOY', 'Y-O-Y', 'YEAR-ON-YEAR', 'YEAR ON YEAR', 
                            'YEARLY CHANGE', 'YOY CHANGE', 'YOY GROWTH', 'VS LAST YEAR',
                            'COMPARED TO LAST YEAR', 'FROM LAST YEAR']
             
+            # Check for keywords
             has_qoq = any(keyword in query_upper for keyword in qoq_keywords)
             has_yoy = any(keyword in query_upper for keyword in yoy_keywords)
+            
+            # Also check for patterns where QoQ/YoY might be separated from other words
+            import re
+            if not has_qoq:
+                # Check for patterns like "change QoQ", "NIM change QoQ", etc.
+                qoq_patterns = [r'\bCHANGE\b.*\bQOQ\b', r'\bQOQ\b.*\bCHANGE\b', 
+                               r'\bGROWTH\b.*\bQOQ\b', r'\bQOQ\b.*\bGROWTH\b']
+                has_qoq = any(re.search(pattern, query_upper) for pattern in qoq_patterns)
+            
+            if not has_yoy:
+                # Check for patterns like "change YoY", "growth YoY", etc.
+                yoy_patterns = [r'\bCHANGE\b.*\bYOY\b', r'\bYOY\b.*\bCHANGE\b',
+                               r'\bGROWTH\b.*\bYOY\b', r'\bYOY\b.*\bGROWTH\b']
+                has_yoy = any(re.search(pattern, query_upper) for pattern in yoy_patterns)
+            
+            # Debug output
+            if has_qoq or has_yoy:
+                print(f"Debug: QoQ detected: {has_qoq}, YoY detected: {has_yoy}")
+                print(f"Debug: Initial timeframe: {timeframe}")
             
             # Check if we need to add quarters for QoQ or YoY
             if has_qoq or has_yoy:
@@ -239,6 +260,7 @@ class QueryRouter:
                 
                 # Sort timeframe chronologically
                 timeframe = sorted(timeframe, key=quarter_to_numeric)
+                print(f"Debug: Final timeframe after QoQ/YoY processing: {timeframe}")
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data
