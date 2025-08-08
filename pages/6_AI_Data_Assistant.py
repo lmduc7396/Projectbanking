@@ -262,7 +262,7 @@ Instructions:
                     st.error(f"Error generating qualitative response: {str(e)}")
 
 #%% Examples and export
-with st.expander("Rules for questions):
+with st.expander("Rules for questions"):
     st.markdown("""
     1. Always incldue a timeframe (e.g: 1Q25, current, latest, 2024)
     2. For quantitative questions, specify the metrics (e.g: ROE, NIM, NPL)
