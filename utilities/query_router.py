@@ -248,9 +248,19 @@ class QueryRouter:
                         timeframe.append(quarter)
                         self.debug_info.append(f"Added {quarter} to timeframe")
                 
+                # Debug before sorting
+                self.debug_info.append(f"Timeframe before sorting: {timeframe}")
+                
                 # Sort timeframe chronologically
-                timeframe = sorted(timeframe, key=quarter_to_numeric)
-                self.debug_info.append(f"Final sorted timeframe: {timeframe}")
+                try:
+                    timeframe = sorted(timeframe, key=quarter_to_numeric)
+                    self.debug_info.append(f"Final sorted timeframe: {timeframe}")
+                except Exception as e:
+                    self.debug_info.append(f"Error sorting timeframe: {e}")
+                    self.debug_info.append(f"Timeframe unchanged: {timeframe}")
+                
+                self.debug_info.append(f"Timeframe length: {len(timeframe)}")
+                self.debug_info.append(f"Timeframe contents: {[str(q) for q in timeframe]}")
             else:
                 self.debug_info.append("No QoQ or YoY detected, skipping processing")
             
