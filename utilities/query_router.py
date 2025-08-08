@@ -196,21 +196,28 @@ class QueryRouter:
             has_qoq = 'QOQ' in query_upper
             has_yoy = 'YOY' in query_upper
             
+            print(f"[QueryRouter Debug] Query: {query}")
+            print(f"[QueryRouter Debug] has_qoq: {has_qoq}, has_yoy: {has_yoy}")
+            print(f"[QueryRouter Debug] Initial timeframe: {timeframe}")
             
             # Check if we need to add quarters for QoQ or YoY
             if has_qoq or has_yoy:
+                print(f"[QueryRouter Debug] Entering QoQ/YoY processing...")
                 # If no timeframe specified, use latest quarter
                 if not timeframe:
                     timeframe = [latest_q]
+                    print(f"[QueryRouter Debug] No timeframe, using latest: {timeframe}")
                 
                 # For each quarter in timeframe, add comparison quarters
-                quarters_to_add = set()
+                quarters_to_add = []  # Changed from set to list for debugging
                 for target_quarter in timeframe:
+                    print(f"[QueryRouter Debug] Processing quarter: {target_quarter}")
                     # Only process quarters (not years)
                     if 'Q' in str(target_quarter):
                         # Parse the target quarter
                         q = int(str(target_quarter)[0])
                         year = int(str(target_quarter)[2:4])
+                        print(f"[QueryRouter Debug] Parsed: Q{q} Year 20{year}")
                         
                         if has_qoq:
                             # Add previous quarter for QoQ
@@ -220,20 +227,26 @@ class QueryRouter:
                                 prev_q = 4
                                 prev_year -= 1
                             prev_quarter = f"{prev_q}Q{prev_year:02d}"
-                            quarters_to_add.add(prev_quarter)
+                            quarters_to_add.append(prev_quarter)
+                            print(f"[QueryRouter Debug] Added QoQ quarter: {prev_quarter}")
                         
                         if has_yoy:
                             # Add same quarter from previous year for YoY
                             prev_year_quarter = f"{q}Q{(year-1):02d}"
-                            quarters_to_add.add(prev_year_quarter)
+                            quarters_to_add.append(prev_year_quarter)
+                            print(f"[QueryRouter Debug] Added YoY quarter: {prev_year_quarter}")
+                
+                print(f"[QueryRouter Debug] Quarters to add: {quarters_to_add}")
                 
                 # Add all identified quarters to timeframe
                 for quarter in quarters_to_add:
                     if quarter not in timeframe:
                         timeframe.append(quarter)
+                        print(f"[QueryRouter Debug] Added {quarter} to timeframe")
                 
                 # Sort timeframe chronologically
                 timeframe = sorted(timeframe, key=quarter_to_numeric)
+                print(f"[QueryRouter Debug] Final sorted timeframe: {timeframe}")
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data
