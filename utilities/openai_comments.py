@@ -81,7 +81,7 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
             # Add option to regenerate
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("🔄 Regenerate", key=f"regen_{ticker}_{latest_quarter}"):
+                if st.button("Regenerate", key=f"regen_{ticker}_{latest_quarter}"):
                     st.rerun()
             
             return

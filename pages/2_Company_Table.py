@@ -27,7 +27,7 @@ color_sequence = px.colors.qualitative.Bold
 # Page configuration
 st.set_page_config(
     page_title="Company Table",
-    page_icon="📋",
+    page_icon="Table",
     layout="wide"
 )
 
@@ -71,7 +71,7 @@ st.session_state.df = df
 st.session_state.keyitem = keyitem
 st.session_state.df_quarter = df_quarter
 
-st.title("📋 Company Table")
+st.title("Company Table")
 st.markdown("---")
 
 # --- Define User Selection Options ---

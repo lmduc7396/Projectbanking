@@ -26,12 +26,12 @@ def get_comments_file_path():
 # Page configuration
 st.set_page_config(
     page_title="Quarterly Banking Analysis",
-    page_icon="🔍",
+    page_icon="Analysis",
     layout="wide"
 )
 
 def quarterly_analysis_page():
-    st.title("🔍 Quarterly Banking Analysis")
+    st.title("Quarterly Banking Analysis")
     st.markdown("Comprehensive AI-powered analysis of banking comments for specific quarters")
     
     # Check if analysis results file exists
@@ -68,9 +68,9 @@ def quarterly_analysis_page():
                 if not quarter_analysis.empty:
                     status = quarter_analysis.iloc[0]['status']
                     if status == 'success':
-                        st.success("✅ Analysis Available")
+                        st.success("Analysis Available")
                     else:
-                        st.error("❌ Analysis Error")
+                        st.error("Analysis Error")
             
             with col3:
                 # Show generation date
@@ -123,7 +123,7 @@ def quarterly_analysis_page():
                 st.markdown("---")
                 
                 # Display analysis results
-                st.subheader(f"📊 AI Analysis Results for {selected_quarter}")
+                st.subheader(f"AI Analysis Results for {selected_quarter}")
                 
                 analysis_text = quarter_analysis.iloc[0]['analysis_text']
                 
@@ -131,14 +131,14 @@ def quarterly_analysis_page():
                     # Display the pre-generated analysis
                     st.markdown(analysis_text)
                 else:
-                    st.error("❌ Analysis generation failed for this quarter")
+                    st.error("Analysis generation failed for this quarter")
                     st.code(analysis_text)  # Show error message
                 
                 st.markdown("---")
                 
                 # Show raw data option (if comments are available)
                 if not quarter_comments.empty:
-                    with st.expander("📄 View Raw Comments Data"):
+                    with st.expander("View Raw Comments Data"):
                         st.markdown(f"**All {len(quarter_comments)} comments for {selected_quarter}:**")
                         
                         # Create a display dataframe with better formatting
@@ -158,14 +158,14 @@ def quarterly_analysis_page():
                         )
             
             else:
-                st.warning(f"⚠️ No analysis found for quarter {selected_quarter}")
+                st.warning(f"No analysis found for quarter {selected_quarter}")
                 
         except Exception as e:
             st.error(f"Error loading quarterly analysis: {e}")
             st.info("Please check that the analysis file exists and is accessible.")
     
     else:
-        st.warning("📝 No analysis data available")
+        st.warning("No analysis data available")
         st.info("Please generate quarterly analysis first using the bulk analysis generator.")
         
 if __name__ == "__main__":

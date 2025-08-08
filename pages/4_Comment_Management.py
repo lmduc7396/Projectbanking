@@ -27,7 +27,7 @@ def get_comments_file_path():
     return os.path.join(get_data_path(), 'banking_comments.xlsx')
 
 def show_comment_management():
-    st.title("🤖 Banking Comment Management")
+    st.title("Banking Comment Management")
     st.markdown("Manage bulk generation and cached comments for banking analysis")
     
     # Check if comments file exists using dynamic path
@@ -37,12 +37,12 @@ def show_comment_management():
     # Sidebar for navigation
     st.sidebar.subheader("Comment Management")
     tab = st.sidebar.radio("Choose Action", [
-        "📊 View Cached Comments", 
-        "📈 Statistics",
-        "🔍 Quarterly Analysis"
+        "View Cached Comments", 
+        "Statistics",
+        "Quarterly Analysis"
     ])
     
-    if tab == "📊 View Cached Comments":
+    if tab == "View Cached Comments":
         st.header("Cached Comments Overview")
         
         if comments_exist:
@@ -84,9 +84,10 @@ def show_comment_management():
                     )
                 
                 with col3:
+                    from utilities.quarter_utils import sort_quarters
                     selected_quarter = st.selectbox(
                         "Select Quarter:", 
-                        ["All"] + sorted(comments_df['QUARTER'].unique().tolist(), reverse=True)
+                        ["All"] + sort_quarters(comments_df['QUARTER'].unique().tolist(), reverse=True)
                     )
                 
                 # Apply filters
@@ -135,7 +136,7 @@ def show_comment_management():
         else:
             st.info("No cached comments found. Run bulk generation first.")
     
-    elif tab == "📈 Statistics":
+    elif tab == "Statistics":
         st.header("Comment Statistics")
         
         if comments_exist:
@@ -200,7 +201,7 @@ def show_comment_management():
         else:
             st.info("No comments data available for statistics.")
     
-    elif tab == "🔍 Quarterly Analysis":
+    elif tab == "Quarterly Analysis":
         st.header("Quarterly Banking Analysis")
         st.markdown("Analyze all banking comments for a specific quarter using AI")
         
@@ -208,8 +209,9 @@ def show_comment_management():
             try:
                 comments_df = pd.read_excel(comments_file)
                 
-                # Get available quarters
-                available_quarters = sorted(comments_df['QUARTER'].unique().tolist(), reverse=True)
+                # Get available quarters (newest first)
+                from utilities.quarter_utils import sort_quarters
+                available_quarters = sort_quarters(comments_df['QUARTER'].unique().tolist(), reverse=True)
                 
                 # Quarter selection
                 st.subheader("Select Quarter for Analysis")
@@ -247,21 +249,21 @@ def show_comment_management():
                     st.write(sector_breakdown.to_dict())
                     
                     # Analysis button
-                    if st.button("🤖 Generate AI Analysis", type="primary"):
+                    if st.button("Generate AI Analysis", type="primary"):
                         if st.session_state.get('confirm_analysis', False):
                             with st.spinner("Analyzing comments with ChatGPT..."):
                                 analysis_result = analyze_quarterly_comments(quarter_comments, selected_quarter)
                                 if analysis_result:
-                                    st.success("✅ Analysis completed!")
+                                    st.success("Analysis completed!")
                                     
                                     # Display results
                                     st.subheader(f"AI Analysis for {selected_quarter}")
                                     
                                     # Create tabs for different analysis sections
                                     analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs([
-                                        "📋 Key Changes Summary", 
+                                        "Key Changes Summary", 
                                         "😊 Sentiment Analysis", 
-                                        "🏦 Bank Performance Changes"
+                                        "Bank Performance Changes"
                                     ])
                                     
                                     with analysis_tab1:
@@ -280,10 +282,10 @@ def show_comment_management():
                                     if st.button("📥 Download Analysis Report"):
                                         download_analysis_report(analysis_result, selected_quarter)
                                 else:
-                                    st.error("❌ Failed to generate analysis. Please check your OpenAI API key and try again.")
+                                    st.error("Failed to generate analysis. Please check your OpenAI API key and try again.")
                         else:
                             st.session_state['confirm_analysis'] = True
-                            st.warning("⚠️ This will use OpenAI API credits. Click again to confirm.")
+                            st.warning("This will use OpenAI API credits. Click again to confirm.")
                     
                     # Reset confirmation
                     if st.button("Cancel Analysis"):

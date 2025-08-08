@@ -14,7 +14,7 @@ from datetime import datetime
 # Page configuration
 st.set_page_config(
     page_title="Banking Analysis Dashboard",
-    page_icon="🏦",
+    page_icon="Banking",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -34,7 +34,7 @@ df_quarter, df_year, keyitem = load_data()
 color_sequence = px.colors.qualitative.Bold
 
 # Main page content
-st.title("🏦 Banking Analysis Dashboard")
+st.title("Banking Analysis Dashboard")
 st.markdown("---")
 
 st.markdown("""
@@ -72,7 +72,7 @@ This comprehensive dashboard provides tools for analyzing banking sector data wi
 - **Individual Tickers**: 3-letter bank codes
 
 ### Getting Started
-👈 **Use the sidebar navigation** to explore different analysis tools and begin your banking sector analysis.
+**Use the sidebar navigation** to explore different analysis tools and begin your banking sector analysis.
 """)
 
 # Display some summary statistics
@@ -104,7 +104,7 @@ with col4:
     )
 
 # Display recent data preview
-st.markdown("### 📈 Recent Data Overview")
+st.markdown("### Recent Data Overview")
 if not df_quarter.empty:
     # Show latest quarter data for a few key metrics
     latest_data = df_quarter[df_quarter['Date_Quarter'] == df_quarter['Date_Quarter'].max()]
@@ -120,6 +120,6 @@ else:
     st.warning("No quarterly data available.")
 
 st.markdown("---")
-st.markdown("**Ready to start your analysis?** Navigate to any page using the sidebar! 👈")
+st.markdown("**Ready to start your analysis?** Navigate to any page using the sidebar!")
 
    

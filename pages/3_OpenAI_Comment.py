@@ -30,7 +30,7 @@ color_sequence = px.colors.qualitative.Bold
 # Page configuration
 st.set_page_config(
     page_title="OpenAI Comment",
-    page_icon="🤖",
+    page_icon="AI",
     layout="wide"
 )
 
@@ -49,21 +49,21 @@ cache_exists = os.path.exists(comments_file)
 # Main interface
 st.subheader("Generate Banking Analysis")
 
-# Define options
-tickers = sorted([x for x in df_quarter['TICKER'].unique() if isinstance(x, str) and len(x) == 3])
+# Define options - include all unique tickers (banks and sectors)
+tickers = sorted([x for x in df_quarter['TICKER'].unique() if isinstance(x, str) and x.strip()])
 
-# Sort quarters properly using utilities function
-available_quarters = sort_quarters(df_quarter['Date_Quarter'].unique())
+# Sort quarters properly using utilities function (newest first)
+available_quarters = sort_quarters(df_quarter['Date_Quarter'].unique(), reverse=True)
 
 # Input controls
 col1, col2, col3 = st.columns(3)
 
 with col1:
     ticker = st.selectbox(
-        "Select Bank Ticker:", 
+        "Select Ticker:", 
         tickers, 
         index=tickers.index('ACB') if 'ACB' in tickers else 0,
-        help="Choose a bank ticker to analyze"
+        help="Choose a bank or sector ticker to analyze"
     )
 
 with col2:
@@ -90,9 +90,9 @@ if ticker:
         
         # Check if data exists for selected quarter
         quarter_data = ticker_data[ticker_data['Date_Quarter'] == selected_quarter]
-        quarter_status = "✅ Available" if not quarter_data.empty else "❌ No data"
+        quarter_status = "Available" if not quarter_data.empty else "No data"
         
-        st.info(f"📊 **{ticker}** | Quarter: **{selected_quarter}** ({quarter_status}) | Sector: {ticker_sector}")
+        st.info(f"**{ticker}** | Quarter: **{selected_quarter}** ({quarter_status}) | Sector: {ticker_sector}")
         
         # Check if cached analysis exists for this ticker and quarter
         if cache_exists and not force_regenerate:
@@ -110,14 +110,14 @@ if ticker:
                     except:
                         generated_date = str(latest_cached['GENERATED_DATE'])[:10] if len(str(latest_cached['GENERATED_DATE'])) >= 10 else str(latest_cached['GENERATED_DATE'])
                     
-                    st.success(f"✅ Cached analysis available for {ticker} - {selected_quarter} "
+                    st.success(f"Cached analysis available for {ticker} - {selected_quarter} "
                              f"(Generated: {generated_date})")
                     
                     # Display the cached comment
-                    st.subheader(f"📝 Analysis for {ticker} - {selected_quarter}")
+                    st.subheader(f"Analysis for {ticker} - {selected_quarter}")
                     st.markdown(latest_cached['COMMENT'])
                 else:
-                    st.warning(f"⚠️ No cached analysis found for {ticker} - {selected_quarter}. Will generate new analysis.")
+                    st.warning(f"No cached analysis found for {ticker} - {selected_quarter}. Will generate new analysis.")
             except Exception as e:
                 st.warning(f"Could not check cache: {e}")
     else:
@@ -127,11 +127,11 @@ if ticker:
 col1, col2, col3 = st.columns([1, 1, 2])
 
 with col1:
-    generate_button = st.button("🚀 Generate Analysis", type="primary")
+    generate_button = st.button("Generate Analysis", type="primary")
 
 with col2:
     if cache_exists:
-        view_cache_button = st.button("👁️ View All Cached", help="View all cached analyses")
+        view_cache_button = st.button("View All Cached", help="View all cached analyses")
     else:
         view_cache_button = False
 
@@ -165,4 +165,4 @@ if generate_button and ticker and selected_quarter:
 
 # View cached comments
 if view_cache_button:
-    st.switch_page("pages/4_🔧_Comment_Management.py")
+    st.switch_page("pages/4_Comment_Management.py")
