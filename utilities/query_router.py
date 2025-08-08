@@ -200,30 +200,41 @@ class QueryRouter:
             
             # Post-process for QoQ and YoY if not properly handled
             query_upper = query.upper()
-            if 'QOQ' in query_upper and len(timeframe) == 1:
-                # If only one quarter returned but QoQ mentioned, add previous quarter
-                latest_q = self.latest_quarter
-                if timeframe[0] == latest_q:
-                    # Calculate previous quarter
-                    q = int(latest_q[0])
-                    year = int(latest_q[2:4])
+            latest_q = self.latest_quarter
+            quarters_to_add = set()
+            
+            # Check if we need to add quarters for QoQ or YoY
+            if ('QOQ' in query_upper or 'YOY' in query_upper):
+                # Ensure we have the latest quarter
+                if latest_q not in timeframe:
+                    timeframe = [latest_q]
+                
+                # Parse latest quarter
+                q = int(latest_q[0])
+                year = int(latest_q[2:4])
+                
+                if 'QOQ' in query_upper:
+                    # Add previous quarter for QoQ
                     prev_q = q - 1
                     prev_year = year
                     if prev_q <= 0:
                         prev_q = 4
                         prev_year -= 1
                     prev_quarter = f"{prev_q}Q{prev_year:02d}"
-                    timeframe = [prev_quarter, latest_q]
-            
-            elif 'YOY' in query_upper and len(timeframe) == 1:
-                # If only one quarter returned but YoY mentioned, add same quarter from previous year
-                latest_q = self.latest_quarter
-                if timeframe[0] == latest_q:
-                    # Calculate same quarter previous year
-                    q = int(latest_q[0])
-                    year = int(latest_q[2:4])
+                    quarters_to_add.add(prev_quarter)
+                
+                if 'YOY' in query_upper:
+                    # Add same quarter from previous year for YoY
                     prev_year_quarter = f"{q}Q{(year-1):02d}"
-                    timeframe = [prev_year_quarter, latest_q]
+                    quarters_to_add.add(prev_year_quarter)
+                
+                # Add all identified quarters to timeframe
+                for quarter in quarters_to_add:
+                    if quarter not in timeframe:
+                        timeframe.append(quarter)
+                
+                # Sort timeframe chronologically
+                timeframe = sorted(timeframe, key=quarter_to_numeric)
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data
