@@ -100,22 +100,8 @@ if user_question:
             with st.spinner("Analyzing your question..."):
                 query_analysis = st.session_state.query_router.analyze_query(user_question)
                 
-                with st.expander("Query Analysis", expanded=True):
+                with st.expander("Query Analysis", expanded=False):
                     st.json(query_analysis)
-                    # Show debug info for QoQ/YoY
-                    if 'QOQ' in user_question.upper() or 'YOY' in user_question.upper():
-                        st.info(f"QoQ/YoY Debug Info:")
-                        st.write(f"- Original query: {user_question}")
-                        st.write(f"- Detected QoQ: {'QOQ' in user_question.upper()}")
-                        st.write(f"- Detected YoY: {'YOY' in user_question.upper()}")
-                        st.write(f"- Timeframe returned: {query_analysis.get('timeframe', [])}")
-                        st.write(f"- Data source: {query_analysis.get('data_source', '')}")
-                        
-                        # Get debug info from query_router if available
-                        if hasattr(st.session_state.query_router, 'debug_info'):
-                            st.warning("Detailed Processing Debug:")
-                            for line in st.session_state.query_router.debug_info:
-                                st.write(f"  {line}")
             
             with st.spinner("Discovering relevant data..."):
                 data_result = st.session_state.discovery_agent.find_relevant_data(

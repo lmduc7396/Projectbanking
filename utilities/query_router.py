@@ -11,7 +11,6 @@ class QueryRouter:
         self.client = get_openai_client()
         self.keycode_mapping = self._load_keycode_mapping()
         self.latest_quarter = self._get_latest_quarter()
-        self.debug_info = []  # Store debug info for display
         
     def _load_keycode_mapping(self) -> Dict[str, str]:
         """Load Key_items.xlsx and create mapping from item names to keycodes"""
@@ -197,31 +196,20 @@ class QueryRouter:
             has_qoq = 'QOQ' in query_upper
             has_yoy = 'YOY' in query_upper
             
-            # Clear debug info for new query
-            self.debug_info = []
-            
-            self.debug_info.append(f"Query: {query}")
-            self.debug_info.append(f"has_qoq: {has_qoq}, has_yoy: {has_yoy}")
-            self.debug_info.append(f"Initial timeframe from OpenAI: {timeframe}")
-            
             # Check if we need to add quarters for QoQ or YoY
             if has_qoq or has_yoy:
-                self.debug_info.append(f"Entering QoQ/YoY processing...")
                 # If no timeframe specified, use latest quarter
                 if not timeframe:
                     timeframe = [latest_q]
-                    self.debug_info.append(f"No timeframe, using latest: {timeframe}")
                 
                 # For each quarter in timeframe, add comparison quarters
                 quarters_to_add = []
                 for target_quarter in timeframe:
-                    self.debug_info.append(f"Processing quarter: {target_quarter}")
                     # Only process quarters (not years)
                     if 'Q' in str(target_quarter):
                         # Parse the target quarter
                         q = int(str(target_quarter)[0])
                         year = int(str(target_quarter)[2:4])
-                        self.debug_info.append(f"Parsed: Q{q} Year 20{year}")
                         
                         if has_qoq:
                             # Add previous quarter for QoQ
@@ -232,37 +220,19 @@ class QueryRouter:
                                 prev_year -= 1
                             prev_quarter = f"{prev_q}Q{prev_year:02d}"
                             quarters_to_add.append(prev_quarter)
-                            self.debug_info.append(f"Added QoQ quarter: {prev_quarter}")
                         
                         if has_yoy:
                             # Add same quarter from previous year for YoY
                             prev_year_quarter = f"{q}Q{(year-1):02d}"
                             quarters_to_add.append(prev_year_quarter)
-                            self.debug_info.append(f"Added YoY quarter: {prev_year_quarter}")
-                
-                self.debug_info.append(f"Quarters to add: {quarters_to_add}")
                 
                 # Add all identified quarters to timeframe
                 for quarter in quarters_to_add:
                     if quarter not in timeframe:
                         timeframe.append(quarter)
-                        self.debug_info.append(f"Added {quarter} to timeframe")
-                
-                # Debug before sorting
-                self.debug_info.append(f"Timeframe before sorting: {timeframe}")
                 
                 # Sort timeframe chronologically
-                try:
-                    timeframe = sorted(timeframe, key=quarter_to_numeric)
-                    self.debug_info.append(f"Final sorted timeframe: {timeframe}")
-                except Exception as e:
-                    self.debug_info.append(f"Error sorting timeframe: {e}")
-                    self.debug_info.append(f"Timeframe unchanged: {timeframe}")
-                
-                self.debug_info.append(f"Timeframe length: {len(timeframe)}")
-                self.debug_info.append(f"Timeframe contents: {[str(q) for q in timeframe]}")
-            else:
-                self.debug_info.append("No QoQ or YoY detected, skipping processing")
+                timeframe = sorted(timeframe, key=quarter_to_numeric)
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data
