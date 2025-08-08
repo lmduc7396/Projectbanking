@@ -75,50 +75,6 @@ This comprehensive dashboard provides tools for analyzing banking sector data wi
 **Use the sidebar navigation** to explore different analysis tools and begin your banking sector analysis.
 """)
 
-# Display some summary statistics
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric(
-        label="Total Banks (Quarterly)",
-        value=len(df_quarter['TICKER'].unique())
-    )
-
-with col2:
-    st.metric(
-        label="Total Banks (Yearly)", 
-        value=len(df_year['TICKER'].unique())
-    )
-
-with col3:
-    st.metric(
-        label="Available Metrics",
-        value=len(keyitem)
-    )
-
-with col4:
-    latest_quarter = df_quarter['Date_Quarter'].max() if not df_quarter.empty else "N/A"
-    st.metric(
-        label="Latest Quarter",
-        value=latest_quarter
-    )
-
-# Display recent data preview
-st.markdown("### Recent Data Overview")
-if not df_quarter.empty:
-    # Show latest quarter data for a few key metrics
-    latest_data = df_quarter[df_quarter['Date_Quarter'] == df_quarter['Date_Quarter'].max()]
-    key_metrics = ['TICKER', 'Type'] + keyitem['KeyCode'].head(5).tolist()
-    available_metrics = [col for col in key_metrics if col in latest_data.columns]
-    
-    if len(available_metrics) > 2:
-        preview_data = latest_data[available_metrics].head(10)
-        st.dataframe(preview_data, use_container_width=True)
-    else:
-        st.info("Data preview not available - please check the data structure.")
-else:
-    st.warning("No quarterly data available.")
-
 st.markdown("---")
 st.markdown("**Ready to start your analysis?** Navigate to any page using the sidebar!")
 
