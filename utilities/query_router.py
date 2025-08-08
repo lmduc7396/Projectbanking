@@ -11,6 +11,7 @@ class QueryRouter:
         self.client = get_openai_client()
         self.keycode_mapping = self._load_keycode_mapping()
         self.latest_quarter = self._get_latest_quarter()
+        self.debug_info = []  # Store debug info for display
         
     def _load_keycode_mapping(self) -> Dict[str, str]:
         """Load Key_items.xlsx and create mapping from item names to keycodes"""
@@ -196,28 +197,31 @@ class QueryRouter:
             has_qoq = 'QOQ' in query_upper
             has_yoy = 'YOY' in query_upper
             
-            print(f"[QueryRouter Debug] Query: {query}")
-            print(f"[QueryRouter Debug] has_qoq: {has_qoq}, has_yoy: {has_yoy}")
-            print(f"[QueryRouter Debug] Initial timeframe: {timeframe}")
+            # Clear debug info for new query
+            self.debug_info = []
+            
+            self.debug_info.append(f"Query: {query}")
+            self.debug_info.append(f"has_qoq: {has_qoq}, has_yoy: {has_yoy}")
+            self.debug_info.append(f"Initial timeframe from OpenAI: {timeframe}")
             
             # Check if we need to add quarters for QoQ or YoY
             if has_qoq or has_yoy:
-                print(f"[QueryRouter Debug] Entering QoQ/YoY processing...")
+                self.debug_info.append(f"Entering QoQ/YoY processing...")
                 # If no timeframe specified, use latest quarter
                 if not timeframe:
                     timeframe = [latest_q]
-                    print(f"[QueryRouter Debug] No timeframe, using latest: {timeframe}")
+                    self.debug_info.append(f"No timeframe, using latest: {timeframe}")
                 
                 # For each quarter in timeframe, add comparison quarters
-                quarters_to_add = []  # Changed from set to list for debugging
+                quarters_to_add = []
                 for target_quarter in timeframe:
-                    print(f"[QueryRouter Debug] Processing quarter: {target_quarter}")
+                    self.debug_info.append(f"Processing quarter: {target_quarter}")
                     # Only process quarters (not years)
                     if 'Q' in str(target_quarter):
                         # Parse the target quarter
                         q = int(str(target_quarter)[0])
                         year = int(str(target_quarter)[2:4])
-                        print(f"[QueryRouter Debug] Parsed: Q{q} Year 20{year}")
+                        self.debug_info.append(f"Parsed: Q{q} Year 20{year}")
                         
                         if has_qoq:
                             # Add previous quarter for QoQ
@@ -228,25 +232,27 @@ class QueryRouter:
                                 prev_year -= 1
                             prev_quarter = f"{prev_q}Q{prev_year:02d}"
                             quarters_to_add.append(prev_quarter)
-                            print(f"[QueryRouter Debug] Added QoQ quarter: {prev_quarter}")
+                            self.debug_info.append(f"Added QoQ quarter: {prev_quarter}")
                         
                         if has_yoy:
                             # Add same quarter from previous year for YoY
                             prev_year_quarter = f"{q}Q{(year-1):02d}"
                             quarters_to_add.append(prev_year_quarter)
-                            print(f"[QueryRouter Debug] Added YoY quarter: {prev_year_quarter}")
+                            self.debug_info.append(f"Added YoY quarter: {prev_year_quarter}")
                 
-                print(f"[QueryRouter Debug] Quarters to add: {quarters_to_add}")
+                self.debug_info.append(f"Quarters to add: {quarters_to_add}")
                 
                 # Add all identified quarters to timeframe
                 for quarter in quarters_to_add:
                     if quarter not in timeframe:
                         timeframe.append(quarter)
-                        print(f"[QueryRouter Debug] Added {quarter} to timeframe")
+                        self.debug_info.append(f"Added {quarter} to timeframe")
                 
                 # Sort timeframe chronologically
                 timeframe = sorted(timeframe, key=quarter_to_numeric)
-                print(f"[QueryRouter Debug] Final sorted timeframe: {timeframe}")
+                self.debug_info.append(f"Final sorted timeframe: {timeframe}")
+            else:
+                self.debug_info.append("No QoQ or YoY detected, skipping processing")
             
             # Determine data source based on timeframe
             # If any quarter format detected (e.g., "1Q24"), use quarterly data

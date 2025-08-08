@@ -110,6 +110,12 @@ if user_question:
                         st.write(f"- Detected YoY: {'YOY' in user_question.upper()}")
                         st.write(f"- Timeframe returned: {query_analysis.get('timeframe', [])}")
                         st.write(f"- Data source: {query_analysis.get('data_source', '')}")
+                        
+                        # Get debug info from query_router if available
+                        if hasattr(st.session_state.query_router, 'debug_info'):
+                            st.warning("Detailed Processing Debug:")
+                            for line in st.session_state.query_router.debug_info:
+                                st.write(f"  {line}")
             
             with st.spinner("Discovering relevant data..."):
                 data_result = st.session_state.discovery_agent.find_relevant_data(
