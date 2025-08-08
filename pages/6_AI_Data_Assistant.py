@@ -176,7 +176,7 @@ Instructions:
                 
                 parse_prompt = f"""
 Analyze this qualitative banking question and extract:
-1. TICKER: The bank code (3 letters like ACB, VCB) or sector (SOCB, Private_1, etc)
+1. TICKER: The bank code (3 letters like ACB, VCB) or sector (SOCB, Private_1, SOCB, etc)
 2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
    - If "current" or "latest", return ["{st.session_state.query_router.latest_quarter}"]
    - If no timeframe, return latest 4 quarters: {st.session_state.query_router._get_latest_4_quarters()}
@@ -231,7 +231,7 @@ Instructions:
 - Write fluently and naturally, like a banking analyst report
 - Focus on key themes, trends, and insights
 - Use specific examples and data points from the analysis
-- Be comprehensive but clear, 2-4 paragraphs as needed
+- Be comprehensive but clear, max 2 paragraphs. Don't divert from the question
 - Reference specific quarters and banks when relevant
 """
                     
@@ -262,15 +262,14 @@ Instructions:
                     st.error(f"Error generating qualitative response: {str(e)}")
 
 #%% Examples and export
-with st.expander("Example Questions"):
+with st.expander("Rules for questions):
     st.markdown("""
-    Try asking:
-    - "What's the trend in loan growth for VCB in 2024?"
-    - "Compare NPL ratios across all state-owned banks"
-    - "Which banks have the highest ROE this quarter?"
-    - "Show me the capital adequacy trends for private banks"
-    - "What are the key risks in the banking sector?"
-    - "Analyze provision coverage for banks with high NPLs"
+    1. Always incldue a timeframe (e.g: 1Q25, current, latest, 2024)
+    2. For quantitative questions, specify the metrics (e.g: ROE, NIM, NPL)
+    3. For qualitative questions, provide context (e.g: "What is the outlook for SOCB in 2024?")
+    4. Use clear bank codes (e.g: ACB, VCB, SOCB) or sector names (e.g: "Private_1", "SOCB")
+    5. If asking for comparisons, specify the banks or among which sectors (Best among Private_1)
+    6. If no timeframe is specified, the system will assume the latest 4 quarters)
     """)
 
 st.divider()

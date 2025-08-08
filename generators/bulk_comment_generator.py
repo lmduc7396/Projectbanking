@@ -37,7 +37,7 @@ print(f"Loaded {len(df_quarter)} quarterly records")
 print(f"Loaded {len(bank_type_mapping)} bank mappings")
 
 #%% Create bank sector mapping
-# Simple vectorized mapping creation
+# Simple vectorized mapping creation for individual banks
 if 'TICKER' in bank_type_mapping.columns and 'Type' in bank_type_mapping.columns:
     bank_sector_map = dict(zip(bank_type_mapping['TICKER'], bank_type_mapping['Type']))
 else:
@@ -45,7 +45,12 @@ else:
     banks_df = df_quarter[df_quarter['TICKER'].str.len() == 3].copy()
     bank_sector_map = banks_df.groupby('TICKER')['Type'].first().to_dict()
 
-print(f"Mapped {len(bank_sector_map)} banks to sectors")
+# Add sector tickers (Ticker len > 3) with 'Sector' as sector type
+sector_tickers = df_quarter[df_quarter['TICKER'].str.len() > 3]['TICKER'].unique()
+for sector_ticker in sector_tickers:
+    bank_sector_map[sector_ticker] = 'Sector'
+
+print(f"Mapped {len(bank_sector_map)} banks and sectors")
 
 #%% Helper functions for data operations
 
@@ -86,7 +91,7 @@ def save_comments(comments_df):
 #%% Data preparation functions
 
 def prepare_bank_quarter_data(ticker, quarter):
-    """Prepare financial metrics for a specific bank and quarter"""
+    """Prepare financial metrics for a specific bank/sector and quarter"""
     # Define metrics to extract
     metrics_df = pd.DataFrame({
         'Name': ['Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE', 
@@ -98,35 +103,56 @@ def prepare_bank_quarter_data(ticker, quarter):
     metrics_with_codes = metrics_df.merge(keyitem, on='Name', how='left')
     cols_to_keep = ['Date_Quarter'] + metrics_with_codes['KeyCode'].tolist()
     
-    # Filter bank data
-    bank_data = df_quarter[df_quarter['TICKER'] == ticker][cols_to_keep].copy()
+    # Filter data (works for both individual banks and sectors)
+    entity_data = df_quarter[df_quarter['TICKER'] == ticker][cols_to_keep].copy()
     
     # Filter to target quarter and previous 5 quarters
-    bank_data['quarter_numeric'] = bank_data['Date_Quarter'].apply(quarter_to_numeric)
+    entity_data['quarter_numeric'] = entity_data['Date_Quarter'].apply(quarter_to_numeric)
+    # Ensure quarter_numeric is numeric
+    entity_data['quarter_numeric'] = pd.to_numeric(entity_data['quarter_numeric'], errors='coerce')
     target_numeric = quarter_to_numeric(quarter)
-    bank_data = bank_data[bank_data['quarter_numeric'] <= target_numeric]
-    bank_data = bank_data.nlargest(6, 'quarter_numeric')
+    entity_data = entity_data[entity_data['quarter_numeric'] <= target_numeric]
+    entity_data = entity_data.nlargest(6, 'quarter_numeric')
     
     # Calculate growth metrics using vectorized operations
     for col in metrics_with_codes['KeyCode']:
-        if col in bank_data.columns:
+        if col in entity_data.columns:
             # QoQ growth
-            bank_data[f'{col}_qoq'] = bank_data[col].pct_change()
+            entity_data[f'{col}_qoq'] = entity_data[col].pct_change()
             # YoY growth
-            bank_data[f'{col}_yoy'] = bank_data[col].pct_change(periods=4)
+            entity_data[f'{col}_yoy'] = entity_data[col].pct_change(periods=4)
     
-    return bank_data.sort_values('quarter_numeric').to_dict('records')
+    return entity_data.sort_values('quarter_numeric').to_dict('records')
 
 #%% OpenAI comment generation
 
 def generate_single_comment(ticker, sector, quarter):
-    """Generate a comment for a single bank and quarter"""
+    """Generate a comment for a single bank/sector and quarter"""
     try:
-        # Get bank data
+        # Get entity data
         data = prepare_bank_quarter_data(ticker, quarter)
         
-        # Create prompt
-        prompt = f"""Analyze the performance of {ticker} ({sector} bank) for {quarter}.
+        # Determine if it's a sector or individual bank
+        is_sector = len(ticker) > 3
+        entity_type = "sector" if is_sector else "bank"
+        
+        # Create prompt based on entity type
+        if is_sector:
+            prompt = f"""Analyze the performance of {ticker} ({sector}) for {quarter}.
+
+Financial data (last 6 quarters):
+{data}
+
+Provide a concise sector analysis covering:
+1. Overall sector performance metrics and trends
+2. Asset quality across the sector
+3. Sector profitability analysis
+4. Key sector strengths and challenges
+5. Sector outlook and implications
+
+Keep the analysis to 200-250 words."""
+        else:
+            prompt = f"""Analyze the performance of {ticker} ({sector} bank) for {quarter}.
 
 Financial data (last 6 quarters):
 {data}
@@ -144,7 +170,7 @@ Keep the analysis to 200-250 words."""
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a banking analyst expert. Provide concise but insightful analysis."},
+                {"role": "system", "content": f"You are a banking analyst expert. Provide concise but insightful {entity_type} analysis."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
@@ -311,6 +337,19 @@ def main():
         
     else:
         print("Exiting...")
+
+#%% Create wrapper class for compatibility
+class BulkCommentGenerator:
+    """Wrapper class to maintain compatibility with run_generators.py"""
+    
+    def __init__(self):
+        pass
+    
+    def get_available_quarters(self):
+        return get_available_quarters()
+    
+    def generate_bulk_comments(self, start_quarter=None, end_quarter=None, overwrite_existing=False):
+        return generate_bulk_comments(start_quarter, end_quarter, overwrite_existing)
 
 #%% Execute if run directly
 if __name__ == "__main__":
