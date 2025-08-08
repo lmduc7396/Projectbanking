@@ -202,14 +202,32 @@ class QueryRouter:
                            'YEARLY CHANGE', 'YOY CHANGE', 'YOY GROWTH', 'VS LAST YEAR',
                            'COMPARED TO LAST YEAR', 'FROM LAST YEAR']
             
-            # Simple and aggressive QoQ/YoY detection
-            has_qoq = 'QOQ' in query_upper or 'Q-O-Q' in query_upper or 'QUARTER-ON-QUARTER' in query_upper.replace(' ', '-')
-            has_yoy = 'YOY' in query_upper or 'Y-O-Y' in query_upper or 'YEAR-ON-YEAR' in query_upper.replace(' ', '-')
+            # Simple and aggressive QoQ/YoY detection - check multiple variations
+            qoq_found = False
+            yoy_found = False
             
-            # Debug output
-            if has_qoq or has_yoy:
-                print(f"Debug: QoQ detected: {has_qoq}, YoY detected: {has_yoy}")
-                print(f"Debug: Initial timeframe: {timeframe}")
+            # Check for QoQ in various formats
+            qoq_variants = ['QOQ', 'Q.O.Q', 'Q-O-Q', 'Q O Q', 'QUARTER ON QUARTER', 'QUARTER-ON-QUARTER']
+            for variant in qoq_variants:
+                if variant in query_upper:
+                    qoq_found = True
+                    break
+            
+            # Check for YoY in various formats  
+            yoy_variants = ['YOY', 'Y.O.Y', 'Y-O-Y', 'Y O Y', 'YEAR ON YEAR', 'YEAR-ON-YEAR']
+            for variant in yoy_variants:
+                if variant in query_upper:
+                    yoy_found = True
+                    break
+            
+            has_qoq = qoq_found
+            has_yoy = yoy_found
+            
+            # Always print debug for queries containing QOQ or YOY
+            print(f"Debug: Query: '{query}'")
+            print(f"Debug: Query upper: '{query_upper}'")
+            print(f"Debug: QoQ detected: {has_qoq}, YoY detected: {has_yoy}")
+            print(f"Debug: Initial timeframe from OpenAI: {timeframe}")
             
             # Check if we need to add quarters for QoQ or YoY
             if has_qoq or has_yoy:
@@ -220,11 +238,13 @@ class QueryRouter:
                 # For each quarter in timeframe, add comparison quarters
                 quarters_to_add = set()
                 for target_quarter in timeframe:
+                    print(f"Debug: Processing quarter: {target_quarter}")
                     # Only process quarters (not years)
                     if 'Q' in str(target_quarter):
                         # Parse the target quarter
                         q = int(target_quarter[0])
                         year = int(target_quarter[2:4])
+                        print(f"Debug: Parsed quarter {q} year {year}")
                         
                         if has_qoq:
                             # Add previous quarter for QoQ
@@ -235,11 +255,13 @@ class QueryRouter:
                                 prev_year -= 1
                             prev_quarter = f"{prev_q}Q{prev_year:02d}"
                             quarters_to_add.add(prev_quarter)
+                            print(f"Debug: Added previous quarter for QoQ: {prev_quarter}")
                         
                         if has_yoy:
                             # Add same quarter from previous year for YoY
                             prev_year_quarter = f"{q}Q{(year-1):02d}"
                             quarters_to_add.add(prev_year_quarter)
+                            print(f"Debug: Added previous year quarter for YoY: {prev_year_quarter}")
                 
                 # Add all identified quarters to timeframe
                 for quarter in quarters_to_add:
