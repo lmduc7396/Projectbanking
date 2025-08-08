@@ -9,6 +9,26 @@ class QualitativeDataHandler:
         self.data_dir = data_dir
         self.comments_cache = None
     
+    def normalize_ticker(self, ticker: str) -> str:
+        """Normalize ticker for case-insensitive matching"""
+        if not ticker:
+            return ticker
+        
+        # Handle common variations
+        ticker_upper = ticker.upper()
+        
+        # Map common variations to standard format
+        ticker_map = {
+            'SECTOR': 'Sector',
+            'SOCB': 'SOCB',
+            'PRIVATE_1': 'Private_1',
+            'PRIVATE_2': 'Private_2',
+            'PRIVATE_3': 'Private_3'
+        }
+        
+        # Return mapped version if it exists, otherwise return uppercase
+        return ticker_map.get(ticker_upper, ticker_upper)
+    
     def get_banking_comment(self, ticker: str, timeframe: List[str]) -> Dict[str, Any]:
         """Get banking comments for a specific bank/sector and timeframe"""
         try:
@@ -22,9 +42,19 @@ class QualitativeDataHandler:
             
             df = self.comments_cache
             
-            # Filter by ticker (works for both banks and sectors)
-            if ticker and 'TICKER' in df.columns:
-                df = df[df['TICKER'] == ticker]
+            # Normalize ticker for case-insensitive matching
+            normalized_ticker = self.normalize_ticker(ticker)
+            
+            # Filter by ticker (case-insensitive)
+            if normalized_ticker and 'TICKER' in df.columns:
+                # Try exact match first
+                df_filtered = df[df['TICKER'] == normalized_ticker]
+                
+                # If no exact match, try case-insensitive match
+                if df_filtered.empty:
+                    df_filtered = df[df['TICKER'].str.upper() == normalized_ticker.upper()]
+                
+                df = df_filtered
             
             # Filter by timeframe (quarters)
             if timeframe and 'QUARTER' in df.columns:
@@ -58,14 +88,27 @@ class QualitativeDataHandler:
     def format_qualitative_data(self, ticker: str, timeframe: List[str], is_sector: bool = False) -> str:
         """Format qualitative data for OpenAI prompt - uses banking_comments for all entities"""
         
+        # Normalize ticker for comparison
+        normalized_ticker = self.normalize_ticker(ticker)
+        
+        # List of sector tickers (case-insensitive check)
+        sector_tickers = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+        sector_tickers_upper = [s.upper() for s in sector_tickers]
+        
+        # Determine if it's a sector (case-insensitive)
+        is_sector_ticker = normalized_ticker.upper() in sector_tickers_upper
+        
         # Always use banking_comments for both individual banks and sectors
         result = self.get_banking_comment(ticker, timeframe)
         
         if result['found']:
             # Determine entity type for formatting
-            entity_type = "SECTOR" if (is_sector or ticker in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']) else "BANK"
+            entity_type = "SECTOR" if (is_sector or is_sector_ticker) else "BANK"
             
-            formatted = f"{entity_type} ANALYSIS FOR {ticker}:\n\n"
+            # Use the normalized ticker for display
+            display_ticker = normalized_ticker if normalized_ticker else ticker
+            
+            formatted = f"{entity_type} ANALYSIS FOR {display_ticker}:\n\n"
             for comment in result['comments']:
                 formatted += f"Quarter: {comment['quarter']}\n"
                 formatted += f"Analysis:\n{comment['comment']}\n"
