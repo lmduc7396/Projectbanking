@@ -64,8 +64,20 @@ with st.sidebar:
     )
     metric_col = get_metric_column(metric_type)
 
-# Get latest date for use in other parts (keep in background)
-latest_date = df['TRADE_DATE'].max()
+# Main page info
+st.markdown("---")
+col1, col2 = st.columns(2)
+
+with col1:
+    # Get latest date in data
+    latest_date = df['TRADE_DATE'].max()
+    st.metric("Latest Data", latest_date.strftime('%Y-%m-%d'))
+
+with col2:
+    # Show data coverage
+    total_tickers = df['TICKER'].nunique()
+    total_days = (df['TRADE_DATE'].max() - df['TRADE_DATE'].min()).days
+    st.metric("Coverage", f"{total_tickers} entities over {total_days:,} days")
 
 # Chart 1: Valuation Distribution Candle Chart
 st.markdown("---")
@@ -368,5 +380,3 @@ if not stats_df.empty:
         st.metric("Overvalued Banks", expensive_count)
 else:
     st.warning("Insufficient data to generate statistics table")
-
-# Footer removed - keeping data info in background only
