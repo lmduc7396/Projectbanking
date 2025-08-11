@@ -219,7 +219,7 @@ pbt_yoy_forecast_1_original = ((pbt_forecast_1_original / pbt_last_complete) - 1
 pbt_yoy_forecast_2_original = ((pbt_forecast_2_original / pbt_forecast_1_original) - 1) * 100 if pbt_forecast_1_original != 0 else 0
 
 # Initialize adjusted values
-if f'{ticker}_pbt_forecast_year_1_adjusted' not in st.session_state:
+if f'{ticker}_pbt_{forecast_year_1}_adjusted' not in st.session_state:
     st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] = pbt_forecast_1_original
     st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] = pbt_forecast_2_original
 
