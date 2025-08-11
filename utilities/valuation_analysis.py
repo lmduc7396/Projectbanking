@@ -1,0 +1,216 @@
+"""
+Utility functions for valuation analysis
+"""
+
+import pandas as pd
+import numpy as np
+from scipy import stats
+from typing import Dict, Tuple, List, Optional
+
+def get_metric_column(metric_type: str) -> str:
+    """Get the column name for the selected metric"""
+    if metric_type == "P/E":
+        return "PE_RATIO"
+    elif metric_type == "P/B":
+        return "PX_TO_BOOK_RATIO"
+    else:
+        return "PX_TO_SALES_RATIO"
+
+def remove_outliers_iqr(data: pd.Series, multiplier: float = 1.5) -> pd.Series:
+    """Remove outliers using IQR method"""
+    Q1 = data.quantile(0.25)
+    Q3 = data.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - multiplier * IQR
+    upper_bound = Q3 + multiplier * IQR
+    return data[(data >= lower_bound) & (data <= upper_bound)]
+
+def calculate_distribution_stats(df: pd.DataFrame, ticker: str, metric_col: str) -> Dict:
+    """
+    Calculate distribution statistics for candle chart
+    Returns percentiles and current value
+    """
+    # Get historical data for the ticker
+    ticker_data = df[df['TICKER'] == ticker][metric_col].dropna()
+    
+    if len(ticker_data) < 20:  # Need minimum data points
+        return None
+    
+    # Remove outliers for cleaner distribution
+    clean_data = remove_outliers_iqr(ticker_data, multiplier=2.0)
+    
+    # Get current value (most recent)
+    current_value = df[df['TICKER'] == ticker][metric_col].iloc[-1] if len(df[df['TICKER'] == ticker]) > 0 else None
+    
+    # Calculate percentiles
+    stats_dict = {
+        'p5': clean_data.quantile(0.05),
+        'p25': clean_data.quantile(0.25),
+        'p50': clean_data.quantile(0.50),  # Median
+        'p75': clean_data.quantile(0.75),
+        'p95': clean_data.quantile(0.95),
+        'current': current_value,
+        'count': len(clean_data)
+    }
+    
+    # Calculate current value percentile
+    if current_value is not None and not pd.isna(current_value):
+        percentile_rank = stats.percentileofscore(clean_data, current_value)
+        stats_dict['percentile'] = percentile_rank
+    else:
+        stats_dict['percentile'] = None
+    
+    return stats_dict
+
+def calculate_historical_stats(df: pd.DataFrame, ticker: str, metric_col: str) -> Dict:
+    """
+    Calculate historical statistics for time series chart
+    Returns mean, std dev, and current z-score
+    """
+    # Get historical data
+    ticker_data = df[df['TICKER'] == ticker][[metric_col, 'TRADE_DATE']].copy()
+    ticker_data = ticker_data.dropna()
+    
+    if len(ticker_data) < 30:  # Need minimum data points
+        return None
+    
+    # Sort by date
+    ticker_data = ticker_data.sort_values('TRADE_DATE')
+    
+    # Remove outliers
+    clean_values = remove_outliers_iqr(ticker_data[metric_col], multiplier=3.0)
+    
+    # Calculate statistics
+    mean_val = clean_values.mean()
+    std_val = clean_values.std()
+    current_val = ticker_data[metric_col].iloc[-1] if len(ticker_data) > 0 else None
+    
+    stats_dict = {
+        'mean': mean_val,
+        'std': std_val,
+        'upper_1sd': mean_val + std_val,
+        'lower_1sd': mean_val - std_val,
+        'upper_2sd': mean_val + 2 * std_val,
+        'lower_2sd': mean_val - 2 * std_val,
+        'current': current_val
+    }
+    
+    # Calculate z-score
+    if current_val is not None and not pd.isna(current_val):
+        z_score = (current_val - mean_val) / std_val if std_val > 0 else 0
+        stats_dict['z_score'] = z_score
+    else:
+        stats_dict['z_score'] = None
+    
+    return stats_dict
+
+def calculate_cdf(df: pd.DataFrame, ticker: str, metric_col: str) -> float:
+    """
+    Calculate cumulative distribution function (percentile rank)
+    Returns value between 0 and 100
+    """
+    # Get historical data
+    ticker_data = df[df['TICKER'] == ticker][metric_col].dropna()
+    
+    if len(ticker_data) < 20:
+        return None
+    
+    # Get current value
+    current_value = ticker_data.iloc[-1] if len(ticker_data) > 0 else None
+    
+    if current_value is None or pd.isna(current_value):
+        return None
+    
+    # Remove outliers
+    clean_data = remove_outliers_iqr(ticker_data, multiplier=3.0)
+    
+    # Calculate CDF (percentile)
+    cdf_value = stats.percentileofscore(clean_data, current_value)
+    
+    return cdf_value
+
+def get_valuation_status(z_score: float) -> Tuple[str, str]:
+    """
+    Get valuation status based on z-score
+    Returns (status, color)
+    """
+    if z_score is None:
+        return ("N/A", "gray")
+    elif z_score < -1.5:
+        return ("Very Cheap", "darkgreen")
+    elif z_score < -0.5:
+        return ("Cheap", "green")
+    elif z_score < 0.5:
+        return ("Fair", "yellow")
+    elif z_score < 1.5:
+        return ("Expensive", "orange")
+    else:
+        return ("Very Expensive", "red")
+
+def prepare_statistics_table(df: pd.DataFrame, metric_col: str) -> pd.DataFrame:
+    """
+    Prepare statistics table with all tickers
+    """
+    results = []
+    
+    # Get unique tickers
+    tickers = df['TICKER'].unique()
+    
+    for ticker in tickers:
+        # Get ticker type
+        ticker_type = df[df['TICKER'] == ticker]['Type'].iloc[0] if len(df[df['TICKER'] == ticker]) > 0 else "Unknown"
+        
+        # Skip if insufficient data
+        ticker_data = df[df['TICKER'] == ticker][metric_col].dropna()
+        if len(ticker_data) < 20:
+            continue
+        
+        # Calculate statistics
+        hist_stats = calculate_historical_stats(df, ticker, metric_col)
+        if hist_stats is None:
+            continue
+        
+        cdf_value = calculate_cdf(df, ticker, metric_col)
+        
+        # Get status
+        status, color = get_valuation_status(hist_stats.get('z_score'))
+        
+        results.append({
+            'Ticker': ticker,
+            'Type': ticker_type,
+            'Current': hist_stats.get('current', None),
+            'Mean': hist_stats.get('mean', None),
+            'Std Dev': hist_stats.get('std', None),
+            'CDF (%)': cdf_value,
+            'Z-Score': hist_stats.get('z_score', None),
+            'Status': status
+        })
+    
+    # Create DataFrame
+    results_df = pd.DataFrame(results)
+    
+    # Sort by Type, then by Current value
+    if not results_df.empty:
+        # Define sort order for Type
+        type_order = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3', 'Other']
+        results_df['Type_Order'] = results_df['Type'].apply(lambda x: type_order.index(x) if x in type_order else 999)
+        results_df = results_df.sort_values(['Type_Order', 'Current'], ascending=[True, False])
+        results_df = results_df.drop('Type_Order', axis=1)
+    
+    return results_df
+
+def get_sector_and_components(df: pd.DataFrame, sector: str) -> List[str]:
+    """
+    Get list of tickers for a sector and its components
+    """
+    if sector == "Sector":
+        # Return overall sector plus all individual banks
+        all_tickers = ['Sector'] + sorted(df[df['TICKER'].str.len() == 3]['TICKER'].unique().tolist())
+        return all_tickers
+    else:
+        # Return sector aggregate plus its component banks
+        component_banks = df[df['Type'] == sector]['TICKER'].unique().tolist()
+        # Remove the sector itself if it's in the list
+        component_banks = [t for t in component_banks if t != sector]
+        # Add sector at the beginning
+        return [sector] + sorted(component_banks)

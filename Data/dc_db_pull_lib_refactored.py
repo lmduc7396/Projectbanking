@@ -236,14 +236,14 @@ if __name__ == "__main__":
     # full_refresh_all()
     
     # 2. Full refresh Bank data only (saves as BS_Bank.csv, IS_Bank.csv, Note_Bank.csv)
-    full_refresh_banks()
+    #full_refresh_banks()
     
     # 3. Full refresh specific query
-    # full_refresh('MARKET_CAP')
+    # full_refresh('VALUATION')
     
     # 4. Incremental update with date filter
     # incremental_update('VALUATION', '2025-07-15')  # Daily data from this date
     # incremental_update('EVEBITDA', '2025-07-15')  # Daily data from this date
-    incremental_update('FA_Q_FULL', '2025Q2')      # Quarterly data for Q2 2025
+    # incremental_update('FA_Q_FULL', '2025Q2')      # Quarterly data for Q2 2025
     # incremental_update('MARKET_CAP', '2025-07-15')  # Daily data from this date
     
