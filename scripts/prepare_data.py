@@ -398,8 +398,9 @@ if has_forecast:
                     bs14_prev = prev_data.iloc[0]['BS.14']
                     
                     if pd.notna(bs14_prev):
-                        # Calculate Nt.220 = BS.14 - BS.14(t-1) - IS.17
-                        nt220_value = bs14_current - bs14_prev - is17
+                        # Calculate Nt.220 = -(BS.14 - BS.14(t-1) - IS.17)
+                        # Note: BS.14 and IS.17 are negative, so write-off should be positive
+                        nt220_value = -(bs14_current - bs14_prev - is17)
                         dfcompaniesyear.loc[idx, 'Nt.220'] = nt220_value
                         print(f"  {ticker} {year}: Nt.220 = {nt220_value:.2e} (BS.14={bs14_current:.2e}, BS.14_prev={bs14_prev:.2e}, IS.17={is17:.2e})")
     
@@ -446,7 +447,8 @@ if has_forecast:
                     bs14_prev = prev_data.iloc[0]['BS.14']
                     
                     if pd.notna(bs14_current) and pd.notna(is17) and pd.notna(bs14_prev):
-                        df_agg.loc[idx, 'Nt.220'] = bs14_current - bs14_prev - is17
+                        # Calculate Nt.220 with correct sign (write-off should be positive)
+                        df_agg.loc[idx, 'Nt.220'] = -(bs14_current - bs14_prev - is17)
     
     # Append to historical aggregates
     dfsectoryear = pd.concat([dfsectoryear, dfsectoryear_forecast], ignore_index=True)

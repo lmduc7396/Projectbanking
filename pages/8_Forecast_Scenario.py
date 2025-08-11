@@ -615,13 +615,15 @@ def prepare_asset_quality_table():
             bs14 = row['BS.14'] if pd.notna(row['BS.14']) else 0
             npl_coverage = (-bs14 / (npl * loan) * 100) if (npl * loan) != 0 else 0
             provision_expense = row['IS.17'] if pd.notna(row['IS.17']) else 0
+            write_off = row['Nt.220'] if 'Nt.220' in row and pd.notna(row['Nt.220']) else 0
             
             data_rows.append({
                 'Period': str(year),
                 'NPL (%)': npl * 100,
                 'NPL Formation (%)': npl_formation * 100,
                 'NPL Coverage (%)': npl_coverage,
-                'Provision Expense': provision_expense / 1e12
+                'Provision Expense': provision_expense / 1e12,
+                'Write-off (Nt.220)': write_off / 1e12
             })
     
     # Add forecast data for forecast_year_1-forecast_year_2
@@ -634,13 +636,15 @@ def prepare_asset_quality_table():
             bs14 = row['BS.14'] if pd.notna(row['BS.14']) else 0
             npl_coverage = (-bs14 / (npl * loan) * 100) if (npl * loan) != 0 else 0
             provision_expense = row['IS.17'] if pd.notna(row['IS.17']) else 0
+            write_off = row['Nt.220'] if 'Nt.220' in row and pd.notna(row['Nt.220']) else 0
             
             data_rows.append({
                 'Period': f"{year}F",
                 'NPL (%)': npl * 100,
                 'NPL Formation (%)': npl_formation * 100,
                 'NPL Coverage (%)': npl_coverage,
-                'Provision Expense': provision_expense / 1e12
+                'Provision Expense': provision_expense / 1e12,
+                'Write-off (Nt.220)': write_off / 1e12
             })
     
     return pd.DataFrame(data_rows)
@@ -653,7 +657,8 @@ st.dataframe(asset_quality_table.style.format({
     'NPL (%)': '{:.2f}%',
     'NPL Formation (%)': '{:.2f}%',
     'NPL Coverage (%)': '{:.1f}%',
-    'Provision Expense': '{:.2f}T'
+    'Provision Expense': '{:.2f}T',
+    'Write-off (Nt.220)': '{:.2f}T'
 }), use_container_width=True)
 
 # Input section for Asset Quality adjustments
@@ -718,7 +723,7 @@ with col1:
     npl_coverage_forecast_year_1_new = st.number_input(
         f"NPL Coverage {forecast_year_1} (%)", 
         min_value=0.0, 
-        max_value=200.0, 
+        max_value=500.0, 
         value=npl_coverage_forecast_year_1_original,
         step=1.0,
         key=f"{ticker}_npl_coverage_{forecast_year_1}"
@@ -745,7 +750,7 @@ with col2:
     npl_coverage_forecast_year_2_new = st.number_input(
         f"NPL Coverage {forecast_year_2} (%)", 
         min_value=0.0, 
-        max_value=200.0, 
+        max_value=500.0, 
         value=npl_coverage_forecast_year_2_original,
         step=1.0,
         key=f"{ticker}_npl_coverage_{forecast_year_2}"
