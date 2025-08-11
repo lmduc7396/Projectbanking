@@ -72,7 +72,13 @@ QUERY_CONFIG = {
         'dedupe_columns': ['COMGROUPCODE', 'TRADINGDATE'],
         'date_format': 'date',
         'default_start_date': '2018-01-01'
-    }
+    },
+    'FORECAST': {
+        'base_query': "SELECT * FROM SIL.W_F_IRIS_FORECAST
+                        'incremental_filter': "AND DATE >= '{start_date}'",
+                        'dedupe_columns': ['TICKER', 'DATE'],
+                        'date_format': 'date',
+                        'default_start_date': '2025-01-01'
 }
 
 # Bank queries (always full refresh)

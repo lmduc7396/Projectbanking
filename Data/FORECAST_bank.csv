@@ -1,0 +1,1407 @@
+KEYCODE,KEYCODENAME,ORGANCODE,TICKER,DATE,VALUE,RATING,FORECASTDATE,Formula,IRIS_KeyCodeName
+AFS_Securities,AFS Securities,ACB,ACB,2025,125256252000000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,ACB,ACB,2025,271779000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,ACB,ACB,2025,6704109000000.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,ACB,ACB,2025,6778775500000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,ACB,ACB,2025,44666579600000.0,,,BS.67,Common stock
+Current,     Current,ACB,ACB,2025,685199146500000.0,,,Nt.66,Current
+Customer_loan,Customer loan,ACB,ACB,2025,696823500000000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,ACB,ACB,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,ACB,ACB,2025,639392450200000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,ACB,ACB,2025,91573960000000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,ACB,ACB,2025,1173852000000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,ACB,ACB,2025,4493588000000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,ACB,ACB,2025,12780358500000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,ACB,ACB,2025,129559408000000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,ACB,ACB,2025,21018595500000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,ACB,ACB,2025,158529000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,ACB,ACB,2025,60880649898418.1,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,ACB,ACB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,ACB,ACB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,ACB,ACB,2025,17996257466717.2,,,IS.22,NPAT
+NPATMI,NPATMI,ACB,ACB,2025,17996257466717.2,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,ACB,ACB,2025,28999460053386.5,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,ACB,ACB,2025,35416699961129.0,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,ACB,ACB,2025,1229287500000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,ACB,ACB,2025,814451407742.425,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,ACB,ACB,2025,11040044441610.2,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,ACB,ACB,2025,287587302463.489,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,ACB,ACB,2025,22495321833396.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,ACB,ACB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,ACB,ACB,2025,-50000000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,ACB,ACB,2025,-2108490922966.48,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,ACB,ACB,2025,-7096422642500.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,ACB,ACB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,ACB,ACB,2025,18255934144013.0,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,ACB,ACB,2025,22378735757000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,ACB,ACB,2025,7954850000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,ACB,ACB,2025,-10812943950675.2,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,ACB,ACB,2025,2638444500000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,ACB,ACB,2025,1107948000000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,ACB,ACB,2025,102267501811444.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,ACB,ACB,2025,-4499064366679.31,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,ACB,ACB,2025,1008905199858570.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,ACB,ACB,2025,730966410200000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,ACB,ACB,2025,28010000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,ACB,ACB,2025,121980540000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,ACB,ACB,2026,144044689800000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,ACB,ACB,2026,271779000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,ACB,ACB,2026,7208742600000.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,ACB,ACB,2026,8066742845000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,ACB,ACB,2026,44666579600000.0,,,BS.67,Common stock
+Current,     Current,ACB,ACB,2026,823911352200000.0,,,Nt.66,Current
+Customer_loan,Customer loan,ACB,ACB,2026,836188200000000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,ACB,ACB,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,ACB,ACB,2026,760877015738000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,ACB,ACB,2026,109888752000000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,ACB,ACB,2026,1408622400000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,ACB,ACB,2026,4942946800000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,ACB,ACB,2026,13419376425000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,ACB,ACB,2026,142515348800000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,ACB,ACB,2026,22069525275000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,ACB,ACB,2026,166455450000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,ACB,ACB,2026,76069963143339.3,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,ACB,ACB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,ACB,ACB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,ACB,ACB,2026,20590636387279.5,,,IS.22,NPAT
+NPATMI,NPATMI,ACB,ACB,2026,20590636387279.5,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,ACB,ACB,2026,33709437664297.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,ACB,ACB,2026,40393706208415.1,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,ACB,ACB,2026,1290751875000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,ACB,ACB,2026,890931319117.513,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,ACB,ACB,2026,20785401296989.2,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,ACB,ACB,2026,273907787839.796,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,ACB,ACB,2026,25738295484099.4,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,ACB,ACB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,ACB,ACB,2026,-50000000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,ACB,ACB,2026,-2525064142296.65,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,ACB,ACB,2026,-8897389194500.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,ACB,ACB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,ACB,ACB,2026,22220728423708.5,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,ACB,ACB,2026,26630695550830.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,ACB,ACB,2026,7954850000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,ACB,ACB,2026,-12130487109122.2,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,ACB,ACB,2026,2329945200000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,ACB,ACB,2026,1329537600000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,ACB,ACB,2026,120801074559995.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,ACB,ACB,2026,-5147659096819.87,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,ACB,ACB,2026,1195880188361160.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,ACB,ACB,2026,870765767738000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,ACB,ACB,2026,28010000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,ACB,ACB,2026,146376648000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,BID,BID,2025,157918828000000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,BID,BID,2025,15361020000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,BID,BID,2025,28382161725680.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,BID,BID,2025,12496552400000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,BID,BID,2025,70423631213000.0,,,BS.67,Common stock
+Current,     Current,BID,BID,2025,2313980950105440.0,,,Nt.66,Current
+Customer_loan,Customer loan,BID,BID,2025,2385055607200000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,BID,BID,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,BID,BID,2025,2265677773040000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,BID,BID,2025,236455063850000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,BID,BID,2025,4770111214400.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,BID,BID,2025,14780255600000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,BID,BID,2025,153256367970375.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,BID,BID,2025,262818621672640.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,BID,BID,2025,25976117900000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,BID,BID,2025,9933297200000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,BID,BID,2025,155159090022145.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,BID,BID,2025,5743110579664.2,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,BID,BID,2025,-509159579664.203,,,IS.23,Minority expense
+NPAT,NPAT,BID,BID,2025,27597325840529.4,,,IS.22,NPAT
+NPATMI,NPATMI,BID,BID,2025,27088166260865.2,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,BID,BID,2025,63336647396623.1,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,BID,BID,2025,87134430824623.1,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,BID,BID,2025,5628448350000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,BID,BID,2025,2989574228000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,BID,BID,2025,79845200784534.7,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,BID,BID,2025,3765955600000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,BID,BID,2025,34475639089409.9,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,BID,BID,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,BID,BID,2025,-80854000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,BID,BID,2025,-23468757483901.7,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,BID,BID,2025,-40275411872097.6,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,BID,BID,2025,-1208750641004.15,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,BID,BID,2025,19187529281546.6,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,BID,BID,2025,107115593640000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,BID,BID,2025,185227853800000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,BID,BID,2025,-29190034326248.7,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,BID,BID,2025,33390778500800.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,BID,BID,2025,4531605653680.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,BID,BID,2025,166055556105939.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,BID,BID,2025,-6878313248880.51,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,BID,BID,2025,3159480854474450.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,BID,BID,2025,2502132836890000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,BID,BID,2025,13179613700000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,BID,BID,2025,208845173250000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,BID,BID,2026,157918828000000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,BID,BID,2026,15361020000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,BID,BID,2026,26283312791344.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,BID,BID,2026,14371035260000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,BID,BID,2026,70423631213000.0,,,BS.67,Common stock
+Current,     Current,BID,BID,2026,2683664569221440.0,,,Nt.66,Current
+Customer_loan,Customer loan,BID,BID,2026,2766664504352000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,BID,BID,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,BID,BID,2026,2605529438996000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,BID,BID,2026,271923323427500.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,BID,BID,2026,6916661260880.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,BID,BID,2026,16258281160000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,BID,BID,2026,176244823165932.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,BID,BID,2026,302241414923536.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,BID,BID,2026,24677312005000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,BID,BID,2026,8939967480000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,BID,BID,2026,190214768069704.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,BID,BID,2026,6318383730224.84,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,BID,BID,2026,-575273150560.641,,,IS.23,Minority expense
+NPAT,NPAT,BID,BID,2026,31180795211199.5,,,IS.22,NPAT
+NPATMI,NPATMI,BID,BID,2026,30605522060638.8,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,BID,BID,2026,77127628385299.1,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,BID,BID,2026,99432636655679.1,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,BID,BID,2026,6191293185000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,BID,BID,2026,2538531650800.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,BID,BID,2026,78539017488237.4,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,BID,BID,2026,4142551160000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,BID,BID,2026,38952246621062.2,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,BID,BID,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,BID,BID,2026,-80854000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,BID,BID,2026,-25678967346269.8,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,BID,BID,2026,-46868680035975.1,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,BID,BID,2026,-1208750641004.15,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,BID,BID,2026,23377452730052.3,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,BID,BID,2026,104221177559840.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,BID,BID,2026,203750639180000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,BID,BID,2026,-34801422829487.7,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,BID,BID,2026,44266632069632.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,BID,BID,2026,5533329008704.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,BID,BID,2026,188760457830558.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,BID,BID,2026,-7771451409862.74,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,BID,BID,2026,3597692441339760.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,BID,BID,2026,2877452762423500.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,BID,BID,2026,14497575070000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,BID,BID,2026,219287431912500.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,CTG,CTG,2025,188557477000000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,CTG,CTG,2025,8974677000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,CTG,CTG,2025,11984804809440.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,CTG,CTG,2025,12931156840000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,CTG,CTG,2025,53699917000000.0,,,BS.67,Common stock
+Current,     Current,CTG,CTG,2025,1947122898021120.0,,,Nt.66,Current
+Customer_loan,Customer loan,CTG,CTG,2025,1997467468240000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,CTG,CTG,2025,8350489350000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,CTG,CTG,2025,1863127855480000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,CTG,CTG,2025,278871589700000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,CTG,CTG,2025,7989869872960.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,CTG,CTG,2025,3170133520000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,CTG,CTG,2025,26635861000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,CTG,CTG,2025,372625571096000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,CTG,CTG,2025,22615028000000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,CTG,CTG,2025,0.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,CTG,CTG,2025,147385104075823.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,CTG,CTG,2025,1129160279128.62,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,CTG,CTG,2025,-159288279128.624,,,IS.23,Minority expense
+NPAT,NPAT,CTG,CTG,2025,30397171128430.6,,,IS.22,NPAT
+NPATMI,NPATMI,CTG,CTG,2025,30237882849302.0,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,CTG,CTG,2025,67474915898361.1,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,CTG,CTG,2025,87723745881336.6,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,CTG,CTG,2025,4818594300000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,CTG,CTG,2025,211651434975.533,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,CTG,CTG,2025,81659030879860.8,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,CTG,CTG,2025,4516144349755.33,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,CTG,CTG,2025,37996463910538.2,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,CTG,CTG,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,CTG,CTG,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,CTG,CTG,2025,-25164633195016.0,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,CTG,CTG,2025,-49078480775016.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,CTG,CTG,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,CTG,CTG,2025,28501783054500.4,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,CTG,CTG,2025,39940722120000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,CTG,CTG,2025,123427283200000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,CTG,CTG,2025,-24562648846774.3,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,CTG,CTG,2025,26374960600000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,CTG,CTG,2025,3994934936480.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,CTG,CTG,2025,173472920843500.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,CTG,CTG,2025,-7599292782107.64,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,CTG,CTG,2025,2698378075740600.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,CTG,CTG,2025,2141999445180000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,CTG,CTG,2025,2179950000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,CTG,CTG,2025,182013708000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,CTG,CTG,2026,188557477000000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,CTG,CTG,2026,8974677000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,CTG,CTG,2026,13662677482761.6,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,CTG,CTG,2026,14741518797600.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,CTG,CTG,2026,53699917000000.0,,,BS.67,Common stock
+Current,     Current,CTG,CTG,2026,2219720103744080.0,,,Nt.66,Current
+Customer_loan,Customer loan,CTG,CTG,2026,2277112913793600.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,CTG,CTG,2026,8768013817500.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,CTG,CTG,2026,2123965755247200.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,CTG,CTG,2026,306758748670000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,CTG,CTG,2026,9108451655174.4,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,CTG,CTG,2026,3360341531200.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,CTG,CTG,2026,26635861000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,CTG,CTG,2026,424793151049440.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,CTG,CTG,2026,22615028000000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,CTG,CTG,2026,0.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,CTG,CTG,2026,167398720943899.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,CTG,CTG,2026,1315208440259.02,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,CTG,CTG,2026,-186048161130.399,,,IS.23,Minority expense
+NPAT,NPAT,CTG,CTG,2026,35503791132327.6,,,IS.22,NPAT
+NPATMI,NPATMI,CTG,CTG,2026,35317742971197.2,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,CTG,CTG,2026,76631251635161.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,CTG,CTG,2026,96946820729430.6,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,CTG,CTG,2026,5541383445000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,CTG,CTG,2026,278500868618.76,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,CTG,CTG,2026,82128285328259.1,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,CTG,CTG,2026,5184638686187.6,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,CTG,CTG,2026,44379738915409.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,CTG,CTG,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,CTG,CTG,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,CTG,CTG,2026,-25421972114918.2,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,CTG,CTG,2026,-57709468083518.2,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,CTG,CTG,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,CTG,CTG,2026,33799444500179.9,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,CTG,CTG,2026,45532423216800.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,CTG,CTG,2026,98741826560000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,CTG,CTG,2026,-27145109804240.6,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,CTG,CTG,2026,30067455084000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,CTG,CTG,2026,4554225827587.2,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,CTG,CTG,2026,201600337678708.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,CTG,CTG,2026,-8875947783081.9,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,CTG,CTG,2026,3032332008553870.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,CTG,CTG,2026,2430724503917200.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,CTG,CTG,2026,2179950000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,CTG,CTG,2026,218416449600000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,EIB,EIB,2025,14634398933000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,EIB,EIB,2025,156322000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,EIB,EIB,2025,3474761235750.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,EIB,EIB,2025,2263650840000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,EIB,EIB,2025,18688106000000.0,,,BS.67,Common stock
+Current,     Current,EIB,EIB,2025,189631850924250.0,,,Nt.66,Current
+Customer_loan,Customer loan,EIB,EIB,2025,196534327430000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,EIB,EIB,2025,800000000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,EIB,EIB,2025,180843455520000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,EIB,EIB,2025,27584828750000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,EIB,EIB,2025,902302030000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,EIB,EIB,2025,3655573900000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,EIB,EIB,2025,19019714400000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,EIB,EIB,2025,18084345552000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,EIB,EIB,2025,8134639690000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,EIB,EIB,2025,0.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,EIB,EIB,2025,16026502673941.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,EIB,EIB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,EIB,EIB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,EIB,EIB,2025,4241982977362.71,,,IS.22,NPAT
+NPATMI,NPATMI,EIB,EIB,2025,4241982977362.71,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,EIB,EIB,2025,7453307263881.08,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,EIB,EIB,2025,10276012963881.1,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,EIB,EIB,2025,741175600000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,EIB,EIB,2025,101385000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,EIB,EIB,2025,5164732230799.04,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,EIB,EIB,2025,0.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,EIB,EIB,2025,5328443317206.68,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,EIB,EIB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,EIB,EIB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,EIB,EIB,2025,-1042684921200.0,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,EIB,EIB,2025,-2359570416600.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,EIB,EIB,2025,-222858867000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,EIB,EIB,2025,3668950195899.72,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,EIB,EIB,2025,4521086388000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,EIB,EIB,2025,2079510000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,EIB,EIB,2025,-3904884926274.81,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,EIB,EIB,2025,1989118320000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,EIB,EIB,2025,536294920000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,EIB,EIB,2025,29341388977362.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,EIB,EIB,2025,-1086460339843.97,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,EIB,EIB,2025,266588658320199.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,EIB,EIB,2025,208428284270000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,EIB,EIB,2025,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,EIB,EIB,2025,12494178450000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,EIB,EIB,2026,16097838826300.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,EIB,EIB,2026,156322000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,EIB,EIB,2026,4100218258185.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,EIB,EIB,2026,2580561957600.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,EIB,EIB,2026,18688106000000.0,,,BS.67,Common stock
+Current,     Current,EIB,EIB,2026,223765584090615.0,,,Nt.66,Current
+Customer_loan,Customer loan,EIB,EIB,2026,231910506367400.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,EIB,EIB,2026,800000000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,EIB,EIB,2026,206161539292800.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,EIB,EIB,2026,35860277375000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,EIB,EIB,2026,1064716395400.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,EIB,EIB,2026,4021131290000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,EIB,EIB,2026,22823657280000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,EIB,EIB,2026,16492923143424.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,EIB,EIB,2026,8704064468300.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,EIB,EIB,2026,0.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,EIB,EIB,2026,19048268933151.8,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,EIB,EIB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,EIB,EIB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,EIB,EIB,2026,5258430720466.77,,,IS.22,NPAT
+NPATMI,NPATMI,EIB,EIB,2026,5258430720466.77,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,EIB,EIB,2026,8913793104523.19,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,EIB,EIB,2026,12351919619563.2,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,EIB,EIB,2026,815293160000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,EIB,EIB,2026,101385000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,EIB,EIB,2026,8051216531162.07,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,EIB,EIB,2026,0.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,EIB,EIB,2026,6620317490304.74,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,EIB,EIB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,EIB,EIB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,EIB,EIB,2026,-1284911268230.5,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,EIB,EIB,2026,-2993285950354.5,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,EIB,EIB,2026,-245144753700.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,EIB,EIB,2026,4194577448493.4,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,EIB,EIB,2026,5154038482320.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,EIB,EIB,2026,2079510000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,EIB,EIB,2026,-4446691063042.75,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,EIB,EIB,2026,2347159617600.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,EIB,EIB,2026,632828005600.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,EIB,EIB,2026,34599819697829.5,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,EIB,EIB,2026,-1361886769837.97,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,EIB,EIB,2026,309995487531552.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,EIB,EIB,2026,242021816667800.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,EIB,EIB,2026,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,EIB,EIB,2026,14368305217500.0,,,BS.59,Valuable paper
+Fee_expense,Fee expense,EVNF,EVF,2025,-46963520000.0,,,IS.5,Fee expense
+Fee_income,Fee income,EVNF,EVF,2025,101715760000.0,,,IS.4,Fee income
+Interest_Income,Interest Income,EVNF,EVF,2025,5816420800000.0,,,IS.1,Interest Income
+Minority_Interest_In_Earning,Minority expense,EVNF,EVF,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,EVNF,EVF,2025,762717920000.0,,,IS.22,NPAT
+NPATMI,NPATMI,EVNF,EVF,2025,762717920000.0,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,EVNF,EVF,2025,1964295600000.0,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,EVNF,EVF,2025,2042835600000.0,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,EVNF,EVF,2025,-58673120000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,EVNF,EVF,2025,-26000480000.0,,,IS.8+IS.9+IS.13,Net investment income
+PBT,PBT,EVNF,EVF,2025,957132640000.0,,,IS.18,PBT
+Provision_for_credit_losses,Provision for credit losses,EVNF,EVF,2025,-877616160000.0,,,IS.17,Provision for credit losses
+SG_A_Expense,SG&A Expense,EVNF,EVF,2025,-208086800000.0,,,IS.15,SG&A Expense
+TOTAL_Equity,OWNERS' EQUITY,EVNF,EVF,2025,9769905920000.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,EVNF,EVF,2025,-194414720000.0,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,EVNF,EVF,2025,60361278920000.0,,,BS.1,TOTAL ASSET
+Fee_expense,Fee expense,EVNF,EVF,2026,-56356224000.0,,,IS.5,Fee expense
+Fee_income,Fee income,EVNF,EVF,2026,122058912000.0,,,IS.4,Fee income
+Interest_Income,Interest Income,EVNF,EVF,2026,6979704960000.0,,,IS.1,Interest Income
+Minority_Interest_In_Earning,Minority expense,EVNF,EVF,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,EVNF,EVF,2026,915261504000.0,,,IS.22,NPAT
+NPATMI,NPATMI,EVNF,EVF,2026,915261504000.0,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,EVNF,EVF,2026,2357154720000.0,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,EVNF,EVF,2026,2451402720000.0,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,EVNF,EVF,2026,-70407744000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,EVNF,EVF,2026,-31200576000.0,,,IS.8+IS.9+IS.13,Net investment income
+PBT,PBT,EVNF,EVF,2026,1148559168000.0,,,IS.18,PBT
+Provision_for_credit_losses,Provision for credit losses,EVNF,EVF,2026,-1053139392000.0,,,IS.17,Provision for credit losses
+SG_A_Expense,SG&A Expense,EVNF,EVF,2026,-249704160000.0,,,IS.15,SG&A Expense
+TOTAL_Equity,OWNERS' EQUITY,EVNF,EVF,2026,10685167424000.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,EVNF,EVF,2026,-233297664000.0,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,EVNF,EVF,2026,61276540424000.0,,,BS.1,TOTAL ASSET
+AFS_Securities,AFS Securities,HDB,HDB,2025,32977900200000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,HDB,HDB,2025,535956000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,HDB,HDB,2025,2530694606700.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,HDB,HDB,2025,3974854400000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,HDB,HDB,2025,35101423000000.0,,,BS.67,Common stock
+Current,     Current,HDB,HDB,2025,540368983759800.0,,,Nt.66,Current
+Customer_loan,Customer loan,HDB,HDB,2025,575230293300000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,HDB,HDB,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,HDB,HDB,2025,560006611200000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,HDB,HDB,2025,95842618880000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,HDB,HDB,2025,2557210500000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,HDB,HDB,2025,24151352500000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,HDB,HDB,2025,17436610000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,HDB,HDB,2025,120609153280000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,HDB,HDB,2025,28271062950000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,HDB,HDB,2025,7374353000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,HDB,HDB,2025,72928087699809.4,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,HDB,HDB,2025,2699322500000.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,HDB,HDB,2025,-533164500000.0,,,IS.23,Minority expense
+NPAT,NPAT,HDB,HDB,2025,16681377855498.6,,,IS.22,NPAT
+NPATMI,NPATMI,HDB,HDB,2025,16148213355498.6,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,HDB,HDB,2025,38128437306991.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,HDB,HDB,2025,43243246301587.5,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,HDB,HDB,2025,1012575600000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,HDB,HDB,2025,420348194595.948,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,HDB,HDB,2025,80095809448816.6,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,HDB,HDB,2025,5114595891918.96,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,HDB,HDB,2025,21066858525109.9,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,HDB,HDB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,HDB,HDB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,HDB,HDB,2025,-9203684692800.0,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,HDB,HDB,2025,-7085094459787.5,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,HDB,HDB,2025,-92850000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,HDB,HDB,2025,8335167455651.72,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,HDB,HDB,2025,16800198336000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,HDB,HDB,2025,15434000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,HDB,HDB,2025,-12972973890476.3,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,HDB,HDB,2025,24313439533500.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,HDB,HDB,2025,5459964900000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,HDB,HDB,2025,73340878855498.6,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,HDB,HDB,2025,-4385480669611.33,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,HDB,HDB,2025,878882880996948.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,HDB,HDB,2025,655849230080000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,HDB,HDB,2025,2788443000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,HDB,HDB,2025,93552206750000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,HDB,HDB,2026,34626795210000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,HDB,HDB,2026,535956000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,HDB,HDB,2026,2444330391750.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,HDB,HDB,2026,4889070912000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,HDB,HDB,2026,35101423000000.0,,,BS.67,Common stock
+Current,     Current,HDB,HDB,2026,273954869000000.0,,,Nt.66,Current
+Customer_loan,Customer loan,HDB,HDB,2026,719037866625000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,HDB,HDB,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,HDB,HDB,2026,688808131776000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,HDB,HDB,2026,117886421222400.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,HDB,HDB,2026,3196513125000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,HDB,HDB,2026,26566487750000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,HDB,HDB,2026,17436610000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,HDB,HDB,2026,148349258534400.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,HDB,HDB,2026,32511722392500.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,HDB,HDB,2026,7374353000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,HDB,HDB,2026,89573348987545.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,HDB,HDB,2026,3285803450000.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,HDB,HDB,2026,-586480950000.0,,,IS.23,Minority expense
+NPAT,NPAT,HDB,HDB,2026,20071151412167.1,,,IS.22,NPAT
+NPATMI,NPATMI,HDB,HDB,2026,19484670462167.1,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,HDB,HDB,2026,46826567064288.8,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,HDB,HDB,2026,51904504561586.7,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,HDB,HDB,2026,1215090720000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,HDB,HDB,2026,325406977297.974,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,HDB,HDB,2026,97042503418415.8,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,HDB,HDB,2026,2557297945959.48,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,HDB,HDB,2026,25347792664309.7,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,HDB,HDB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,HDB,HDB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,HDB,HDB,2026,-11504605866000.0,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,HDB,HDB,2026,-8991646866428.57,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,HDB,HDB,2026,-92850000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,HDB,HDB,2026,10767700250965.7,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,HDB,HDB,2026,20664243953280.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,HDB,HDB,2026,15434000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,HDB,HDB,2026,-15052306322860.2,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,HDB,HDB,2026,30391799416875.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,HDB,HDB,2026,6824956125000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,HDB,HDB,2026,93414030267665.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,HDB,HDB,2026,-5276641252142.55,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,HDB,HDB,2026,1072329621857630.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,HDB,HDB,2026,806694552998400.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,HDB,HDB,2026,2788443000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,HDB,HDB,2026,105246232593750.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,LVB,LPB,2025,69696406800000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,LVB,LPB,2025,57000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,LVB,LPB,2025,3767424550600.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,LVB,LPB,2025,1670713891400.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,LVB,LPB,2025,29872959552000.0,,,BS.67,Common stock
+Current,     Current,LVB,LPB,2025,378382701793900.0,,,Nt.66,Current
+Customer_loan,Customer loan,LVB,LPB,2025,391295451700000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,LVB,LPB,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,LVB,LPB,2025,334142778280000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,LVB,LPB,2025,110677802550000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,LVB,LPB,2025,2266935760000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,LVB,LPB,2025,736403800000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,LVB,LPB,2025,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,LVB,LPB,2025,75182125113000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,LVB,LPB,2025,11929896000000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,LVB,LPB,2025,7859181750000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,LVB,LPB,2025,40331971484653.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,LVB,LPB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,LVB,LPB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,LVB,LPB,2025,9327813222096.43,,,IS.22,NPAT
+NPATMI,NPATMI,LVB,LPB,2025,9327813222096.43,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,LVB,LPB,2025,17892367944765.5,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,LVB,LPB,2025,22114717459020.2,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,LVB,LPB,2025,218644000000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,LVB,LPB,2025,142042864254.629,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,LVB,LPB,2025,20687751531630.6,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,LVB,LPB,2025,576248400000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,LVB,LPB,2025,11659766527620.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,LVB,LPB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,LVB,LPB,2025,-56977000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,LVB,LPB,2025,-3832051388693.58,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,LVB,LPB,2025,-6789112733017.86,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,LVB,LPB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,LVB,LPB,2025,7505778610605.62,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,LVB,LPB,2025,16956050120000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,LVB,LPB,2025,1334945850000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,LVB,LPB,2025,-6622899542706.05,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,LVB,LPB,2025,5869431775500.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,LVB,LPB,2025,1008957820000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,LVB,LPB,2025,50568867774096.4,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,LVB,LPB,2025,-2331953305524.11,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,LVB,LPB,2025,581037752033013.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,LVB,LPB,2025,444820580830000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,LVB,LPB,2025,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,LVB,LPB,2025,61004807600000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,LVB,LPB,2026,83635688160000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,LVB,LPB,2026,57000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,LVB,LPB,2026,4445560969708.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,LVB,LPB,2026,2004856669680.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,LVB,LPB,2026,29872959552000.0,,,BS.67,Common stock
+Current,     Current,LVB,LPB,2026,446491588116802.0,,,Nt.66,Current
+Customer_loan,Customer loan,LVB,LPB,2026,461728633006000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,LVB,LPB,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,LVB,LPB,2026,400971333936000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,LVB,LPB,2026,116211692677500.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,LVB,LPB,2026,2674984196800.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,LVB,LPB,2026,810044180000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,LVB,LPB,2026,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,LVB,LPB,2026,60145700090400.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,LVB,LPB,2026,14315875200000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,LVB,LPB,2026,8252140837500.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,LVB,LPB,2026,48007235901646.4,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,LVB,LPB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,LVB,LPB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,LVB,LPB,2026,10248464229809.2,,,IS.22,NPAT
+NPATMI,NPATMI,LVB,LPB,2026,10248464229809.2,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,LVB,LPB,2026,20160108487593.1,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,LVB,LPB,2026,24537589380344.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,LVB,LPB,2026,174915200000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,LVB,LPB,2026,151430752467.36,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,LVB,LPB,2026,41929771772531.0,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,LVB,LPB,2026,605060820000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,LVB,LPB,2026,12810580287261.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,LVB,LPB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,LVB,LPB,2026,-56977000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,LVB,LPB,2026,-4378729359729.46,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,LVB,LPB,2026,-8647899383799.32,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,LVB,LPB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,LVB,LPB,2026,9555471419416.4,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,LVB,LPB,2026,20347260144000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,LVB,LPB,2026,1401693142500.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,LVB,LPB,2026,-7348279733353.29,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,LVB,LPB,2026,6925929495090.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,LVB,LPB,2026,1190570227600.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,LVB,LPB,2026,60817332003905.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,LVB,LPB,2026,-2562116057452.31,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,LVB,LPB,2026,674558019515112.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,LVB,LPB,2026,517183026613500.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,LVB,LPB,2026,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,LVB,LPB,2026,67105288360000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,MBB,MBB,2025,267160342800000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,MBB,MBB,2025,1304334000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,MBB,MBB,2025,5784382522271.53,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,MBB,MBB,2025,4353915800000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,MBB,MBB,2025,61022727150000.0,,,BS.67,Common stock
+Current,     Current,MBB,MBB,2025,980554277647472.0,,,Nt.66,Current
+Customer_loan,Customer loan,MBB,MBB,2025,1009655199800000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,MBB,MBB,2025,1041362000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,MBB,MBB,2025,928400822700000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,MBB,MBB,2025,103370293000000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,MBB,MBB,2025,5110953920970.85,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,MBB,MBB,2025,7931834000000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,MBB,MBB,2025,4612504000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,MBB,MBB,2025,46420041135000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,MBB,MBB,2025,30314175892379.3,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,MBB,MBB,2025,14194016100000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,MBB,MBB,2025,93502344237271.1,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,MBB,MBB,2025,5276168089665.19,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,MBB,MBB,2025,-365288089665.191,,,IS.23,Minority expense
+NPAT,NPAT,MBB,MBB,2025,26405437649005.5,,,IS.22,NPAT
+NPATMI,NPATMI,MBB,MBB,2025,26040149559340.3,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,MBB,MBB,2025,51501603251549.4,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,MBB,MBB,2025,66139100804691.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,MBB,MBB,2025,2200180400000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,MBB,MBB,2025,2559013873073.68,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,MBB,MBB,2025,54623049424720.9,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,MBB,MBB,2025,831287138761.727,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,MBB,MBB,2025,33168081526116.1,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,MBB,MBB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,MBB,MBB,2025,-5866000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,MBB,MBB,2025,-13129482597400.0,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,MBB,MBB,2025,-15376046101462.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,MBB,MBB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,MBB,MBB,2025,20394305627234.9,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,MBB,MBB,2025,37136032908000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,MBB,MBB,2025,8156285000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,MBB,MBB,2025,-19841730241407.4,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,MBB,MBB,2025,13910032574326.3,,,Nt.67,Special Mentioned
+Substandard,     Substandard,MBB,MBB,2025,4295553134959.52,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,MBB,MBB,2025,140812856599006.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,MBB,MBB,2025,-6762643877110.52,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,MBB,MBB,2025,1439637214805020.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,MBB,MBB,2025,1031771115700000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,MBB,MBB,2025,2787057675039.46,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,MBB,MBB,2025,167653242900000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,MBB,MBB,2026,333950428500000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,MBB,MBB,2026,1304334000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,MBB,MBB,2026,8492547152589.41,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,MBB,MBB,2026,5442394750000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,MBB,MBB,2026,61022727150000.0,,,BS.67,Common stock
+Current,     Current,MBB,MBB,2026,1230741123058340.0,,,Nt.66,Current
+Customer_loan,Customer loan,MBB,MBB,2026,1262068999750000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,MBB,MBB,2026,1041362000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,MBB,MBB,2026,1160501028375000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,MBB,MBB,2026,129212866250000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,MBB,MBB,2026,5126623401463.56,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,MBB,MBB,2026,7931834000000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,MBB,MBB,2026,4612504000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,MBB,MBB,2026,58025051418750.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,MBB,MBB,2026,29978143455591.2,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,MBB,MBB,2026,15613417710000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,MBB,MBB,2026,117445778987271.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,MBB,MBB,2026,5710159660482.16,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,MBB,MBB,2026,-433991570816.973,,,IS.23,Minority expense
+NPAT,NPAT,MBB,MBB,2026,31371779391726.4,,,IS.22,NPAT
+NPATMI,NPATMI,MBB,MBB,2026,30937787820909.5,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,MBB,MBB,2026,64758081524148.4,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,MBB,MBB,2026,79167891021116.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,MBB,MBB,2026,2420198440000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,MBB,MBB,2026,2558533949541.63,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,MBB,MBB,2026,52189508576424.3,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,MBB,MBB,2026,819161759559.903,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,MBB,MBB,2026,39406343129605.3,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,MBB,MBB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,MBB,MBB,2026,-5866000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,MBB,MBB,2026,-16407217031018.8,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,MBB,MBB,2026,-19173768496012.4,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,MBB,MBB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,MBB,MBB,2026,24352092455305.2,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,MBB,MBB,2026,46420041135000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,MBB,MBB,2026,8156285000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,MBB,MBB,2026,-23354527851229.3,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,MBB,MBB,2026,13601333718657.9,,,Nt.67,Special Mentioned
+Substandard,     Substandard,MBB,MBB,2026,4107372418949.4,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,MBB,MBB,2026,169134499633232.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,MBB,MBB,2026,-8034563737878.85,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,MBB,MBB,2026,1777749974103720.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,MBB,MBB,2026,1289713894625000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,MBB,MBB,2026,2780676991521.37,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,MBB,MBB,2026,209566553625000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,MSB,MSB,2025,68885020050000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,MSB,MSB,2025,33460000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,MSB,MSB,2025,3104290197600.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,MSB,MSB,2025,1443705600000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,MSB,MSB,2025,26000000000000.0,,,BS.67,Common stock
+Current,     Current,MSB,MSB,2025,207395640009600.0,,,Nt.66,Current
+Customer_loan,Customer loan,MSB,MSB,2025,213933901200000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,MSB,MSB,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,MSB,MSB,2025,185534941200000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,MSB,MSB,2025,71757828000000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,MSB,MSB,2025,777635397600.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,MSB,MSB,2025,0.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,MSB,MSB,2025,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,MSB,MSB,2025,65134848000000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,MSB,MSB,2025,33830213356243.9,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,MSB,MSB,2025,5348931200000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,MSB,MSB,2025,21983298390683.4,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,MSB,MSB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,MSB,MSB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,MSB,MSB,2025,6219536338394.69,,,IS.22,NPAT
+NPATMI,NPATMI,MSB,MSB,2025,6219536338394.69,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,MSB,MSB,2025,11606726641356.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,MSB,MSB,2025,15891927741356.6,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,MSB,MSB,2025,1214255100000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,MSB,MSB,2025,386060000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,MSB,MSB,2025,10493898179029.6,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,MSB,MSB,2025,12631500000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,MSB,MSB,2025,7779625981263.21,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,MSB,MSB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,MSB,MSB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,MSB,MSB,2025,-2568688386182.69,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,MSB,MSB,2025,-1019100000000.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,MSB,MSB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,MSB,MSB,2025,4221564450759.2,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,MSB,MSB,2025,6593740800000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,MSB,MSB,2025,4601759500000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,MSB,MSB,2025,-5543731100000.0,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,MSB,MSB,2025,2156375397600.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,MSB,MSB,2025,499960197600.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,MSB,MSB,2025,43038093338394.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,MSB,MSB,2025,-1560089642868.52,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,MSB,MSB,2025,371308736929030.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,MSB,MSB,2025,257292769200000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,MSB,MSB,2025,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,MSB,MSB,2025,25452715200000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,MSB,MSB,2026,72329271052500.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,MSB,MSB,2026,33460000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,MSB,MSB,2026,3158178426336.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,MSB,MSB,2026,1703572608000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,MSB,MSB,2026,26000000000000.0,,,BS.67,Common stock
+Current,     Current,MSB,MSB,2026,246746391238656.0,,,Nt.66,Current
+Customer_loan,Customer loan,MSB,MSB,2026,252442003416000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,MSB,MSB,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,MSB,MSB,2026,218931230616000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,MSB,MSB,2026,84674237040000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,MSB,MSB,2026,412725762336.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,MSB,MSB,2026,0.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,MSB,MSB,2026,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,MSB,MSB,2026,76859120640000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,MSB,MSB,2026,35301410288864.9,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,MSB,MSB,2026,4279144960000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,MSB,MSB,2026,25515348870229.2,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,MSB,MSB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,MSB,MSB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,MSB,MSB,2026,7161576825766.08,,,IS.22,NPAT
+NPATMI,NPATMI,MSB,MSB,2026,7161576825766.08,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,MSB,MSB,2026,13292434163101.2,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,MSB,MSB,2026,17920489370101.2,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,MSB,MSB,2026,1335680610000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,MSB,MSB,2026,329536500000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,MSB,MSB,2026,16950186889069.5,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,MSB,MSB,2026,13263075000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,MSB,MSB,2026,8957965049034.93,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,MSB,MSB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,MSB,MSB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,MSB,MSB,2026,-3030859691363.83,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,MSB,MSB,2026,-1019100000000.0,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,MSB,MSB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,MSB,MSB,2026,5295800974624.12,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,MSB,MSB,2026,7780614144000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,MSB,MSB,2026,4831847475000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,MSB,MSB,2026,-5931792277000.0,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,MSB,MSB,2026,2039638962336.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,MSB,MSB,2026,85069026336.0001,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,MSB,MSB,2026,50200670164160.8,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,MSB,MSB,2026,-1796388223268.85,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,MSB,MSB,2026,431866839024570.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,MSB,MSB,2026,303605467656000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,MSB,MSB,2026,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,MSB,MSB,2026,30034203936000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,OCB,OCB,2025,55264113313372.5,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,OCB,OCB,2025,53271987348.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,OCB,OCB,2025,3116203126209.21,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,OCB,OCB,2025,804897663706.703,,,BS.2,Cash and precious metal
+Common_stock,Common stock,OCB,OCB,2025,26630522841600.0,,,BS.67,Common stock
+Current,     Current,OCB,OCB,2025,184829797923284.0,,,Nt.66,Current
+Customer_loan,Customer loan,OCB,OCB,2025,194762695388076.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,OCB,OCB,2025,6095066789241.6,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,OCB,OCB,2025,160979532741341.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,OCB,OCB,2025,48178077523864.2,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,OCB,OCB,2025,1752864258492.68,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,OCB,OCB,2025,0.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,OCB,OCB,2025,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,OCB,OCB,2025,40244883185335.1,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,OCB,OCB,2025,968023128860.8,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,OCB,OCB,2025,183283650000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,OCB,OCB,2025,21204804141441.7,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,OCB,OCB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,OCB,OCB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,OCB,OCB,2025,3337491462829.64,,,IS.22,NPAT
+NPATMI,NPATMI,OCB,OCB,2025,3337491462829.64,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,OCB,OCB,2025,9743095057751.87,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,OCB,OCB,2025,10904790029286.4,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,OCB,OCB,2025,248763200628.8,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,OCB,OCB,2025,-186171765033.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,OCB,OCB,2025,15936716755128.1,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,OCB,OCB,2025,0.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,OCB,OCB,2025,4212562940218.28,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,OCB,OCB,2025,-38094167433000.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,OCB,OCB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,OCB,OCB,2025,-2766502761522.33,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,OCB,OCB,2025,-3050122925988.26,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,OCB,OCB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,OCB,OCB,2025,3724480437115.82,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,OCB,OCB,2025,2736652056602.79,,,BS.3,SBV Balance
+SBV_loan,SBV loan,OCB,OCB,2025,3816489107352.9,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,OCB,OCB,2025,-3925724410543.09,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,OCB,OCB,2025,3700491212373.44,,,Nt.67,Special Mentioned
+Substandard,     Substandard,OCB,OCB,2025,1363338867716.53,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,OCB,OCB,2025,33700095636232.2,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,OCB,OCB,2025,-875071477388.64,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,OCB,OCB,2025,313658869264507.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,OCB,OCB,2025,209157610265205.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,OCB,OCB,2025,5347875158455.5,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,OCB,OCB,2025,50612319375000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,OCB,OCB,2026,58024041238583.8,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,OCB,OCB,2026,53271987348.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,OCB,OCB,2026,3388870899752.52,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,OCB,OCB,2026,941730266536.842,,,BS.2,Cash and precious metal
+Common_stock,Common stock,OCB,OCB,2026,26630522841600.0,,,BS.67,Common stock
+Current,     Current,OCB,OCB,2026,214628490317660.0,,,Nt.66,Current
+Customer_loan,Customer loan,OCB,OCB,2026,225924726650168.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,OCB,OCB,2026,6095066789241.6,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,OCB,OCB,2026,188346053307368.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,OCB,OCB,2026,52995885276250.6,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,OCB,OCB,2026,2033322539851.51,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,OCB,OCB,2026,0.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,OCB,OCB,2026,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,OCB,OCB,2026,47086513326842.1,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,OCB,OCB,2026,774418503088.64,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,OCB,OCB,2026,164955285000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,OCB,OCB,2026,25084351865352.4,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,OCB,OCB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,OCB,OCB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,OCB,OCB,2026,3723878828022.29,,,IS.22,NPAT
+NPATMI,NPATMI,OCB,OCB,2026,3723878828022.29,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,OCB,OCB,2026,11219829268461.0,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,OCB,OCB,2026,12350075635763.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,OCB,OCB,2026,199010560503.04,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,OCB,OCB,2026,-186171765033.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,OCB,OCB,2026,19807079328472.2,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,OCB,OCB,2026,0.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,OCB,OCB,2026,4700258897887.97,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,OCB,OCB,2026,-38094167433000.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,OCB,OCB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,OCB,OCB,2026,-3080288885179.65,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,OCB,OCB,2026,-3598496771122.93,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,OCB,OCB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,OCB,OCB,2026,4263499579408.35,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,OCB,OCB,2026,3201882906225.26,,,BS.3,SBV Balance
+SBV_loan,SBV loan,OCB,OCB,2026,4198138018088.19,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,OCB,OCB,2026,-4569527985232.41,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,OCB,OCB,2026,4292569806353.19,,,Nt.67,Special Mentioned
+Substandard,     Substandard,OCB,OCB,2026,1581473086551.18,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,OCB,OCB,2026,37256905676546.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,OCB,OCB,2026,-976380069865.687,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,OCB,OCB,2026,358090582869635.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,OCB,OCB,2026,241341938583619.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,OCB,OCB,2026,4813087642609.95,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,OCB,OCB,2026,58204167281250.0,,,BS.59,Valuable paper
+Interest_Expense,     Interest Expense,PVB,PVB,2025,-2178801680.9109,,,IS.2,Interest Expense
+Minority_Interest,     Minority interests,PVB,PVB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority interests,PVB,PVB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,PVB,PVB,2025,71359567471.776,,,IS.22,NPAT
+NPATMI,NPATMI,PVB,PVB,2025,71359567471.776,,,IS.24,NPATMI
+Net_Revenue,Net Revenue,PVB,PVB,2025,751325000000.0,,,IS.14,Net Revenue
+PBT,PBT,PVB,PVB,2025,89199459339.72,,,IS.18,PBT
+Retain_Earning,Retained earnings,PVB,PVB,2025,209172179665.776,,,BS.76,Retain earning
+SG_A_Expense,SG&A,PVB,PVB,2025,-72375875000.0,,,IS.15,SG&A Expense
+TOTAL_Equity,OWNER'S EQUITY,PVB,PVB,2025,451904089729.776,,,BS.65,OWNERS' EQUITY
+Tax,Tax,PVB,PVB,2025,-17839891867.944,,,IS.21,Tax expense
+Treasury_Share,     Treasury shares,PVB,PVB,2025,0.0,,,BS.70,Treasury shares
+Interest_Expense,     Interest Expense,PVB,PVB,2026,-4357603361.8218,,,IS.2,Interest Expense
+Minority_Interest,     Minority interests,PVB,PVB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority interests,PVB,PVB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,PVB,PVB,2026,103402842277.049,,,IS.22,NPAT
+NPATMI,NPATMI,PVB,PVB,2026,103402842277.049,,,IS.24,NPATMI
+Net_Revenue,Net Revenue,PVB,PVB,2026,950000000000.0,,,IS.14,Net Revenue
+PBT,PBT,PVB,PVB,2026,129253552846.311,,,IS.18,PBT
+Retain_Earning,Retained earnings,PVB,PVB,2026,269375025942.825,,,BS.76,Retain earning
+SG_A_Expense,SG&A,PVB,PVB,2026,-77000000000.0,,,IS.15,SG&A Expense
+TOTAL_Equity,OWNER'S EQUITY,PVB,PVB,2026,512106936006.825,,,BS.65,OWNERS' EQUITY
+Tax,Tax,PVB,PVB,2026,-25850710569.2622,,,IS.21,Tax expense
+Treasury_Share,     Treasury shares,PVB,PVB,2026,0.0,,,BS.70,Treasury shares
+AFS_Securities,AFS Securities,STB,STB,2025,27087280950000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,STB,STB,2025,1747651000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,STB,STB,2025,9222280651800.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,STB,STB,2025,9118264830000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,STB,STB,2025,18852157000000.0,,,BS.67,Common stock
+Current,     Current,STB,STB,2025,594736290627000.0,,,Nt.66,Current
+Customer_loan,Customer loan,STB,STB,2025,614818710120000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,STB,STB,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,STB,STB,2025,629238813540000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,STB,STB,2025,64389475500000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,STB,STB,2025,3688912260720.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,STB,STB,2025,88997268950000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,STB,STB,2025,75363197000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,STB,STB,2025,89504014170000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,STB,STB,2025,9798581100000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,STB,STB,2025,7606929000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,STB,STB,2025,56495821918845.5,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,STB,STB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,STB,STB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,STB,STB,2025,16434831924137.2,,,IS.22,NPAT
+NPATMI,NPATMI,STB,STB,2025,16434831924137.2,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,STB,STB,2025,26853734785624.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,STB,STB,2025,31078662543108.7,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,STB,STB,2025,1161014400000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,STB,STB,2025,24840932138.622,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,STB,STB,2025,7501971522327.12,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,STB,STB,2025,81768321386.2201,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,STB,STB,2025,20724378121218.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,STB,STB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,STB,STB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,STB,STB,2025,4252686973370.89,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,STB,STB,2025,-11350677090046.3,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,STB,STB,2025,-13453209000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,STB,STB,2025,6100814257306.98,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,STB,STB,2025,18877164406200.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,STB,STB,2025,56967750000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,STB,STB,2025,-14606971395261.1,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,STB,STB,2025,4711951740000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,STB,STB,2025,2459274840480.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,STB,STB,2025,70306723896267.1,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,STB,STB,2025,-4289546197081.28,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,STB,STB,2025,833540260149867.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,STB,STB,2025,693628289040000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,STB,STB,2025,449009000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,STB,STB,2025,38591199150000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,STB,STB,2026,0.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,STB,STB,2026,1747651000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,STB,STB,2026,9462059948746.8,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,STB,STB,2026,10394821906200.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,STB,STB,2026,18852157000000.0,,,BS.67,Common stock
+Current,     Current,STB,STB,2026,680567422980233.0,,,Nt.66,Current
+Customer_loan,Customer loan,STB,STB,2026,700893329536800.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,STB,STB,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,STB,STB,2026,717332247435600.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,STB,STB,2026,67608949275000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,STB,STB,2026,4906253306757.6,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,STB,STB,2026,75363197000000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,STB,STB,2026,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,STB,STB,2026,102034576153800.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,STB,STB,2026,10288510155000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,STB,STB,2026,7606929000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,STB,STB,2026,67128729975145.2,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,STB,STB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,STB,STB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,STB,STB,2026,19749156010867.3,,,IS.22,NPAT
+NPATMI,NPATMI,STB,STB,2026,19749156010867.3,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,STB,STB,2026,30587500385814.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,STB,STB,2026,42508401450292.6,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,STB,STB,2026,1219065120000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,STB,STB,2026,25630800185.5386,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,STB,STB,2026,32836675590696.0,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,STB,STB,2026,81334951855.3863,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,STB,STB,2026,24903751899223.4,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,STB,STB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,STB,STB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,STB,STB,2026,-2301625028963.88,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,STB,STB,2026,-12445862980203.5,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,STB,STB,2026,75363197000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,STB,STB,2026,7280487166615.78,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,STB,STB,2026,21519967423068.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,STB,STB,2026,59816137500.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,STB,STB,2026,-15303024522105.3,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,STB,STB,2026,3504466647684.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,STB,STB,2026,2453126653378.8,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,STB,STB,2026,87488489625721.6,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,STB,STB,2026,-5154595888356.07,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,STB,STB,2026,947843692931016.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,STB,STB,2026,784941196710600.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,STB,STB,2026,449009000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,STB,STB,2026,40520759107500.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,TCB,TCB,2025,156423071200000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,TCB,TCB,2025,-59000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,TCB,TCB,2025,3107470800000.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,TCB,TCB,2025,4230962500000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,TCB,TCB,2025,70648517000000.0,,,BS.67,Common stock
+Current,     Current,TCB,TCB,2025,776232049515000.0,,,Nt.66,Current
+Customer_loan,Customer loan,TCB,TCB,2025,789656205000000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,TCB,TCB,2025,144380000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,TCB,TCB,2025,666740437500000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,TCB,TCB,2025,72210834000000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,TCB,TCB,2025,3082022500000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,TCB,TCB,2025,9900984500000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,TCB,TCB,2025,6900000000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,TCB,TCB,2025,66674043750000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,TCB,TCB,2025,67231644480000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,TCB,TCB,2025,10378765950000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,TCB,TCB,2025,68935088653262.8,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,TCB,TCB,2025,2757642000000.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,TCB,TCB,2025,-237176000000.0,,,IS.23,Minority expense
+NPAT,NPAT,TCB,TCB,2025,24490943717165.7,,,IS.22,NPAT
+NPATMI,NPATMI,TCB,TCB,2025,24253767717165.7,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,TCB,TCB,2025,39253021011476.9,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,TCB,TCB,2025,52741140571476.9,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,TCB,TCB,2025,500000000000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,TCB,TCB,2025,2012912200000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,TCB,TCB,2025,70693986987370.2,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,TCB,TCB,2025,3159840710622.09,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,TCB,TCB,2025,30994365657796.0,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,TCB,TCB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,TCB,TCB,2025,-181150000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,TCB,TCB,2025,-4605904350332.14,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,TCB,TCB,2025,-8856489300332.14,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,TCB,TCB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,TCB,TCB,2025,34997829371716.6,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,TCB,TCB,2025,16668510937500.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,TCB,TCB,2025,11531000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,TCB,TCB,2025,-17140870685730.0,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,TCB,TCB,2025,5527593435000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,TCB,TCB,2025,1707068750000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,TCB,TCB,2025,167579811173733.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,TCB,TCB,2025,-6503421940630.29,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,TCB,TCB,2025,1141376718485160.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,TCB,TCB,2025,738951271500000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,TCB,TCB,2025,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,TCB,TCB,2025,140422321000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,TCB,TCB,2026,172065378320000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,TCB,TCB,2026,-59000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,TCB,TCB,2026,3728964960000.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,TCB,TCB,2026,5161774250000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,TCB,TCB,2026,70648517000000.0,,,BS.67,Common stock
+Current,     Current,TCB,TCB,2026,931478459418000.0,,,Nt.66,Current
+Customer_loan,Customer loan,TCB,TCB,2026,947587446000000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,TCB,TCB,2026,144380000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,TCB,TCB,2026,813423333750000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,TCB,TCB,2026,72210834000000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,TCB,TCB,2026,3698427000000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,TCB,TCB,2026,10891082950000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,TCB,TCB,2026,6900000000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,TCB,TCB,2026,81342333375000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,TCB,TCB,2026,75299441817600.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,TCB,TCB,2026,10897704247500.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,TCB,TCB,2026,84585859946217.9,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,TCB,TCB,2026,2994818000000.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,TCB,TCB,2026,-237176000000.0,,,IS.23,Minority expense
+NPAT,NPAT,TCB,TCB,2026,30006717189938.6,,,IS.22,NPAT
+NPATMI,NPATMI,TCB,TCB,2026,29769541189938.6,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,TCB,TCB,2026,48779388688986.9,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,TCB,TCB,2026,65979797282221.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,TCB,TCB,2026,500000000000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,TCB,TCB,2026,2402582440000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,TCB,TCB,2026,58193795390315.3,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,TCB,TCB,2026,3218217340050.26,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,TCB,TCB,2026,37974819407353.6,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,TCB,TCB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,TCB,TCB,2026,-181150000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,TCB,TCB,2026,-6693503603722.14,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,TCB,TCB,2026,-12343088314054.3,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,TCB,TCB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,TCB,TCB,2026,37998501090710.4,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,TCB,TCB,2026,20335583343750.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,TCB,TCB,2026,11531000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,TCB,TCB,2026,-21311474522157.5,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,TCB,TCB,2026,6633112122000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,TCB,TCB,2026,2048482500000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,TCB,TCB,2026,191632620125683.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,TCB,TCB,2026,-7968102217415.02,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,TCB,TCB,2026,1322913784402560.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,TCB,TCB,2026,885634167750000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,TCB,TCB,2026,0.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,TCB,TCB,2026,140422321000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,TPB,TPB,2025,65504303700000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,TPB,TPB,2025,0.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,TPB,TPB,2025,1033811558400.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,TPB,TPB,2025,1551282000000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,TPB,TPB,2025,26419620000000.0,,,BS.67,Common stock
+Current,     Current,TPB,TPB,2025,291928565059200.0,,,Nt.66,Current
+Customer_loan,Customer loan,TPB,TPB,2025,300397641600000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,TPB,TPB,2025,772533000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,TPB,TPB,2025,291366946800000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,TPB,TPB,2025,91917400800000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,TPB,TPB,2025,1125954758400.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,TPB,TPB,2025,1100000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,TPB,TPB,2025,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,TPB,TPB,2025,74619043200000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,TPB,TPB,2025,16124377500000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,TPB,TPB,2025,9171980400000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,TPB,TPB,2025,32006712310044.3,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,TPB,TPB,2025,99000000.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,TPB,TPB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,TPB,TPB,2025,6968679495611.6,,,IS.22,NPAT
+NPATMI,NPATMI,TPB,TPB,2025,6968679495611.6,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,TPB,TPB,2025,14697046398204.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,TPB,TPB,2025,19691786178275.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,TPB,TPB,2025,637864000000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,TPB,TPB,2025,0.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,TPB,TPB,2025,22621734814832.0,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,TPB,TPB,2025,0.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,TPB,TPB,2025,8719531335910.19,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,TPB,TPB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,TPB,TPB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,TPB,TPB,2025,-4314827310239.8,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,TPB,TPB,2025,-5363451995026.29,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,TPB,TPB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,TPB,TPB,2025,3052367000000.0,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,TPB,TPB,2025,19424463120000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,TPB,TPB,2025,214441200000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,TPB,TPB,2025,-6657519201859.98,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,TPB,TPB,2025,4505964624000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,TPB,TPB,2025,1803345600000.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,TPB,TPB,2025,45785857388073.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,TPB,TPB,2025,-1750851840298.59,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,TPB,TPB,2025,490165779739806.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,TPB,TPB,2025,383284347600000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,TPB,TPB,2025,93606000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,TPB,TPB,2025,36632717000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,TPB,TPB,2026,72054734070000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,TPB,TPB,2026,0.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,TPB,TPB,2026,1240573870080.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,TPB,TPB,2026,1861538400000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,TPB,TPB,2026,26419620000000.0,,,BS.67,Common stock
+Current,     Current,TPB,TPB,2026,354279526940160.0,,,Nt.66,Current
+Customer_loan,Customer loan,TPB,TPB,2026,360477169920000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,TPB,TPB,2026,772533000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,TPB,TPB,2026,349640336160000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,TPB,TPB,2026,110300880960000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,TPB,TPB,2026,1351145710080.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,TPB,TPB,2026,1210000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,TPB,TPB,2026,0.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,TPB,TPB,2026,89542851840000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,TPB,TPB,2026,17736815250000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,TPB,TPB,2026,10089178440000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,TPB,TPB,2026,37948365977214.8,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,TPB,TPB,2026,99000000.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,TPB,TPB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,TPB,TPB,2026,8212031550952.7,,,IS.22,NPAT
+NPATMI,NPATMI,TPB,TPB,2026,8212031550952.7,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,TPB,TPB,2026,17813211971381.4,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,TPB,TPB,2026,23294809619524.0,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,TPB,TPB,2026,669757200000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,TPB,TPB,2026,0.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,TPB,TPB,2026,25926868974696.8,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,TPB,TPB,2026,0.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,TPB,TPB,2026,10275270441854.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,TPB,TPB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,TPB,TPB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,TPB,TPB,2026,-5260544849348.11,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,TPB,TPB,2026,-7428221525606.4,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,TPB,TPB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,TPB,TPB,2026,3052367000000.0,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,TPB,TPB,2026,23309355744000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,TPB,TPB,2026,235885320000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,TPB,TPB,2026,-7759177299201.17,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,TPB,TPB,2026,1802385849600.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,TPB,TPB,2026,1803537550080.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,TPB,TPB,2026,53997888939026.4,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,TPB,TPB,2026,-2063238890901.78,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,TPB,TPB,2026,578365508633090.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,TPB,TPB,2026,459941217120000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,TPB,TPB,2026,93606000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,TPB,TPB,2026,36632717000000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,VCB,VCB,2025,69439920800000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,VCB,VCB,2025,4995389000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,VCB,VCB,2025,10224020630401.9,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,VCB,VCB,2025,16122913450000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,VCB,VCB,2025,83556750000000.0,,,BS.67,Common stock
+Current,     Current,VCB,VCB,2025,1628154946236600.0,,,Nt.66,Current
+Customer_loan,Customer loan,VCB,VCB,2025,1652110549200000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,VCB,VCB,2025,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,VCB,VCB,2025,1711571280500000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,VCB,VCB,2025,256763931600000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,VCB,VCB,2025,3943331957425.05,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,VCB,VCB,2025,168908723200000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,VCB,VCB,2025,92953971000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,VCB,VCB,2025,393661394515000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,VCB,VCB,2025,11380422000000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,VCB,VCB,2025,7127608240000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,VCB,VCB,2025,106207531830223.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,VCB,VCB,2025,132951653601.321,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,VCB,VCB,2025,-36690653601.3205,,,IS.23,Minority expense
+NPAT,NPAT,VCB,VCB,2025,0.0,,,IS.22,NPAT
+NPATMI,NPATMI,VCB,VCB,2025,36653962947719.2,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,VCB,VCB,2025,59343885533904.9,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,VCB,VCB,2025,72338797936396.2,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,VCB,VCB,2025,6085513650000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,VCB,VCB,2025,372747000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,VCB,VCB,2025,62141521925435.2,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,VCB,VCB,2025,2231255468159.44,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,VCB,VCB,2025,45776318084645.6,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,VCB,VCB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,VCB,VCB,2025,-1000000000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,VCB,VCB,2025,-3414064566935.87,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,VCB,VCB,2025,-31193786768584.4,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,VCB,VCB,2025,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,VCB,VCB,2025,809837000000.0,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,VCB,VCB,2025,51347138415000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,VCB,VCB,2025,54766135900000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,VCB,VCB,2025,-23148415339646.8,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,VCB,VCB,2025,6608442196800.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,VCB,VCB,2025,3179808178773.02,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,VCB,VCB,2025,230881747418117.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,VCB,VCB,2025,-9085664483325.08,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,VCB,VCB,2025,2330683198565010.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,VCB,VCB,2025,1968335212100000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,VCB,VCB,2025,529000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,VCB,VCB,2025,25331311950000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,VCB,VCB,2026,55551936640000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,VCB,VCB,2026,4995389000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,VCB,VCB,2026,9582241185360.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,VCB,VCB,2026,18702579602000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,VCB,VCB,2026,83556750000000.0,,,BS.67,Common stock
+Current,     Current,VCB,VCB,2026,1891534409990060.0,,,Nt.66,Current
+Customer_loan,Customer loan,VCB,VCB,2026,1916448237072000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,VCB,VCB,2026,0.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,VCB,VCB,2026,1985422685380000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,VCB,VCB,2026,295278521340000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,VCB,VCB,2026,3832896474144.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,VCB,VCB,2026,169615317830000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,VCB,VCB,2026,106897066650000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,VCB,VCB,2026,456647217637400.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,VCB,VCB,2026,11380422000000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,VCB,VCB,2026,7341436487200.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,VCB,VCB,2026,122249641495070.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,VCB,VCB,2026,173794262579.456,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,VCB,VCB,2026,-40842608978.1351,,,IS.23,Minority expense
+NPAT,NPAT,VCB,VCB,2026,0.0,,,IS.22,NPAT
+NPATMI,NPATMI,VCB,VCB,2026,40801766369156.9,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,VCB,VCB,2026,66820439943505.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,VCB,VCB,2026,80702345390205.6,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,VCB,VCB,2026,6389789332500.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,VCB,VCB,2026,372747000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,VCB,VCB,2026,74722320440562.3,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,VCB,VCB,2026,2234417410810.2,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,VCB,VCB,2026,50956417410962.3,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,VCB,VCB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,VCB,VCB,2026,-1000000000000.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,VCB,VCB,2026,-3921177569993.92,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,VCB,VCB,2026,-32442730870433.1,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,VCB,VCB,2026,0.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,VCB,VCB,2026,809837000000.0,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,VCB,VCB,2026,59562680561400.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,VCB,VCB,2026,52027829105000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,VCB,VCB,2026,-25824750524865.8,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,VCB,VCB,2026,7665792948288.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,VCB,VCB,2026,3832896474144.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,VCB,VCB,2026,266420126768262.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,VCB,VCB,2026,-10113808432827.2,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,VCB,VCB,2026,2682533498038140.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,VCB,VCB,2026,2280701206720000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,VCB,VCB,2026,529000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,VCB,VCB,2026,26597877547500.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,VIB,VIB,2025,52863102600000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,VIB,VIB,2025,1767000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,VIB,VIB,2025,6654874720450.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,VIB,VIB,2025,2224281992100.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,VIB,VIB,2025,34259969700000.0,,,BS.67,Common stock
+Current,     Current,VIB,VIB,2025,348353293751500.0,,,Nt.66,Current
+Customer_loan,Customer loan,VIB,VIB,2025,372611169950000.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,VIB,VIB,2025,8846000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,VIB,VIB,2025,317754570300000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,VIB,VIB,2025,108690795250000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,VIB,VIB,2025,3071165850000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,VIB,VIB,2025,53683399600000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,VIB,VIB,2025,42380000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,VIB,VIB,2025,44485639842000.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,VIB,VIB,2025,25818165000000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,VIB,VIB,2025,27870486000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,VIB,VIB,2025,37977662676586.5,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,VIB,VIB,2025,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,VIB,VIB,2025,0.0,,,IS.23,Minority expense
+NPAT,NPAT,VIB,VIB,2025,8099832602516.91,,,IS.22,NPAT
+NPATMI,NPATMI,VIB,VIB,2025,8099832602516.91,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,VIB,VIB,2025,18421817355224.0,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,VIB,VIB,2025,22629443995124.2,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,VIB,VIB,2025,551064800000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,VIB,VIB,2025,276505027282.212,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,VIB,VIB,2025,36473287730318.9,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,VIB,VIB,2025,71817000000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,VIB,VIB,2025,10123499465438.6,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,VIB,VIB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,VIB,VIB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,VIB,VIB,2025,-4585739326118.61,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,VIB,VIB,2025,-6781847002629.48,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,VIB,VIB,2025,-43955000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,VIB,VIB,2025,5303597900235.28,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,VIB,VIB,2025,15887728515000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,VIB,VIB,2025,18586891000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,VIB,VIB,2025,-7920305398293.48,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,VIB,VIB,2025,11178335098500.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,VIB,VIB,2025,3353500529550.0,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,VIB,VIB,2025,46833554412516.9,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,VIB,VIB,2025,-2023666862921.65,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,VIB,VIB,2025,547449370126789.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,VIB,VIB,2025,426445365550000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,VIB,VIB,2025,5368000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,VIB,VIB,2025,20936321100000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,VIB,VIB,2026,55506257730000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,VIB,VIB,2026,1767000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,VIB,VIB,2026,7609233254005.0,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,VIB,VIB,2026,2557924290915.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,VIB,VIB,2026,39398965155000.0,,,BS.67,Common stock
+Current,     Current,VIB,VIB,2026,398507646261525.0,,,Nt.66,Current
+Customer_loan,Customer loan,VIB,VIB,2026,428502845442500.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,VIB,VIB,2026,8846000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,VIB,VIB,2026,365417755845000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,VIB,VIB,2026,119559874775000.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,VIB,VIB,2026,3531840727500.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,VIB,VIB,2026,56326475980000.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,VIB,VIB,2026,42380000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,VIB,VIB,2026,51158485818300.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,VIB,VIB,2026,23236348500000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,VIB,VIB,2026,25083437400000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,VIB,VIB,2026,46794321417928.1,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,VIB,VIB,2026,0.0,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,VIB,VIB,2026,0.0,,,IS.23,Minority expense
+NPAT,NPAT,VIB,VIB,2026,9374700111714.84,,,IS.22,NPAT
+NPATMI,NPATMI,VIB,VIB,2026,9374700111714.84,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,VIB,VIB,2026,20427100316428.1,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,VIB,VIB,2026,25852552261487.3,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,VIB,VIB,2026,606171280000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,VIB,VIB,2026,303781397282.212,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,VIB,VIB,2026,32354427976512.9,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,VIB,VIB,2026,71817000000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,VIB,VIB,2026,11716880610606.9,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,VIB,VIB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,VIB,VIB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,VIB,VIB,2026,-5087420789207.75,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,VIB,VIB,2026,-7826561542446.23,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,VIB,VIB,2026,-44033750000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,VIB,VIB,2026,6426564237107.59,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,VIB,VIB,2026,18270887792250.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,VIB,VIB,2026,18586891000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,VIB,VIB,2026,-9048393291520.55,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,VIB,VIB,2026,14997599590487.5,,,Nt.67,Special Mentioned
+Substandard,     Substandard,VIB,VIB,2026,3856525608982.5,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,VIB,VIB,2026,52953557402731.7,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,VIB,VIB,2026,-2342180498892.06,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,VIB,VIB,2026,607560330733032.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,VIB,VIB,2026,484977630620000.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,VIB,VIB,2026,5368000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,VIB,VIB,2026,18842688990000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,VPB,VPB,2025,55135165700000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,VPB,VPB,2025,23992546000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,VPB,VPB,2025,7686892935852.05,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,VPB,VPB,2025,2577946800000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,VPB,VPB,2025,79339236000000.0,,,BS.67,Common stock
+Current,     Current,VPB,VPB,2025,791782923204662.0,,,Nt.66,Current
+Customer_loan,Customer loan,VPB,VPB,2025,845331604884662.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,VPB,VPB,2025,805869000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,VPB,VPB,2025,582882884400000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,VPB,VPB,2025,118512814341373.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,VPB,VPB,2025,11077621200000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,VPB,VPB,2025,11291351916815.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,VPB,VPB,2025,2047717000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,VPB,VPB,2025,82942288901372.6,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,VPB,VPB,2025,101251385550000.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,VPB,VPB,2025,8116382000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,VPB,VPB,2025,92360137933451.9,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,VPB,VPB,2025,5241089674549.93,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,VPB,VPB,2025,-129197325450.069,,,IS.23,Minority expense
+NPAT,NPAT,VPB,VPB,2025,20032691323776.0,,,IS.22,NPAT
+NPATMI,NPATMI,VPB,VPB,2025,19903493998326.0,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,VPB,VPB,2025,53364161256287.6,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,VPB,VPB,2025,65697914093177.6,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,VPB,VPB,2025,300000000000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,VPB,VPB,2025,450000000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,VPB,VPB,2025,65089550476235.6,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,VPB,VPB,2025,189210000000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,VPB,VPB,2025,25004270144084.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,VPB,VPB,2025,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,VPB,VPB,2025,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,VPB,VPB,2025,-24408363630178.6,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,VPB,VPB,2025,-20448931319535.7,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,VPB,VPB,2025,-137051000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,VPB,VPB,2025,6806727675579.13,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,VPB,VPB,2025,17486486532000.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,VPB,VPB,2025,5713000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,VPB,VPB,2025,-16285280374217.0,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,VPB,VPB,2025,23188554600000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,VPB,VPB,2025,11595612944147.9,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,VPB,VPB,2025,170003654913721.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,VPB,VPB,2025,-4971578820308.47,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,VPB,VPB,2025,1072544653391550.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,VPB,VPB,2025,701395698741373.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,VPB,VPB,2025,10894000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,VPB,VPB,2025,77671785700000.0,,,BS.59,Valuable paper
+AFS_Securities,AFS Securities,VPB,VPB,2026,60647146570000.0,,,BS.19,AFS Securities
+Additional_Paid_in_Capital,Additional Paid in Capital,VPB,VPB,2026,23992546000000.0,,,BS.69,Additional Paid in Capital
+Bad,     Bad,VPB,VPB,2026,7508630505852.05,,,Nt.70,Bad
+Cash_and_precious_metal,Cash and precious metal,VPB,VPB,2026,3093536160000.0,,,BS.2,Cash and precious metal
+Common_stock,Common stock,VPB,VPB,2026,79339236000000.0,,,BS.67,Common stock
+Current,     Current,VPB,VPB,2026,987826104748076.0,,,Nt.66,Current
+Customer_loan,Customer loan,VPB,VPB,2026,1046970397048080.0,,,BS.13+BS.16,Customer loan
+Debt_Purchase,Debt Purchase,VPB,VPB,2026,805869000000.0,,,BS.16,Debt Purchase
+Deposit_from_Customer,Deposit from Customer,VPB,VPB,2026,699459461280000.0,,,BS.56,Deposit from Customer
+Deposit_from_Interbank,Deposit from Interbank,VPB,VPB,2026,132300871333497.0,,,BS.54,Deposit from Interbank
+Doubtful,     Doubtful,VPB,VPB,2026,13002245550000.0,,,Nt.69,Doubtful
+FVTPL_Securities,FVTPL Securities,VPB,VPB,2026,12537604549331.0,,,BS.9,FVTPL Securities
+HTM_Securities,HTM Securities,VPB,VPB,2026,997157000000.0,,,BS.20,HTM Securities
+Interbank_deposit,Interbank deposit,VPB,VPB,2026,101916536615497.0,,,BS.5,Interbank deposit
+Interbank_loan_in,Interbank loan in,VPB,VPB,2026,119020774691127.0,,,BS.55,Interbank loan in
+Interbank_loan_out,Interbank loan out,VPB,VPB,2026,8116382000000.0,,,BS.6,Interbank loan out
+Interest_Income,Interest Income,VPB,VPB,2026,111099711600697.0,,,IS.1,Interest Income
+Minority_Interest,Minority Interest,VPB,VPB,2026,4921593883137.7,,,BS.77+BS.78,Minority interests
+Minority_Interest_In_Earning,Minority expense,VPB,VPB,2026,-319495791412.232,,,IS.23,Minority expense
+NPAT,NPAT,VPB,VPB,2026,25256762325772.7,,,IS.22,NPAT
+NPATMI,NPATMI,VPB,VPB,2026,24937266534360.4,,,IS.24,NPATMI
+Net_Interest_Income,Net Interest Income,VPB,VPB,2026,62550617511836.3,,,IS.3,Net Interest Income
+Net_Revenue,Net Revenue,VPB,VPB,2026,75676912811689.9,,,IS.14,Net Revenue
+Net_gain_from_FX_Gold,Net gain from FX and Gold,VPB,VPB,2026,200000000000.0,,,IS.7,Net gain from FX and Gold
+Net_investment_income,Net investment income,VPB,VPB,2026,350000000000.0,,,IS.8+IS.9+IS.13,Net investment income
+Other_Asset,Other Asset,VPB,VPB,2026,17942201369478.2,,,BS.42,Other Asset
+Other_long_term_investment,Other long-term investment,VPB,VPB,2026,189210000000.0,,,BS.39+BS.22,Other long-term investment
+PBT,PBT,VPB,VPB,2026,31491216004283.5,,,IS.18,PBT
+Provision_debt_purchase,Provision for debt purchase,VPB,VPB,2026,0.0,,,BS.17,Provision for debt purchase
+Provision_for_Interbank_loan,Provision for Interbank loan,VPB,VPB,2026,0.0,,,BS.7,Provision for Interbank loan
+Provision_for_credit_losses,Provision for credit losses,VPB,VPB,2026,-26079670892685.7,,,IS.17,Provision for credit losses
+Provision_for_customer_loan,Provision for customer loan,VPB,VPB,2026,-24423758986196.4,,,BS.17+BS.14,Provision for customer loan
+Provision_for_financial_assets,Provision for financial assets,VPB,VPB,2026,-137051000000.0,,,BS.10+BS.21,Provision for financial assets
+Reserves_Other_capital,Reserves and Other capital,VPB,VPB,2026,3001649865490.52,,,BS.68+BS.71+BS.72+BS.73+BS.74+BS.75,Reserves and Other capital
+SBV_Balance,SBV Balance,VPB,VPB,2026,20983783838400.0,,,BS.3,SBV Balance
+SBV_loan,SBV loan,VPB,VPB,2026,5713000000.0,,,BS.52,SBV loan
+SG_A_Expense,SG&A Expense,VPB,VPB,2026,-18106026066612.9,,,IS.15,SG&A Expense
+Special_Mentioned,     Special Mentioned,VPB,VPB,2026,25113178950000.0,,,Nt.67,Special Mentioned
+Substandard,     Substandard,VPB,VPB,2026,13520237294147.9,,,Nt.68,Substandard
+TOTAL_Equity,OWNERS' EQUITY,VPB,VPB,2026,187459741487774.0,,,BS.65,OWNERS' EQUITY
+Tax,Tax expense,VPB,VPB,2026,-6234453678510.8,,,IS.21,Tax expense
+Total_Asset,TOTAL ASSET,VPB,VPB,2026,1252285342289590.0,,,BS.1,TOTAL ASSET
+Total_Liabilities,LIABILITIES,VPB,VPB,2026,831760332613497.0,,,BS.51,LIABILITIES
+Trusted_Funds,Trusted Funds,VPB,VPB,2026,10894000000.0,,,BS.58,Trusted Funds
+Valuable_paper,Valuable paper,VPB,VPB,2026,88118247265000.0,,,BS.59,Valuable paper
