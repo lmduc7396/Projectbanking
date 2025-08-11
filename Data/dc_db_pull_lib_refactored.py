@@ -7,14 +7,18 @@ from typing import Dict, List, Optional
 
 # Helper functions
 def get_base_path():
-    if platform.system() == 'Windows':
-        return Path(r"c:\Users\ducle\OneDrive\Work-related\projectbanking")
+    # Use current directory (Data folder) regardless of OS
+    return Path(__file__).parent
 
 # Connection string
 DIAMOND_STR = 'DRIVER={ODBC Driver 17 for SQL Server};Server=dcdwh-prod.sql.azuresynapse.net;Database=dcdwhproddedicatedpool;UID=researchlogin;PWD=353fsf*($%#sfsfe;MultipleActiveResultSets=true;Command Timeout=300;'
 
-# Project configuration
-PROJECT_SUBDIR = "DAILY DATA"
+# File name mapping for bank queries to match existing files
+BANK_FILE_MAPPING = {
+    'Bank_BALANCESHEET': 'BS_Bank',
+    'Bank_INCOMESTATEMENT': 'IS_Bank',
+    'Bank_NOTE': 'Note_Bank'
+}
 
 # Query configurations
 QUERY_CONFIG = {
@@ -102,15 +106,15 @@ def load_data(query: str) -> Optional[pd.DataFrame]:
         return None
 
 def to_csv(df: pd.DataFrame, file_name: str):
-    """Export DataFrame to CSV."""
+    """Export DataFrame to CSV directly to Data folder."""
     if df is None:
         print(f"Cannot save {file_name}: No data available")
         return
     
-    output_dir = get_base_path() / PROJECT_SUBDIR 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_dir / f"{file_name}.csv", index=False)
-    print(f"Saved to {output_dir / f'{file_name}.csv'}")
+    output_dir = get_base_path()  # Data folder
+    output_path = output_dir / f"{file_name}.csv"
+    df.to_csv(output_path, index=False)
+    print(f"Saved to {output_path}")
 
 def merge_and_deduplicate(new_df: pd.DataFrame, existing_file_name: str, 
                          dedupe_columns: List[str]) -> Optional[pd.DataFrame]:
@@ -120,7 +124,7 @@ def merge_and_deduplicate(new_df: pd.DataFrame, existing_file_name: str,
         return None
     
     try:
-        existing_path = get_base_path() / PROJECT_SUBDIR / f"{existing_file_name}.csv"
+        existing_path = get_base_path() / f"{existing_file_name}.csv"
         existing_df = pd.read_csv(existing_path)
         merged_df = pd.concat([existing_df, new_df], ignore_index=True)
         final_df = merged_df.drop_duplicates(subset=dedupe_columns, keep='last')
@@ -180,7 +184,9 @@ def full_refresh_all():
     print("Processing Bank Data")
     for query_name, query in BANK_QUERIES.items():
         df = load_data(query)
-        to_csv(df, query_name)
+        # Use mapped file name for bank data
+        file_name = BANK_FILE_MAPPING.get(query_name, query_name)
+        to_csv(df, file_name)
 
 def incremental_update(query_name: str, date_filter: str):
     """
@@ -214,7 +220,9 @@ def full_refresh_banks():
     for query_name, query in BANK_QUERIES.items():
         print(f"\nProcessing: {query_name}")
         df = load_data(query)
-        to_csv(df, query_name)
+        # Use mapped file name for bank data
+        file_name = BANK_FILE_MAPPING.get(query_name, query_name)
+        to_csv(df, file_name)
         
     print(f"\n{'='*60}")
     print("Bank data refresh completed!")
@@ -222,11 +230,12 @@ def full_refresh_banks():
 #%% Example usage
 if __name__ == "__main__":
     # Examples of different usage patterns:
+    # NOTE: All files will be saved directly to the Data folder
     
     # 1. Full refresh everything (includes all data + banks)
     # full_refresh_all()
     
-    # 2. Full refresh Bank data only
+    # 2. Full refresh Bank data only (saves as BS_Bank.csv, IS_Bank.csv, Note_Bank.csv)
     full_refresh_banks()
     
     # 3. Full refresh specific query

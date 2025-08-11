@@ -1,1 +1,72 @@
+# Environment variables
 .env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+temp_*
+tmp_*
+
+# Test files (uncomment if you don't want to track test files)
+# test_*.py
+# *_test.py
+# *_TEST.py
+# Test_*.py
+
+# Data files (be careful with this - only if you don't want to track large data files)
+# *.csv
+# *.xlsx
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Local cache
+*.cache
+.cache/
+
+# Streamlit
+.streamlit/cache/
+.streamlit/secrets.toml
+
+# Project specific (add any project-specific patterns here)
+banking_comments_temp_*.xlsx
+*_backup.*
+*.bak
