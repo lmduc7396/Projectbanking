@@ -354,8 +354,16 @@ if not stats_df.empty:
             return ['background-color: #E8E8E8; font-weight: bold'] * len(row)
         return [''] * len(row)
     
-    # Apply styling
-    styled_df = display_df.style.apply(highlight_sectors, axis=1).applymap(color_status, subset=['Status'])
+    # Set Ticker as index
+    display_df = display_df.set_index('Ticker')
+    
+    # Apply styling (adjust highlight_sectors to work with index)
+    def highlight_sectors_indexed(s):
+        if s.name in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']:
+            return ['background-color: #E8E8E8; font-weight: bold'] * len(s)
+        return [''] * len(s)
+    
+    styled_df = display_df.style.apply(highlight_sectors_indexed, axis=1).applymap(color_status, subset=['Status'])
     
     # Display table
     st.dataframe(

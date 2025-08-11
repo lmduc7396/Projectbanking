@@ -307,6 +307,7 @@ def prepare_historical_table():
 
 # Display historical table
 historical_table = prepare_historical_table()
+historical_table = historical_table.set_index('Period')
 st.subheader("Historical and Forecast Data")
 st.dataframe(historical_table.style.format({
     'Loan (BS.12)': '{:.2f}T',
@@ -483,6 +484,7 @@ def prepare_opex_table():
 
 # Display OPEX table
 opex_table = prepare_opex_table()
+opex_table = opex_table.set_index('Period')
 st.subheader("Historical and Forecast OPEX & CIR")
 st.dataframe(opex_table.style.format({
     'OPEX (IS.15)': '{:.2f}T',
@@ -645,6 +647,7 @@ def prepare_asset_quality_table():
 
 # Display Asset Quality table
 asset_quality_table = prepare_asset_quality_table()
+asset_quality_table = asset_quality_table.set_index('Period')
 st.subheader("Historical and Forecast Asset Quality Metrics")
 st.dataframe(asset_quality_table.style.format({
     'NPL (%)': '{:.2f}%',
