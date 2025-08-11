@@ -43,24 +43,28 @@ def auto_detect_question_type(question: str) -> str:
         Classify this banking question as either 'Quantitative' or 'Qualitative':
         
         Quantitative questions ask for:
-        - Specific numbers, metrics, or concrete data points (ROE, NIM, NPL, loan amount, etc.)
-        - Mathematical calculations or numerical comparisons
-        - Exact values like "What is the ROE?", "Show me NIM", "Calculate the growth"
-        - Questions with "how much", "what is the value", "what percentage"
-        - Requests for specific data points or measurements
+        - SPECIFIC single metrics or data points (ROE, NIM, NPL, loan amount, etc.)
+        - Pure numerical values with no analysis needed
+        - Exact values like "What is the ROE value?", "Show me the NIM number"
+        - Questions explicitly asking for calculations or specific percentages
+        - Raw data without interpretation
         
         Qualitative questions ask for:
+        - Comparisons between banks (even if numbers are involved, comparisons need analysis)
         - Analysis, commentary, insights, or narrative explanations
-        - Outlook, trends, performance discussions, or strategic assessments
+        - Performance discussions, results interpretation, or assessments
+        - Questions with "compare", "versus", "vs", "better", "worse"
         - Questions starting with "why", "how is", "what's the outlook"
         - Explanations of causes, implications, or interpretations
-        - Forward-looking views, predictions, or assessments
         - General performance questions like "How is X performing?"
-        - Questions about market positioning, competitive advantages
+        - Questions about results, trends, or relative performance
+        
+        IMPORTANT: Questions with "compare" or asking about "results" are usually Qualitative 
+        because they want analysis and insights, not just raw numbers.
         
         Examples:
-        Quantitative: "What is ACB's ROE in 2Q25?", "Show NIM for all banks", "Calculate YoY growth"
-        Qualitative: "How is ACB performing?", "What's the outlook for SOCB?", "Why did NPL increase?"
+        Quantitative: "What is ACB's ROE value?", "Show NIM number for VCB", "Calculate loan amount"
+        Qualitative: "Compare ACB and VPB", "How are ACB's results?", "ACB vs VPB performance", "Which bank is better?"
         
         Question: "{}"
         
@@ -81,6 +85,14 @@ def auto_detect_question_type(question: str) -> str:
         
         # Validate response
         if result in ["Quantitative", "Qualitative"]:
+            # Double-check: if question contains comparison keywords, lean towards Qualitative
+            comparison_keywords = ['compare', 'versus', ' vs ', ' vs.', 'better', 'worse', 'comparison']
+            question_lower = question.lower()
+            if any(keyword in question_lower for keyword in comparison_keywords):
+                # Override to Qualitative for comparison questions unless it's clearly asking for specific metrics
+                metric_keywords = ['what is the', 'show me the', 'calculate the']
+                if not any(metric in question_lower for metric in metric_keywords):
+                    return "Qualitative"
             return result
         else:
             # Default to Quantitative if unclear
