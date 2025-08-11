@@ -53,28 +53,17 @@ if df is None:
     st.error("Valuation data not found. Please run prepare_valuation.py script first.")
     st.stop()
 
-# Main metric selection
-st.markdown("---")
-col1, col2, col3 = st.columns([2, 3, 3])
-
-with col1:
+# Sidebar metric selection
+with st.sidebar:
+    st.markdown("### Settings")
     metric_type = st.radio(
-        "Select Valuation Metric:",
+        "Valuation Metric:",
         ["P/E", "P/B"],
-        help="This selection will update all charts and tables below"
+        index=1,  # Default to P/B (index 1)
+        help="This selection will update all charts and tables"
     )
     metric_col = get_metric_column(metric_type)
 
-with col2:
-    # Get latest date in data
-    latest_date = df['TRADE_DATE'].max()
-    st.metric("Latest Data", latest_date.strftime('%Y-%m-%d'))
-
-with col3:
-    # Show data coverage
-    total_tickers = df['TICKER'].nunique()
-    total_days = (df['TRADE_DATE'].max() - df['TRADE_DATE'].min()).days
-    st.metric("Coverage", f"{total_tickers} entities over {total_days:,} days")
 
 # Chart 1: Valuation Distribution Candle Chart
 st.markdown("---")
@@ -179,7 +168,7 @@ fig_candle.update_layout(
     )
 )
 
-st.plotly_chart(fig_candle, use_container_width=True)
+st.plotly_chart(fig_candle, use_container_width=True, config={'displayModeBar': False})
 
 # Chart 2: Historical Valuation Time Series
 st.markdown("---")
