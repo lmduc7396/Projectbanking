@@ -14,23 +14,25 @@ st.set_page_config(
     layout="wide"
 )
 
-# Create sticky header with CSS
+# CSS for fixed header positioning
 st.markdown("""
 <style>
-    /* Sticky metrics container */
-    .sticky-metrics {
-        position: -webkit-sticky;
-        position: sticky;
+    /* Fixed header that stays at top of viewport */
+    .fixed-header {
+        position: fixed;
         top: 0;
+        left: 0;
+        right: 0;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        z-index: 1000;
+        z-index: 9999;
         padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
     
-    .metrics-row {
+    /* Container for metrics */
+    .metrics-container {
+        max-width: 1200px;
+        margin: 0 auto;
         display: flex;
         justify-content: space-around;
         align-items: center;
@@ -58,9 +60,23 @@ st.markdown("""
         opacity: 0.9;
     }
     
-    /* Ensure content scrolls under sticky header */
-    .main .block-container {
-        padding-top: 1rem;
+    /* Add padding to main content to account for fixed header */
+    .main > div:first-child {
+        padding-top: 140px !important;
+    }
+    
+    /* Adjust Streamlit's default container */
+    .block-container {
+        padding-top: 0 !important;
+    }
+    
+    /* Hide the duplicate metrics if Streamlit renders them */
+    .element-container:has(.sticky-metrics) {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 9999;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -124,10 +140,10 @@ pbt_2026_adjusted = st.session_state[f'{ticker}_pbt_2026_adjusted']
 pbt_yoy_2025_adjusted = ((pbt_2025_adjusted / pbt_2024) - 1) * 100 if pbt_2024 != 0 else 0
 pbt_yoy_2026_adjusted = ((pbt_2026_adjusted / pbt_2025_adjusted) - 1) * 100 if pbt_2025_adjusted != 0 else 0
 
-# Create sticky header with HTML
+# Create fixed header with metrics
 st.markdown(f'''
-<div class="sticky-metrics">
-    <div class="metrics-row">
+<div class="fixed-header">
+    <div class="metrics-container">
         <div class="metric-box">
             <div class="metric-label">2025 PBT</div>
             <div class="metric-value">{pbt_2025_adjusted/1e12:.2f}T</div>
@@ -141,6 +157,9 @@ st.markdown(f'''
     </div>
 </div>
 ''', unsafe_allow_html=True)
+
+# Add spacing to account for fixed header
+st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
