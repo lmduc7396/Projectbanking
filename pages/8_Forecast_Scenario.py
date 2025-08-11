@@ -792,9 +792,15 @@ provision_forecast_year_1_original = (npl_coverage_forecast_year_1_original / 10
 provision_forecast_year_2_original = (npl_coverage_forecast_year_2_original / 100) * npl_absolute_forecast_year_2_original
 
 # Step 4: Calculate New Provision Expense
-# Formula: (NPL_abs - NPL_abs(t-1)) + NPL_formation_abs + (Provision(t-1) - Provision)
-provision_expense_forecast_year_1_new = -((npl_absolute_forecast_year_1_new - npl_absolute_last_complete_year) + npl_formation_absolute_forecast_year_1_new + (provision_forecast_year_1_new - provision_last_complete_year))
-provision_expense_forecast_year_2_new = -((npl_absolute_forecast_year_2_new - npl_absolute_forecast_year_1_new) + npl_formation_absolute_forecast_year_2_new + (provision_forecast_year_2_new - provision_forecast_year_1_new))
+# Formula needs to account for write-offs (which are negative)
+# Get write-off values from forecast data
+write_off_forecast_year_1 = forecast_1['Nt.220'].values[0] if len(forecast_1) > 0 and 'Nt.220' in forecast_1.columns and pd.notna(forecast_1['Nt.220'].values[0]) else 0
+write_off_forecast_year_2 = forecast_2['Nt.220'].values[0] if len(forecast_2) > 0 and 'Nt.220' in forecast_2.columns and pd.notna(forecast_2['Nt.220'].values[0]) else 0
+
+# Formula: Provision_expense = Change_in_NPL + NPL_formation - write_offs + Change_in_provision_balance
+# Since write-offs are negative, we subtract them (which adds their absolute value)
+provision_expense_forecast_year_1_new = -((npl_absolute_forecast_year_1_new - npl_absolute_last_complete_year) + npl_formation_absolute_forecast_year_1_new - write_off_forecast_year_1 + (provision_forecast_year_1_new - provision_last_complete_year))
+provision_expense_forecast_year_2_new = -((npl_absolute_forecast_year_2_new - npl_absolute_forecast_year_1_new) + npl_formation_absolute_forecast_year_2_new - write_off_forecast_year_2 + (provision_forecast_year_2_new - provision_forecast_year_1_new))
 
 provision_expense_forecast_year_1_original = forecast_1['IS.17'].values[0] if len(forecast_1) > 0 else 0
 provision_expense_forecast_year_2_original = forecast_2['IS.17'].values[0] if len(forecast_2) > 0 else 0
@@ -819,6 +825,7 @@ with prov_col1:
     st.markdown(f"**{forecast_year_1} Provision Analysis**")
     st.write(f"NPL Change: {npl_forecast_year_1_new - npl_forecast_year_1_original:+.2f}pp")
     st.write(f"NPL Coverage Change: {npl_coverage_forecast_year_1_new - npl_coverage_forecast_year_1_original:+.1f}pp")
+    st.write(f"Write-offs: {write_off_forecast_year_1 / 1e12:.2f}T")
     st.write(f"")
     st.write(f"Original Provision Expense: {provision_expense_forecast_year_1_original / 1e12:.2f}T")
     st.write(f"New Provision Expense: {provision_expense_forecast_year_1_new / 1e12:.2f}T")
@@ -828,6 +835,7 @@ with prov_col2:
     st.markdown(f"**{forecast_year_2} Provision Analysis**")
     st.write(f"NPL Change: {npl_forecast_year_2_new - npl_forecast_year_2_original:+.2f}pp")
     st.write(f"NPL Coverage Change: {npl_coverage_forecast_year_2_new - npl_coverage_forecast_year_2_original:+.1f}pp")
+    st.write(f"Write-offs: {write_off_forecast_year_2 / 1e12:.2f}T")
     st.write(f"")
     st.write(f"Original Provision Expense: {provision_expense_forecast_year_2_original / 1e12:.2f}T")
     st.write(f"New Provision Expense: {provision_expense_forecast_year_2_new / 1e12:.2f}T")
