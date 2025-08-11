@@ -33,9 +33,8 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
     # --- Filter Data for Table ---
     bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
     if X in bank_type:
-        # Filter by Type (e.g. Sector, SOCB, etc.)
-        df_temp = df[(df['Type'] == X) & (df['TICKER'].apply(lambda t: len(t) > 3))]
-        df_temp = df_temp[df_temp['TICKER'] == df_temp['TICKER'].iloc[0]]
+        # For aggregated bank types, TICKER column contains the bank type name directly
+        df_temp = df[df['TICKER'] == X]
     else:
         # Filter by specific ticker
         df_temp = df[df['TICKER'] == X]
@@ -45,7 +44,7 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
         """Calculate growth (%) and return formatted DataFrame."""
         cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
         df_filtered = df_[cols_keep_final]
-        growth = df_filtered.iloc[:, 1:].pct_change(periods=period)
+        growth = df_filtered.iloc[:, 1:].pct_change(periods=period, fill_method=None)
         growth.columns = growth.columns.map(dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name'])))
         growth = growth.add_suffix(f' {suffix} (%)')
         return pd.concat([df_filtered['Date_Quarter'], growth], axis=1)

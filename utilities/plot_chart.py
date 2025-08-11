@@ -76,10 +76,10 @@ def Bankplot(df=None, keyitem=None):
                         col=col
                     )
             else:  # Bank type
-                matched_rows = df[(df['Type'] == x) & (df['TICKER'].apply(len) > 3)]
+                # For aggregated bank types, TICKER column contains the bank type name directly
+                matched_rows = df[df['TICKER'] == x]
                 if not matched_rows.empty:
-                    primary_ticker = matched_rows.iloc[0]['TICKER']
-                    df_tempY = matched_rows[matched_rows['TICKER'] == primary_ticker].tail(Y)
+                    df_tempY = matched_rows.tail(Y)
                     fig.add_trace(
                         go.Scatter(
                             x=df_tempY['Date_Quarter'],
