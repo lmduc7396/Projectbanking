@@ -135,7 +135,16 @@ for ticker in display_tickers:
         name=ticker,
         showlegend=False,
         increasing_line_color='lightgrey',
-        decreasing_line_color='lightgrey'
+        decreasing_line_color='lightgrey',
+        hovertemplate=(
+            f"<b>{ticker}</b><br>" +
+            f"High (95%): {p95:.2f}<br>" +
+            f"Q3 (75%): {p75:.2f}<br>" +
+            f"Median: {p50:.2f}<br>" +
+            f"Q1 (25%): {p25:.2f}<br>" +
+            f"Low (5%): {p5:.2f}<br>" +
+            "<extra></extra>"
+        )
     ))
     
     # Add current value as scatter point with smaller size and custom color
