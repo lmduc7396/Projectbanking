@@ -64,6 +64,8 @@ with st.sidebar:
     )
     metric_col = get_metric_column(metric_type)
 
+# Get latest date for use in other parts (keep in background)
+latest_date = df['TRADE_DATE'].max()
 
 # Chart 1: Valuation Distribution Candle Chart
 st.markdown("---")
@@ -367,7 +369,4 @@ if not stats_df.empty:
 else:
     st.warning("Insufficient data to generate statistics table")
 
-# Footer
-st.markdown("---")
-st.caption("Data updated through: " + latest_date.strftime('%Y-%m-%d'))
-st.caption("Note: Valuations are based on historical distributions. Past performance does not guarantee future results.")
+# Footer removed - keeping data info in background only
