@@ -218,39 +218,19 @@ pbt_last_complete = historical_data[historical_data['Year'] == last_complete_yea
 pbt_yoy_forecast_1_original = ((pbt_forecast_1_original / pbt_last_complete) - 1) * 100 if pbt_last_complete != 0 else 0
 pbt_yoy_forecast_2_original = ((pbt_forecast_2_original / pbt_forecast_1_original) - 1) * 100 if pbt_forecast_1_original != 0 else 0
 
-# Initialize adjusted values
+# Initialize adjusted values and segment changes
 if f'{ticker}_pbt_{forecast_year_1}_adjusted' not in st.session_state:
     st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] = pbt_forecast_1_original
     st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] = pbt_forecast_2_original
+    st.session_state[f'{ticker}_pbt_change_segment1_{forecast_year_1}'] = 0
+    st.session_state[f'{ticker}_pbt_change_segment1_{forecast_year_2}'] = 0
+    st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_1}'] = 0
+    st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_2}'] = 0
+    st.session_state[f'{ticker}_pbt_change_segment3_{forecast_year_1}'] = 0
+    st.session_state[f'{ticker}_pbt_change_segment3_{forecast_year_2}'] = 0
 
-# Calculate adjusted PBT values for display
-pbt_forecast_1_adjusted = st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted']
-pbt_forecast_2_adjusted = st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted']
-pbt_yoy_forecast_1_adjusted = ((pbt_forecast_1_adjusted / pbt_last_complete) - 1) * 100 if pbt_last_complete != 0 else 0
-pbt_yoy_forecast_2_adjusted = ((pbt_forecast_2_adjusted / pbt_forecast_1_adjusted) - 1) * 100 if pbt_forecast_1_adjusted != 0 else 0
-
-# Create fixed header with metrics
-st.markdown(f'''
-<div class="fixed-header">
-    <div class="metrics-container">
-        <div class="ticker-box">
-            <div class="ticker-label">Bank</div>
-            <div class="ticker-value">{ticker}</div>
-            <div class="metric-subtitle">Profit Before Tax (PBT)</div>
-        </div>
-        <div class="metric-box">
-            <div class="metric-label">{forecast_year_1} Forecast</div>
-            <div class="metric-value">{pbt_forecast_1_adjusted/1e12:.2f}T</div>
-            <div class="metric-delta">{pbt_yoy_forecast_1_adjusted:+.1f}% YoY Growth</div>
-        </div>
-        <div class="metric-box">
-            <div class="metric-label">{forecast_year_2} Forecast</div>
-            <div class="metric-value">{pbt_forecast_2_adjusted/1e12:.2f}T</div>
-            <div class="metric-delta">{pbt_yoy_forecast_2_adjusted:+.1f}% YoY Growth</div>
-        </div>
-    </div>
-</div>
-''', unsafe_allow_html=True)
+# Placeholder for header - will be filled in after calculations
+header_placeholder = st.empty()
 
 # Add spacing to account for fixed header
 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
@@ -880,3 +860,31 @@ with summary_col2:
     st.write(f"Segment 2 (OPEX) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment2_{forecast_year_2}', 0) / 1e12:+.2f}T")
     st.write(f"Segment 3 (Provision) Impact: {pbt_change_segment3_forecast_year_2 / 1e12:+.2f}T")
     st.write(f"**Adjusted PBT: {st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] / 1e12:.2f}T**")
+
+# Update the header with final calculated values
+pbt_forecast_1_adjusted = st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted']
+pbt_forecast_2_adjusted = st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted']
+pbt_yoy_forecast_1_adjusted = ((pbt_forecast_1_adjusted / pbt_last_complete) - 1) * 100 if pbt_last_complete != 0 else 0
+pbt_yoy_forecast_2_adjusted = ((pbt_forecast_2_adjusted / pbt_forecast_1_adjusted) - 1) * 100 if pbt_forecast_1_adjusted != 0 else 0
+
+header_placeholder.markdown(f'''
+<div class="fixed-header">
+    <div class="metrics-container">
+        <div class="ticker-box">
+            <div class="ticker-label">Bank</div>
+            <div class="ticker-value">{ticker}</div>
+            <div class="metric-subtitle">Profit Before Tax (PBT)</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-label">{forecast_year_1} Forecast</div>
+            <div class="metric-value">{pbt_forecast_1_adjusted/1e12:.2f}T</div>
+            <div class="metric-delta">{pbt_yoy_forecast_1_adjusted:+.1f}% YoY Growth</div>
+        </div>
+        <div class="metric-box">
+            <div class="metric-label">{forecast_year_2} Forecast</div>
+            <div class="metric-value">{pbt_forecast_2_adjusted/1e12:.2f}T</div>
+            <div class="metric-delta">{pbt_yoy_forecast_2_adjusted:+.1f}% YoY Growth</div>
+        </div>
+    </div>
+</div>
+''', unsafe_allow_html=True)

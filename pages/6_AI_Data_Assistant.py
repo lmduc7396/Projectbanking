@@ -31,97 +31,16 @@ if 'qualitative_handler' not in st.session_state:
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-#%% Function to auto-detect question type
-def auto_detect_question_type(question: str) -> str:
-    """
-    Automatically detect if a question is Quantitative or Qualitative using OpenAI
-    """
-    try:
-        client = get_openai_client()
-        
-        prompt = """
-        Classify this banking question as either 'Quantitative' or 'Qualitative':
-        
-        Quantitative questions ask for:
-        - SPECIFIC single metrics or data points (ROE, NIM, NPL, loan amount, etc.)
-        - Pure numerical values with no analysis needed
-        - Exact values like "What is the ROE value?", "Show me the NIM number"
-        - Questions explicitly asking for calculations or specific percentages
-        - Raw data without interpretation
-        
-        Qualitative questions ask for:
-        - Comparisons between banks (even if numbers are involved, comparisons need analysis)
-        - Analysis, commentary, insights, or narrative explanations
-        - Performance discussions, results interpretation, or assessments
-        - Questions with "compare", "versus", "vs", "better", "worse"
-        - Questions starting with "why", "how is", "what's the outlook"
-        - Explanations of causes, implications, or interpretations
-        - General performance questions like "How is X performing?"
-        - Questions about results, trends, or relative performance
-        
-        IMPORTANT: Questions with "compare" or asking about "results" are usually Qualitative 
-        because they want analysis and insights, not just raw numbers.
-        
-        Examples:
-        Quantitative: "What is ACB's ROE value?", "Show NIM number for VCB", "Calculate loan amount"
-        Qualitative: "Compare ACB and VPB", "How are ACB's results?", "ACB vs VPB performance", "Which bank is better?"
-        
-        Question: "{}"
-        
-        Return ONLY one word: either 'Quantitative' or 'Qualitative'
-        """.format(question)
-        
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Use faster model for classification
-            messages=[
-                {"role": "system", "content": "You are a question classifier. Return only 'Quantitative' or 'Qualitative'."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0,
-            max_tokens=10
-        )
-        
-        result = response.choices[0].message.content.strip()
-        
-        # Validate response
-        if result in ["Quantitative", "Qualitative"]:
-            # Double-check: if question contains comparison keywords, lean towards Qualitative
-            comparison_keywords = ['compare', 'versus', ' vs ', ' vs.', 'better', 'worse', 'comparison']
-            question_lower = question.lower()
-            if any(keyword in question_lower for keyword in comparison_keywords):
-                # Override to Qualitative for comparison questions unless it's clearly asking for specific metrics
-                metric_keywords = ['what is the', 'show me the', 'calculate the']
-                if not any(metric in question_lower for metric in metric_keywords):
-                    return "Qualitative"
-            return result
-        else:
-            # Default to Quantitative if unclear
-            return "Quantitative"
-            
-    except Exception as e:
-        st.warning(f"Could not auto-detect question type: {e}. Defaulting to Quantitative.")
-        return "Quantitative"
-
 #%% Sidebar configuration
 with st.sidebar:
     st.header("Configuration")
     
-    # Auto-detection settings
-    auto_detect = st.checkbox(
-        "Auto-detect question type",
-        value=True,
-        help="Automatically determine if your question is Quantitative or Qualitative"
+    # Manual question type selector
+    question_type = st.radio(
+        "Question Type",
+        ["Quantitative", "Qualitative"],
+        help="Quantitative: Numbers and metrics from data tables\nQualitative: Analysis and commentary from AI-generated reports"
     )
-    
-    if not auto_detect:
-        # Manual question type selector
-        question_type = st.radio(
-            "Question Type",
-            ["Quantitative", "Qualitative"],
-            help="Quantitative: Numbers and metrics from data tables\nQualitative: Analysis and commentary from AI-generated reports"
-        )
-    else:
-        question_type = None  # Will be determined automatically
     
     model = st.selectbox(
         "OpenAI Model",
@@ -176,23 +95,6 @@ if user_question:
         st.markdown(user_question)
     
     with st.chat_message("assistant"):
-        # Auto-detect question type if enabled
-        if auto_detect and question_type is None:
-            with st.spinner("Detecting question type..."):
-                detected_type = auto_detect_question_type(user_question)
-                
-                # Show detected type with override option
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.info(f"Detected as: **{detected_type}** question")
-                with col2:
-                    if st.button("Change type", key=f"override_{len(st.session_state.chat_history)}"):
-                        # Toggle the type
-                        detected_type = "Qualitative" if detected_type == "Quantitative" else "Quantitative"
-                        st.success(f"Changed to: **{detected_type}**")
-                
-                question_type = detected_type
-        
         if question_type == "Quantitative":
             # Original quantitative flow
             with st.spinner("Analyzing your question..."):
