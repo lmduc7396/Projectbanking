@@ -181,6 +181,10 @@ dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'TICKER'] = dfsecto
 # Rename Date_Quarter to Year for yearly data for clarity
 dfsectoryear = dfsectoryear.rename(columns={'Date_Quarter': 'Year'})
 
+#Sort by TICKER and Year
+dfsectoryear = dfsectoryear.sort_values(by=['TICKER', 'Year'])
+dfsectorquarter = dfsectorquarter.sort_values(by=['TICKER', 'ENDDATE_x'])
+
 # Save files
 dfsectoryear.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
 dfsectorquarter.to_csv(os.path.join(data_dir, 'dfsectorquarter.csv'), index=False)
