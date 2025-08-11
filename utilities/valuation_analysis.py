@@ -4,7 +4,6 @@ Utility functions for valuation analysis
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 from typing import Dict, Tuple, List, Optional
 
 def get_metric_column(metric_type: str) -> str:
@@ -55,7 +54,7 @@ def calculate_distribution_stats(df: pd.DataFrame, ticker: str, metric_col: str)
     
     # Calculate current value percentile
     if current_value is not None and not pd.isna(current_value):
-        percentile_rank = stats.percentileofscore(clean_data, current_value)
+        percentile_rank = (clean_data <= current_value).sum() / len(clean_data) * 100
         stats_dict['percentile'] = percentile_rank
     else:
         stats_dict['percentile'] = None
@@ -125,7 +124,7 @@ def calculate_cdf(df: pd.DataFrame, ticker: str, metric_col: str) -> float:
     clean_data = remove_outliers_iqr(ticker_data, multiplier=3.0)
     
     # Calculate CDF (percentile)
-    cdf_value = stats.percentileofscore(clean_data, current_value)
+    cdf_value = (clean_data <= current_value).sum() / len(clean_data) * 100
     
     return cdf_value
 

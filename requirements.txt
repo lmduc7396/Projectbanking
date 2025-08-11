@@ -6,3 +6,4 @@ openai
 tabulate
 python-dotenv
 numpy
+scipy
