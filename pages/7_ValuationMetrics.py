@@ -128,23 +128,15 @@ for ticker in display_tickers:
     # Add candlestick with light grey color
     fig_candle.add_trace(go.Candlestick(
         x=[ticker],
-        open=[p25],
-        high=[p95],  # Use p95 for upper wick
-        low=[p5],    # Use p5 for lower wick
-        close=[p75],
+        open=[round(p25, 2)],
+        high=[round(p95, 2)],  # Use p95 for upper wick
+        low=[round(p5, 2)],    # Use p5 for lower wick
+        close=[round(p75, 2)],
         name=ticker,
         showlegend=False,
         increasing_line_color='lightgrey',
         decreasing_line_color='lightgrey',
-        hovertemplate=(
-            f"<b>{ticker}</b><br>" +
-            f"High (95%): {p95:.2f}<br>" +
-            f"Q3 (75%): {p75:.2f}<br>" +
-            f"Median: {p50:.2f}<br>" +
-            f"Q1 (25%): {p25:.2f}<br>" +
-            f"Low (5%): {p5:.2f}<br>" +
-            "<extra></extra>"
-        )
+        hovertext=f"{ticker}<br>Median: {p50:.2f}"
     ))
     
     # Add current value as scatter point with smaller size and custom color
