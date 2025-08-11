@@ -104,29 +104,41 @@ class DataDiscoveryAgent:
         need_components = query_analysis.get('need_components', False)
         
         if tickers and 'TICKER' in df.columns:
-            # Check if any tickers are sector names
-            sector_names = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
-            has_sectors = any(t in sector_names for t in tickers)
-            
-            if has_sectors and need_components:
-                # Include both sector data AND component banks
-                # First get the sector rows
-                sector_df = df[df['TICKER'].isin(tickers)]
-                
-                # Then get component banks by matching Type column
-                component_df = df[df['Type'].isin(tickers)]
-                
-                # Combine both
-                df = pd.concat([sector_df, component_df]).drop_duplicates()
-                print(f"Filtered to sectors {tickers} with components, rows: {len(df)}")
-            elif has_sectors:
-                # Only sector aggregated data
-                df = df[df['TICKER'].isin(tickers)]
-                print(f"Filtered to sectors only: {tickers}, rows: {len(df)}")
+            # Special case: ALL_BANKS means get all individual banks
+            if 'ALL_BANKS' in tickers:
+                # Get all rows where TICKER is exactly 3 characters (individual banks)
+                df = df[df['TICKER'].str.len() == 3]
+                print(f"Filtered to all individual banks (3-letter tickers), rows: {len(df)}")
             else:
-                # Regular ticker filtering
-                df = df[df['TICKER'].isin(tickers)]
-                print(f"Filtered to {len(tickers)} tickers: {tickers}, rows: {len(df)}")
+                # Check if any tickers are sector names
+                sector_names = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+                has_sectors = any(t in sector_names for t in tickers)
+                
+                if has_sectors and need_components:
+                    # Include both sector data AND component banks
+                    # First get the sector rows
+                    sector_df = df[df['TICKER'].isin(tickers)]
+                    
+                    # Then get component banks by matching Type column
+                    # Special handling for "Sector" - get all individual banks
+                    if 'Sector' in tickers:
+                        # Get all individual banks (3-letter tickers)
+                        component_df = df[df['TICKER'].str.len() == 3]
+                    else:
+                        # Get banks matching the specific sector types
+                        component_df = df[df['Type'].isin(tickers)]
+                    
+                    # Combine both
+                    df = pd.concat([sector_df, component_df]).drop_duplicates()
+                    print(f"Filtered to sectors {tickers} with components, rows: {len(df)}")
+                elif has_sectors:
+                    # Only sector aggregated data
+                    df = df[df['TICKER'].isin(tickers)]
+                    print(f"Filtered to sectors only: {tickers}, rows: {len(df)}")
+                else:
+                    # Regular ticker filtering
+                    df = df[df['TICKER'].isin(tickers)]
+                    print(f"Filtered to {len(tickers)} tickers: {tickers}, rows: {len(df)}")
         
         # Filter by timeframe (now expects a list)
         latest_4 = self._get_latest_4_quarters()

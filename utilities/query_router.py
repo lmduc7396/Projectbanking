@@ -120,7 +120,8 @@ class QueryRouter:
         1. TICKERS: List of bank ticker symbols or sector names mentioned
            - Individual banks: ACB, VCB, BID, etc. (3-letter codes)
            - Sector groups: "Sector", "SOCB", "Private_1", "Private_2", "Private_3"
-           - If "all banks" is mentioned, return ["Sector"]
+           - IMPORTANT: If user says "all banks" or "rank all banks", return ["ALL_BANKS"] (special marker)
+           - If user says "the sector" or "banking sector" (referring to aggregated total), return ["Sector"]
            - If no specific banks/sectors mentioned, return []
         
         2. ITEMS: List of financial metrics/items mentioned (e.g., ROE, ROA, NIM, NPL, CAR, etc.)
@@ -157,6 +158,7 @@ class QueryRouter:
         - "What's the NIM for SOCB in 2024?" -> {{"tickers": ["SOCB"], "items": ["NIM"], "timeframe": ["2024"], "need_components": false}}
         - "What's ACB current CASA?" -> {{"tickers": ["ACB"], "items": ["CASA"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
         - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": {latest_4_quarters}, "need_components": true}}
+        - "Rank all banks by NPL" -> {{"tickers": ["ALL_BANKS"], "items": ["NPL"], "timeframe": {latest_4_quarters}, "need_components": false}}
         """
         
         try:
