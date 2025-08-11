@@ -64,20 +64,12 @@ with st.sidebar:
     )
     metric_col = get_metric_column(metric_type)
 
-# Main page info
+# Get latest date in data
+latest_date = df['TRADE_DATE'].max()
+
+# Show latest data in smaller text
 st.markdown("---")
-col1, col2 = st.columns(2)
-
-with col1:
-    # Get latest date in data
-    latest_date = df['TRADE_DATE'].max()
-    st.metric("Latest Data", latest_date.strftime('%Y-%m-%d'))
-
-with col2:
-    # Show data coverage
-    total_tickers = df['TICKER'].nunique()
-    total_days = (df['TRADE_DATE'].max() - df['TRADE_DATE'].min()).days
-    st.metric("Coverage", f"{total_tickers} entities over {total_days:,} days")
+st.caption(f"Latest data: {latest_date.strftime('%Y-%m-%d')}")
 
 # Chart 1: Valuation Distribution Candle Chart
 st.markdown("---")
@@ -178,11 +170,17 @@ fig_candle.update_layout(
     hovermode='x unified',
     xaxis=dict(
         categoryorder='array',
-        categoryarray=valid_tickers  # Maintain order
-    )
+        categoryarray=valid_tickers,  # Maintain order
+        rangeslider=dict(visible=False),  # Disable range slider
+        fixedrange=True  # Disable zoom and pan
+    ),
+    yaxis=dict(
+        fixedrange=True  # Disable zoom and pan on y-axis too
+    ),
+    dragmode=False  # Disable all drag interactions
 )
 
-st.plotly_chart(fig_candle, use_container_width=True, config={'displayModeBar': False})
+st.plotly_chart(fig_candle, use_container_width=True, config={'displayModeBar': False, 'staticPlot': False})
 
 # Chart 2: Historical Valuation Time Series
 st.markdown("---")
