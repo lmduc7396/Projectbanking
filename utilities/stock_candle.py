@@ -102,6 +102,9 @@ def Stock_price_plot(ticker: str):
         df = get_cached_stock_data(ticker, days)
     
     if df is not None and not df.empty:
+        # Convert dates to strings for categorical x-axis (removes gaps)
+        df['date_str'] = df['tradingDate'].dt.strftime('%Y-%m-%d')
+        
         # Create subplots: candlestick on top, volume on bottom
         fig = make_subplots(
             rows=2, cols=1,
@@ -111,17 +114,19 @@ def Stock_price_plot(ticker: str):
             subplot_titles=(f'{ticker} Price', 'Volume')
         )
         
-        # Add candlestick chart
+        # Add candlestick chart with string dates (no gaps)
         fig.add_trace(
             go.Candlestick(
-                x=df['tradingDate'],
+                x=df['date_str'],  # Use string dates for categorical axis
                 open=df['open'],
                 high=df['high'],
                 low=df['low'],
                 close=df['close'],
                 name='Price',
                 increasing_line_color='green',
-                decreasing_line_color='red'
+                decreasing_line_color='red',
+                hovertext=df['date_str'],  # Show date in hover
+                hoverinfo='x+y+text'
             ),
             row=1, col=1
         )
@@ -132,11 +137,13 @@ def Stock_price_plot(ticker: str):
         
         fig.add_trace(
             go.Bar(
-                x=df['tradingDate'],
+                x=df['date_str'],  # Use string dates for categorical axis
                 y=df['volume'],
                 name='Volume',
                 marker_color=colors,
-                showlegend=False
+                showlegend=False,
+                hovertext=df['date_str'],  # Show date in hover
+                hoverinfo='x+y+text'
             ),
             row=2, col=1
         )
@@ -150,8 +157,14 @@ def Stock_price_plot(ticker: str):
             hovermode='x unified'
         )
         
-        # Update x-axis
-        fig.update_xaxes(title_text="Date", row=2, col=1)
+        # Update x-axes to categorical (removes gaps for non-trading days)
+        fig.update_xaxes(
+            type='category',  # Categorical axis removes gaps
+            title_text="Date", 
+            row=2, col=1,
+            tickangle=-45,  # Angle the dates for better readability
+            nticks=20  # Limit number of ticks shown
+        )
         
         # Update y-axes
         fig.update_yaxes(title_text="Price (VND)", row=1, col=1, tickformat=",.0f")
