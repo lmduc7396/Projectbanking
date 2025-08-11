@@ -531,10 +531,11 @@ dfsectoryear.loc[dfsectoryear['TICKER'].str.len() > 3, 'TICKER'] = \
 dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'TICKER'] = \
     dfsectorquarter.loc[dfsectorquarter['TICKER'].str.len() > 3, 'Type']
 
-# Rename Date_Quarter to Year for yearly data for clarity
+# Rename Date_Quarter to Year for yearly data ONLY (keep Date_Quarter for quarterly)
 dfsectoryear = dfsectoryear.rename(columns={'Date_Quarter': 'Year'})
+# Note: dfsectorquarter keeps 'Date_Quarter' column name for compatibility
 
-# Sort by TICKER and Year
+# Sort by TICKER and Year/Date
 dfsectoryear = dfsectoryear.sort_values(by=['TICKER', 'Year'])
 dfsectorquarter = dfsectorquarter.sort_values(by=['TICKER', 'ENDDATE_x'])
 

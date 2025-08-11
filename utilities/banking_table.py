@@ -65,12 +65,14 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
         df_filtered = df_[cols_keep_final].copy()
         
         if is_quarterly:
-            # Extract year and quarter from Date_Quarter (format: XQ##)
+            # Extract year and quarter from Date_Quarter (format: XQyy)
             df_filtered['Quarter'] = df_filtered[date_column].str.extract(r'(\d+)Q').astype(int)
-            df_filtered['Year'] = df_filtered[date_column].str.extract(r'Q(\d+)').astype(int)
+            df_filtered['Year'] = 2000 + df_filtered[date_column].str.extract(r'Q(\d+)').astype(int)
         else:
-            # For yearly data, Year column already exists
+            # For yearly data, Year column already contains the full year as integer
             df_filtered['Quarter'] = 4  # Treat yearly data as Q4
+            # Convert Year column to ensure it's numeric (in case it's string)
+            df_filtered['Year'] = pd.to_numeric(df_filtered[date_column])
         
         # Calculate YTD growth
         ytd_growth = pd.DataFrame(index=df_filtered.index)
