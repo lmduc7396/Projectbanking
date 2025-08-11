@@ -68,11 +68,9 @@ with st.sidebar:
 latest_date = df['TRADE_DATE'].max()
 
 # Show latest data in smaller text
-st.markdown("---")
 st.caption(f"Latest data: {latest_date.strftime('%Y-%m-%d')}")
 
 # Chart 1: Valuation Distribution Candle Chart
-st.markdown("---")
 st.subheader("Valuation Distribution by Bank")
 
 # Sector selection above the chart
@@ -319,6 +317,10 @@ stats_df = prepare_statistics_table(df, metric_col)
 if not stats_df.empty:
     # Format the dataframe for display
     display_df = stats_df.copy()
+    
+    # Remove Type column
+    if 'Type' in display_df.columns:
+        display_df = display_df.drop('Type', axis=1)
     
     # Format numeric columns
     for col in ['Current', 'Mean']:
