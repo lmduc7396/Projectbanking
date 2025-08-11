@@ -145,6 +145,11 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
         df_out.columns = df_out.iloc[0]
         df_out = df_out[1:]
         
+        # Format column names to remove decimals if they are years
+        if not is_quarterly:
+            # Convert float column names to integers for year display
+            df_out.columns = [int(col) if isinstance(col, (float, np.float64)) else col for col in df_out.columns]
+        
         # Return the table without displaying the title here
         return df_out
 

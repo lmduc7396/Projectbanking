@@ -11,6 +11,14 @@ def Bankplot(df=None, keyitem=None):
     if keyitem is None:
         keyitem = st.session_state.get('keyitem')
     
+    # Determine the date column name
+    if 'Date_Quarter' in df.columns:
+        date_column = 'Date_Quarter'
+    elif 'Year' in df.columns:
+        date_column = 'Year'
+    else:
+        raise ValueError("DataFrame must have either 'Date_Quarter' or 'Year' column")
+    
     color_sequence = px.colors.qualitative.Bold
 
     # Define your options
@@ -65,7 +73,7 @@ def Bankplot(df=None, keyitem=None):
                     df_tempY = matched_rows.tail(Y)
                     fig.add_trace(
                         go.Scatter(
-                            x=df_tempY['Date_Quarter'],
+                            x=df_tempY[date_column],
                             y=df_tempY[value_col],
                             mode='lines+markers',
                             name=str(x),
@@ -82,7 +90,7 @@ def Bankplot(df=None, keyitem=None):
                     df_tempY = matched_rows.tail(Y)
                     fig.add_trace(
                         go.Scatter(
-                            x=df_tempY['Date_Quarter'],
+                            x=df_tempY[date_column],
                             y=df_tempY[value_col],
                             mode='lines+markers',
                             name=str(x),

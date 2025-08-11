@@ -373,18 +373,80 @@ if has_forecast:
     # Sort by ticker and year
     dfcompaniesyear = dfcompaniesyear.sort_values(['TICKER', 'Date_Quarter'])
     
+    #%% Calculate Nt.220 (write-off) for forecast years
+    print("Calculating Nt.220 (write-off) for forecast years...")
+    
+    # Formula: Nt.220 = BS.14 - BS.14(t-1) - IS.17
+    for ticker in forecast_tickers:
+        ticker_data = dfcompaniesyear[dfcompaniesyear['TICKER'] == ticker].copy()
+        ticker_indices = ticker_data.index
+        
+        for idx in ticker_indices:
+            year = dfcompaniesyear.loc[idx, 'Date_Quarter']
+            
+            # Only calculate for forecast years
+            if year in ['2025', '2026']:
+                # Get current values
+                bs14_current = dfcompaniesyear.loc[idx, 'BS.14']
+                is17 = dfcompaniesyear.loc[idx, 'IS.17']
+                
+                # Get previous year's BS.14
+                prev_year = str(int(year) - 1)
+                prev_data = ticker_data[ticker_data['Date_Quarter'] == prev_year]
+                
+                if not prev_data.empty and pd.notna(bs14_current) and pd.notna(is17):
+                    bs14_prev = prev_data.iloc[0]['BS.14']
+                    
+                    if pd.notna(bs14_prev):
+                        # Calculate Nt.220 = BS.14 - BS.14(t-1) - IS.17
+                        nt220_value = bs14_current - bs14_prev - is17
+                        dfcompaniesyear.loc[idx, 'Nt.220'] = nt220_value
+                        print(f"  {ticker} {year}: Nt.220 = {nt220_value:.2e} (BS.14={bs14_current:.2e}, BS.14_prev={bs14_prev:.2e}, IS.17={is17:.2e})")
+    
     #%% Calculate sector aggregates for forecast years
     print("Calculating sector aggregates for forecast years...")
     
-    # Filter forecast data only
+    # Filter forecast data only (now includes calculated Nt.220)
     forecast_only = dfcompaniesyear[dfcompaniesyear['Date_Quarter'].isin(['2025', '2026'])]
     
-    # Calculate aggregates
+    # Recalculate aggregates to include Nt.220
     dfsectoryear_forecast = forecast_only.groupby('Date_Quarter', as_index=False).agg(agg_dict)
     dfsocbyear_forecast = forecast_only[forecast_only['Type']=='SOCB'].groupby('Date_Quarter', as_index=False).agg(agg_dict)
     dfprivate1year_forecast = forecast_only[forecast_only['Type']=='Private_1'].groupby('Date_Quarter', as_index=False).agg(agg_dict)
     dfprivate2year_forecast = forecast_only[forecast_only['Type']=='Private_2'].groupby('Date_Quarter', as_index=False).agg(agg_dict)
     dfprivate3year_forecast = forecast_only[forecast_only['Type']=='Private_3'].groupby('Date_Quarter', as_index=False).agg(agg_dict)
+    
+    # Calculate Nt.220 for sector aggregates using the same formula
+    for df_agg in [dfsectoryear_forecast, dfsocbyear_forecast, dfprivate1year_forecast, dfprivate2year_forecast, dfprivate3year_forecast]:
+        if len(df_agg) > 0:
+            # Get the corresponding historical data for previous year BS.14
+            agg_type = df_agg.iloc[0]['Type'] if 'Type' in df_agg.columns else 'Sector'
+            
+            for idx in df_agg.index:
+                year = df_agg.loc[idx, 'Date_Quarter']
+                prev_year = str(int(year) - 1)
+                
+                # Find previous year data in the corresponding historical aggregate
+                if agg_type == 'Sector':
+                    prev_data = dfsectoryear[dfsectoryear['Date_Quarter'] == prev_year]
+                elif agg_type == 'SOCB':
+                    prev_data = dfsocbyear[dfsocbyear['Date_Quarter'] == prev_year]
+                elif agg_type == 'Private_1':
+                    prev_data = dfprivate1year[dfprivate1year['Date_Quarter'] == prev_year]
+                elif agg_type == 'Private_2':
+                    prev_data = dfprivate2year[dfprivate2year['Date_Quarter'] == prev_year]
+                elif agg_type == 'Private_3':
+                    prev_data = dfprivate3year[dfprivate3year['Date_Quarter'] == prev_year]
+                else:
+                    prev_data = pd.DataFrame()
+                
+                if not prev_data.empty:
+                    bs14_current = df_agg.loc[idx, 'BS.14']
+                    is17 = df_agg.loc[idx, 'IS.17']
+                    bs14_prev = prev_data.iloc[0]['BS.14']
+                    
+                    if pd.notna(bs14_current) and pd.notna(is17) and pd.notna(bs14_prev):
+                        df_agg.loc[idx, 'Nt.220'] = bs14_current - bs14_prev - is17
     
     # Append to historical aggregates
     dfsectoryear = pd.concat([dfsectoryear, dfsectoryear_forecast], ignore_index=True)
