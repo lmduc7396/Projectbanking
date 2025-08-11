@@ -79,7 +79,7 @@ def quarterly_analysis_page():
                     st.metric("Generated", gen_date.strftime('%Y-%m-%d'))
             
             if selected_quarter and not quarter_analysis.empty:
-                # Load comments data for overview (if available)
+                # Load comments data for raw data viewer (if available)
                 quarter_comments = pd.DataFrame()
                 if comments_exist:
                     try:
@@ -87,40 +87,6 @@ def quarterly_analysis_page():
                         quarter_comments = comments_df[comments_df['QUARTER'] == selected_quarter]
                     except:
                         pass
-                
-                # Display quarter summary if comments data is available
-                if not quarter_comments.empty:
-                    st.subheader(f"Quarter {selected_quarter} Overview")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Banks", quarter_comments['TICKER'].nunique())
-                    with col2:
-                        sectors = quarter_comments['SECTOR'].nunique()
-                        st.metric("Sectors Covered", sectors)
-                    with col3:
-                        avg_length = quarter_comments['COMMENT'].str.len().mean()
-                        st.metric("Avg Comment Length", f"{avg_length:.0f} chars")
-                    with col4:
-                        # Show bank count from analysis
-                        bank_count = quarter_analysis.iloc[0]['bank_count']
-                        st.metric("Banks Analyzed", bank_count)
-                    
-                    # Show sector breakdown
-                    st.subheader("Sector Distribution")
-                    sector_breakdown = quarter_comments['SECTOR'].value_counts()
-                    col1, col2 = st.columns([1, 1])
-                    
-                    with col1:
-                        st.bar_chart(sector_breakdown)
-                    
-                    with col2:
-                        st.write("**Sector Breakdown:**")
-                        for sector, count in sector_breakdown.items():
-                            percentage = (count / len(quarter_comments)) * 100
-                            st.write(f"• **{sector}**: {count} banks ({percentage:.1f}%)")
-                
-                st.markdown("---")
                 
                 # Display analysis results
                 st.subheader(f"AI Analysis Results for {selected_quarter}")
@@ -133,8 +99,6 @@ def quarterly_analysis_page():
                 else:
                     st.error("Analysis generation failed for this quarter")
                     st.code(analysis_text)  # Show error message
-                
-                st.markdown("---")
                 
                 # Show raw data option (if comments are available)
                 if not quarter_comments.empty:
