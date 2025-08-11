@@ -615,6 +615,7 @@ def prepare_asset_quality_table():
             bs14 = row['BS.14'] if pd.notna(row['BS.14']) else 0
             npl_coverage = (-bs14 / (npl * loan) * 100) if (npl * loan) != 0 else 0
             provision_expense = row['IS.17'] if pd.notna(row['IS.17']) else 0
+            # Write-offs are stored as negative values
             write_off = row['Nt.220'] if 'Nt.220' in row and pd.notna(row['Nt.220']) else 0
             
             data_rows.append({
@@ -636,6 +637,7 @@ def prepare_asset_quality_table():
             bs14 = row['BS.14'] if pd.notna(row['BS.14']) else 0
             npl_coverage = (-bs14 / (npl * loan) * 100) if (npl * loan) != 0 else 0
             provision_expense = row['IS.17'] if pd.notna(row['IS.17']) else 0
+            # Write-offs are stored as negative values
             write_off = row['Nt.220'] if 'Nt.220' in row and pd.notna(row['Nt.220']) else 0
             
             data_rows.append({
