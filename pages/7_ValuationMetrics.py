@@ -80,120 +80,106 @@ with col3:
 st.markdown("---")
 st.subheader("Valuation Distribution by Bank")
 
-col1, col2 = st.columns([2, 8])
+# Sector selection above the chart
+sector_options = ["Sector", "SOCB", "Private_1", "Private_2", "Private_3"]
+selected_sector = st.selectbox(
+    "Select Sector:",
+    sector_options,
+    help="Shows selected sector plus all component banks"
+)
 
-with col1:
-    # Sector selection for distribution chart
-    sector_options = ["Sector", "SOCB", "Private_1", "Private_2", "Private_3"]
-    selected_sector = st.selectbox(
-        "Select Sector:",
-        sector_options,
-        help="Shows selected sector plus all component banks"
-    )
-    
-    # Get tickers to display
-    display_tickers = get_sector_and_components(df, selected_sector)
-    st.info(f"Showing {len(display_tickers)} entities")
+# Get tickers to display
+display_tickers = get_sector_and_components(df, selected_sector)
 
-with col2:
-    # Create candle chart
-    fig_candle = go.Figure()
+# Create candle chart
+fig_candle = go.Figure()
+
+# Prepare data for each ticker
+valid_tickers = []
+for ticker in display_tickers:
+    ticker_data = df[df['TICKER'] == ticker][metric_col].dropna()
     
-    # Prepare data for each ticker
-    valid_tickers = []
-    for ticker in display_tickers:
-        ticker_data = df[df['TICKER'] == ticker][metric_col].dropna()
+    if len(ticker_data) < 20:  # Skip if insufficient data
+        continue
+    
+    valid_tickers.append(ticker)
+    
+    # Calculate percentiles with smart outlier handling
+    # First, identify extreme outliers (e.g., P/E > 100 when median is 20)
+    median_val = ticker_data.median()
+    
+    # Only exclude extreme outliers (values more than 5x the median)
+    if metric_type == "P/E":
+        # For P/E, be more aggressive with outlier removal
+        upper_limit = min(100, median_val * 5) if median_val > 0 else 100
+        clean_data = ticker_data[ticker_data <= upper_limit]
+    else:
+        # For P/B, be more lenient
+        upper_limit = median_val * 4 if median_val > 0 else 10
+        clean_data = ticker_data[ticker_data <= upper_limit]
+    
+    # Ensure we still have enough data
+    if len(clean_data) < 20:
+        clean_data = ticker_data  # Use original if too much was filtered
+    
+    # Calculate percentiles for candle
+    p5 = clean_data.quantile(0.05)
+    p25 = clean_data.quantile(0.25)
+    p50 = clean_data.quantile(0.50)
+    p75 = clean_data.quantile(0.75)
+    p95 = clean_data.quantile(0.95)
+    
+    # Get current value
+    current_val = ticker_data.iloc[-1] if len(ticker_data) > 0 else None
+    
+    # Add candlestick with light grey color
+    fig_candle.add_trace(go.Candlestick(
+        x=[ticker],
+        open=[p25],
+        high=[p95],  # Use p95 for upper wick
+        low=[p5],    # Use p5 for lower wick
+        close=[p75],
+        name=ticker,
+        showlegend=False,
+        increasing_line_color='lightgrey',
+        decreasing_line_color='lightgrey'
+    ))
+    
+    # Add current value as scatter point with smaller size and custom color
+    if current_val and not pd.isna(current_val):
+        # Calculate percentile
+        percentile = np.sum(clean_data <= current_val) / len(clean_data) * 100
         
-        if len(ticker_data) < 20:  # Skip if insufficient data
-            continue
-        
-        valid_tickers.append(ticker)
-        
-        # Calculate percentiles with smart outlier handling
-        # First, identify extreme outliers (e.g., P/E > 100 when median is 20)
-        median_val = ticker_data.median()
-        
-        # Only exclude extreme outliers (values more than 5x the median)
-        if metric_type == "P/E":
-            # For P/E, be more aggressive with outlier removal
-            upper_limit = min(100, median_val * 5) if median_val > 0 else 100
-            clean_data = ticker_data[ticker_data <= upper_limit]
-        else:
-            # For P/B, be more lenient
-            upper_limit = median_val * 4 if median_val > 0 else 10
-            clean_data = ticker_data[ticker_data <= upper_limit]
-        
-        # Ensure we still have enough data
-        if len(clean_data) < 20:
-            clean_data = ticker_data  # Use original if too much was filtered
-        
-        # Calculate percentiles for candle
-        p5 = clean_data.quantile(0.05)
-        p25 = clean_data.quantile(0.25)
-        p50 = clean_data.quantile(0.50)
-        p75 = clean_data.quantile(0.75)
-        p95 = clean_data.quantile(0.95)
-        
-        # Get current value
-        current_val = ticker_data.iloc[-1] if len(ticker_data) > 0 else None
-        
-        # Determine color based on position
-        if current_val and not pd.isna(current_val):
-            if current_val < p50:
-                color = 'green'
-            else:
-                color = 'red'
-        else:
-            color = 'gray'
-        
-        # Add candlestick
-        fig_candle.add_trace(go.Candlestick(
+        fig_candle.add_trace(go.Scatter(
             x=[ticker],
-            open=[p25],
-            high=[p95],  # Use p95 for upper wick
-            low=[p5],    # Use p5 for lower wick
-            close=[p75],
-            name=ticker,
+            y=[current_val],
+            mode='markers',
+            marker=dict(size=8, color='#478B81', symbol='circle'),
+            name=f"{ticker} Current",
             showlegend=False,
-            increasing_line_color='lightgreen',
-            decreasing_line_color='lightcoral'
+            hovertemplate=(
+                f"<b>{ticker}</b><br>" +
+                f"Current: {current_val:.2f}<br>" +
+                f"Percentile: {percentile:.1f}%<br>" +
+                f"Median: {p50:.2f}<br>" +
+                "<extra></extra>"
+            )
         ))
-        
-        # Add current value as scatter point
-        if current_val and not pd.isna(current_val):
-            # Calculate percentile
-            percentile = np.sum(clean_data <= current_val) / len(clean_data) * 100
-            
-            fig_candle.add_trace(go.Scatter(
-                x=[ticker],
-                y=[current_val],
-                mode='markers',
-                marker=dict(size=12, color=color, symbol='diamond'),
-                name=f"{ticker} Current",
-                showlegend=False,
-                hovertemplate=(
-                    f"<b>{ticker}</b><br>" +
-                    f"Current: {current_val:.2f}<br>" +
-                    f"Percentile: {percentile:.1f}%<br>" +
-                    f"Median: {p50:.2f}<br>" +
-                    "<extra></extra>"
-                )
-            ))
-    
-    # Update layout
-    fig_candle.update_layout(
-        title=f"{metric_type} Distribution - {selected_sector}",
-        xaxis_title="Bank",
-        yaxis_title=f"{metric_type} Ratio",
-        height=500,
-        hovermode='x unified',
-        xaxis=dict(
-            categoryorder='array',
-            categoryarray=valid_tickers  # Maintain order
-        )
+
+# Update layout
+fig_candle.update_layout(
+    title=f"{metric_type} Distribution - {selected_sector}",
+    xaxis_title="Bank",
+    yaxis_title=f"{metric_type} Ratio",
+    height=500,
+    hovermode='x unified',
+    xaxis=dict(
+        categoryorder='array',
+        categoryarray=valid_tickers  # Maintain order
     )
-    
-    st.plotly_chart(fig_candle, use_container_width=True)
+)
+
+st.plotly_chart(fig_candle, use_container_width=True)
 
 # Chart 2: Historical Valuation Time Series
 st.markdown("---")
@@ -242,13 +228,13 @@ with col2:
             # Create figure
             fig_ts = go.Figure()
             
-            # Add main valuation line
+            # Add main valuation line with custom color
             fig_ts.add_trace(go.Scatter(
                 x=ticker_df['TRADE_DATE'],
                 y=ticker_df[metric_col],
                 mode='lines',
                 name=f'{metric_type} Ratio',
-                line=dict(color='blue', width=2)
+                line=dict(color='#478B81', width=2)
             ))
             
             # Add mean line
@@ -278,14 +264,14 @@ with col2:
                 line=dict(color='green', width=1, dash='dash')
             ))
             
-            # Add current value marker
+            # Add current value marker as small grey dot
             if hist_stats['current'] is not None:
                 fig_ts.add_trace(go.Scatter(
                     x=[ticker_df['TRADE_DATE'].max()],
                     y=[hist_stats['current']],
                     mode='markers',
                     name='Current',
-                    marker=dict(size=15, color='red', symbol='star')
+                    marker=dict(size=8, color='grey', symbol='circle')
                 ))
             
             # Update layout
@@ -334,7 +320,7 @@ if not stats_df.empty:
     display_df = stats_df.copy()
     
     # Format numeric columns
-    for col in ['Current', 'Mean', 'Std Dev']:
+    for col in ['Current', 'Mean']:
         if col in display_df.columns:
             display_df[col] = display_df[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
     
@@ -344,22 +330,28 @@ if not stats_df.empty:
     if 'Z-Score' in display_df.columns:
         display_df['Z-Score'] = display_df['Z-Score'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
     
-    # Color code the Status column
+    # Define pastel colors for status
     def color_status(val):
         if val == "Very Cheap":
-            return 'background-color: darkgreen; color: white'
+            return 'background-color: #90EE90; color: black'  # Light green
         elif val == "Cheap":
-            return 'background-color: green; color: white'
+            return 'background-color: #B8E6B8; color: black'  # Lighter green
         elif val == "Fair":
-            return 'background-color: yellow'
+            return 'background-color: #FFFFCC; color: black'  # Light yellow
         elif val == "Expensive":
-            return 'background-color: orange'
+            return 'background-color: #FFD4A3; color: black'  # Light orange
         elif val == "Very Expensive":
-            return 'background-color: red; color: white'
+            return 'background-color: #FFB3B3; color: black'  # Light red
         return ''
     
+    # Function to highlight sector rows
+    def highlight_sectors(row):
+        if row['Ticker'] in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']:
+            return ['background-color: #E8E8E8; font-weight: bold'] * len(row)
+        return [''] * len(row)
+    
     # Apply styling
-    styled_df = display_df.style.applymap(color_status, subset=['Status'])
+    styled_df = display_df.style.apply(highlight_sectors, axis=1).applymap(color_status, subset=['Status'])
     
     # Display table
     st.dataframe(

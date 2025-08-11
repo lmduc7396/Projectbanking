@@ -174,27 +174,61 @@ def prepare_statistics_table(df: pd.DataFrame, metric_col: str) -> pd.DataFrame:
         # Get status
         status, color = get_valuation_status(hist_stats.get('z_score'))
         
+        # Determine if this is a sector aggregate
+        is_sector = ticker in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+        
         results.append({
             'Ticker': ticker,
             'Type': ticker_type,
             'Current': hist_stats.get('current', None),
             'Mean': hist_stats.get('mean', None),
-            'Std Dev': hist_stats.get('std', None),
             'CDF (%)': cdf_value,
             'Z-Score': hist_stats.get('z_score', None),
-            'Status': status
+            'Status': status,
+            'IsSector': is_sector
         })
     
     # Create DataFrame
     results_df = pd.DataFrame(results)
     
-    # Sort by Type, then by Current value
+    # Sort properly: sectors first, then their components
     if not results_df.empty:
-        # Define sort order for Type
-        type_order = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3', 'Other']
-        results_df['Type_Order'] = results_df['Type'].apply(lambda x: type_order.index(x) if x in type_order else 999)
-        results_df = results_df.sort_values(['Type_Order', 'Current'], ascending=[True, False])
-        results_df = results_df.drop('Type_Order', axis=1)
+        # Separate sectors and individual banks
+        sectors_df = results_df[results_df['IsSector'] == True].copy()
+        banks_df = results_df[results_df['IsSector'] == False].copy()
+        
+        # Sort sectors by predefined order
+        sector_order = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+        sectors_df['Order'] = sectors_df['Ticker'].apply(lambda x: sector_order.index(x) if x in sector_order else 999)
+        sectors_df = sectors_df.sort_values('Order')
+        
+        # For each sector, get its component banks and add them right after
+        final_dfs = []
+        for sector_ticker in sectors_df['Ticker'].values:
+            # Add the sector row
+            final_dfs.append(sectors_df[sectors_df['Ticker'] == sector_ticker])
+            
+            # Get the sector type
+            if sector_ticker == 'Sector':
+                # For overall sector, add all individual banks
+                component_banks = banks_df.sort_values('Current', ascending=False)
+                if not component_banks.empty:
+                    final_dfs.append(component_banks)
+            else:
+                # For specific sector types, add their component banks
+                sector_type = sector_ticker  # SOCB, Private_1, etc.
+                component_banks = banks_df[banks_df['Type'] == sector_type].sort_values('Current', ascending=False)
+                if not component_banks.empty:
+                    final_dfs.append(component_banks)
+        
+        # Combine all DataFrames
+        if final_dfs:
+            results_df = pd.concat(final_dfs, ignore_index=True)
+            # Remove duplicate rows (banks might appear multiple times)
+            results_df = results_df.drop_duplicates(subset=['Ticker'])
+        
+        # Drop helper columns
+        results_df = results_df.drop(['IsSector', 'Order'], axis=1, errors='ignore')
     
     return results_df
 
