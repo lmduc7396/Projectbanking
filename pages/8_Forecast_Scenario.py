@@ -163,12 +163,20 @@ def load_data():
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
-    return df_year, df_quarter, keyitem
+    # Determine last complete year dynamically
+    dfis = pd.read_csv(os.path.join(project_root, 'Data/IS_Bank.csv'))
+    complete_years = dfis[dfis['LENGTHREPORT'] == 5]['YEARREPORT'].unique()
+    last_complete_year = int(max(complete_years)) if len(complete_years) > 0 else last_complete_year
+    return df_year, df_quarter, keyitem, last_complete_year
 
-df_year, df_quarter, keyitem = load_data()
+df_year, df_quarter, keyitem, last_complete_year = load_data()
+
+# Define forecast years dynamically
+forecast_year_1 = last_complete_year + 1
+forecast_year_2 = last_complete_year + 2
 
 # Get only banks with forecast data (exclude sectors and aggregates)
-forecast_data = df_year[df_year['Year'].isin([2025, 2026])]
+forecast_data = df_year[df_year['Year'].isin([forecast_year_1, forecast_year_2])]
 banks_with_forecast = forecast_data[forecast_data['TICKER'].str.len() == 3]['TICKER'].unique()
 banks_with_forecast = sorted(banks_with_forecast)
 
@@ -179,40 +187,47 @@ ticker = st.sidebar.selectbox(
     index=0
 )
 
-# Get historical and forecast data for selected ticker
-historical_data = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'].isin([2023, 2024]))]
-forecast_2025 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == 2025)]
-forecast_2026 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == 2026)]
+# Add separator
+st.sidebar.markdown("---")
 
-# Get quarterly data for 2025
+# Revert to Default button - we'll define this after loading the data
+revert_button = st.sidebar.button("Revert to Default Forecast", type="secondary", use_container_width=True)
+
+# Get historical and forecast data for selected ticker
+historical_data = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'].isin([last_complete_year-1, last_complete_year]))]
+forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
+forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
+
+# Get quarterly data for first forecast year
 df_quarter['Year'] = 2000 + df_quarter['Date_Quarter'].str.extract(r'Q(\d+)').astype(int)
-quarterly_2025 = df_quarter[(df_quarter['TICKER'] == ticker) & 
-                            (df_quarter['Year'] == 2025) & 
-                            (df_quarter['Date_Quarter'].isin(['1Q25', '2Q25']))]
+quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
+quarterly_forecast_1 = df_quarter[(df_quarter['TICKER'] == ticker) & 
+                                  (df_quarter['Year'] == forecast_year_1) & 
+                                  (df_quarter['Date_Quarter'].isin(quarter_codes))]
 
 # Initialize session state for forecast values if not exists
 if 'forecast_values' not in st.session_state:
     st.session_state.forecast_values = {}
 
 # Get current forecast PBT values
-pbt_2025_original = forecast_2025['IS.18'].values[0] if len(forecast_2025) > 0 else 0
-pbt_2026_original = forecast_2026['IS.18'].values[0] if len(forecast_2026) > 0 else 0
-pbt_2024 = historical_data[historical_data['Year'] == 2024]['IS.18'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else 0
+pbt_forecast_1_original = forecast_1['IS.18'].values[0] if len(forecast_1) > 0 else 0
+pbt_forecast_2_original = forecast_2['IS.18'].values[0] if len(forecast_2) > 0 else 0
+pbt_last_complete = historical_data[historical_data['Year'] == last_complete_year]['IS.18'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else 0
 
 # Calculate original YoY growth
-pbt_yoy_2025_original = ((pbt_2025_original / pbt_2024) - 1) * 100 if pbt_2024 != 0 else 0
-pbt_yoy_2026_original = ((pbt_2026_original / pbt_2025_original) - 1) * 100 if pbt_2025_original != 0 else 0
+pbt_yoy_forecast_1_original = ((pbt_forecast_1_original / pbt_last_complete) - 1) * 100 if pbt_last_complete != 0 else 0
+pbt_yoy_forecast_2_original = ((pbt_forecast_2_original / pbt_forecast_1_original) - 1) * 100 if pbt_forecast_1_original != 0 else 0
 
 # Initialize adjusted values
-if f'{ticker}_pbt_2025_adjusted' not in st.session_state:
-    st.session_state[f'{ticker}_pbt_2025_adjusted'] = pbt_2025_original
-    st.session_state[f'{ticker}_pbt_2026_adjusted'] = pbt_2026_original
+if f'{ticker}_pbt_forecast_year_1_adjusted' not in st.session_state:
+    st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] = pbt_forecast_1_original
+    st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] = pbt_forecast_2_original
 
 # Calculate adjusted PBT values for display
-pbt_2025_adjusted = st.session_state[f'{ticker}_pbt_2025_adjusted']
-pbt_2026_adjusted = st.session_state[f'{ticker}_pbt_2026_adjusted']
-pbt_yoy_2025_adjusted = ((pbt_2025_adjusted / pbt_2024) - 1) * 100 if pbt_2024 != 0 else 0
-pbt_yoy_2026_adjusted = ((pbt_2026_adjusted / pbt_2025_adjusted) - 1) * 100 if pbt_2025_adjusted != 0 else 0
+pbt_forecast_1_adjusted = st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted']
+pbt_forecast_2_adjusted = st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted']
+pbt_yoy_forecast_1_adjusted = ((pbt_forecast_1_adjusted / pbt_last_complete) - 1) * 100 if pbt_last_complete != 0 else 0
+pbt_yoy_forecast_2_adjusted = ((pbt_forecast_2_adjusted / pbt_forecast_1_adjusted) - 1) * 100 if pbt_forecast_1_adjusted != 0 else 0
 
 # Create fixed header with metrics
 st.markdown(f'''
@@ -224,14 +239,14 @@ st.markdown(f'''
             <div class="metric-subtitle">Profit Before Tax (PBT)</div>
         </div>
         <div class="metric-box">
-            <div class="metric-label">2025 Forecast</div>
-            <div class="metric-value">{pbt_2025_adjusted/1e12:.2f}T</div>
-            <div class="metric-delta">{pbt_yoy_2025_adjusted:+.1f}% YoY Growth</div>
+            <div class="metric-label">{forecast_year_1} Forecast</div>
+            <div class="metric-value">{pbt_forecast_1_adjusted/1e12:.2f}T</div>
+            <div class="metric-delta">{pbt_yoy_forecast_1_adjusted:+.1f}% YoY Growth</div>
         </div>
         <div class="metric-box">
-            <div class="metric-label">2026 Forecast</div>
-            <div class="metric-value">{pbt_2026_adjusted/1e12:.2f}T</div>
-            <div class="metric-delta">{pbt_yoy_2026_adjusted:+.1f}% YoY Growth</div>
+            <div class="metric-label">{forecast_year_2} Forecast</div>
+            <div class="metric-value">{pbt_forecast_2_adjusted/1e12:.2f}T</div>
+            <div class="metric-delta">{pbt_yoy_forecast_2_adjusted:+.1f}% YoY Growth</div>
         </div>
     </div>
 </div>
@@ -247,11 +262,11 @@ st.header("Segment 1: Net Interest Income Adjustment")
 
 # Prepare historical data table for NIM and Loan
 def prepare_historical_table():
-    # Get data for 2023-2024 (yearly) and Q1-Q2 2025
+    # Get data for last_complete_year-1-last_complete_year (yearly) and Q1-Q2 forecast_year_1
     data_rows = []
     
-    # Add 2023-2024 yearly data
-    for year in [2023, 2024]:
+    # Add last_complete_year-1-last_complete_year yearly data
+    for year in [last_complete_year-1, last_complete_year]:
         year_data = historical_data[historical_data['Year'] == year]
         if len(year_data) > 0:
             row = year_data.iloc[0]
@@ -265,9 +280,9 @@ def prepare_historical_table():
                 'NII (IS.3)': nii / 1e12
             })
     
-    # Add Q1-Q2 2025 data
+    # Add Q1-Q2 forecast_year_1 data
     for quarter in ['1Q25', '2Q25']:
-        q_data = quarterly_2025[quarterly_2025['Date_Quarter'] == quarter]
+        q_data = quarterly_forecast_1[quarterly_forecast_1['Date_Quarter'] == quarter]
         if len(q_data) > 0:
             row = q_data.iloc[0]
             loan = row['BS.12'] if 'BS.12' in row and pd.notna(row['BS.12']) else row['BS.13']
@@ -280,8 +295,8 @@ def prepare_historical_table():
                 'NII (IS.3)': nii / 1e12
             })
     
-    # Add forecast data for 2025-2026
-    for year, forecast in [(2025, forecast_2025), (2026, forecast_2026)]:
+    # Add forecast data for forecast_year_1-forecast_year_2
+    for year, forecast in [(forecast_year_1, forecast_1), (forecast_year_2, forecast_2)]:
         if len(forecast) > 0:
             row = forecast.iloc[0]
             loan = row['BS.12'] if 'BS.12' in row and pd.notna(row['BS.12']) else row['BS.13']
@@ -289,14 +304,14 @@ def prepare_historical_table():
             nii = row['IS.3'] if pd.notna(row['IS.3']) else 0
             
             # Calculate loan growth YoY
-            if year == 2025:
-                loan_prev = historical_data[historical_data['Year'] == 2024]['BS.12'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else loan
+            if year == forecast_year_1:
+                loan_prev = historical_data[historical_data['Year'] == last_complete_year]['BS.12'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else loan
                 if pd.isna(loan_prev):
-                    loan_prev = historical_data[historical_data['Year'] == 2024]['BS.13'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else loan
-            else:  # 2026
-                loan_prev = forecast_2025['BS.12'].values[0] if len(forecast_2025) > 0 else loan
+                    loan_prev = historical_data[historical_data['Year'] == last_complete_year]['BS.13'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else loan
+            else:  # forecast_year_2
+                loan_prev = forecast_1['BS.12'].values[0] if len(forecast_1) > 0 else loan
                 if pd.isna(loan_prev):
-                    loan_prev = forecast_2025['BS.13'].values[0] if len(forecast_2025) > 0 else loan
+                    loan_prev = forecast_1['BS.13'].values[0] if len(forecast_1) > 0 else loan
             
             loan_growth = ((loan / loan_prev) - 1) * 100 if loan_prev != 0 else 0
             
@@ -326,101 +341,113 @@ st.subheader("Adjust Forecast Assumptions")
 col1, col2 = st.columns(2)
 
 # Get original forecast values
-nim_2025_original = forecast_2025['CA.13'].values[0] * 100 if len(forecast_2025) > 0 else 3.0
-nim_2026_original = forecast_2026['CA.13'].values[0] * 100 if len(forecast_2026) > 0 else 3.0
+nim_forecast_1_original = forecast_1['CA.13'].values[0] * 100 if len(forecast_1) > 0 else 3.0
+nim_forecast_2_original = forecast_2['CA.13'].values[0] * 100 if len(forecast_2) > 0 else 3.0
 
-loan_2024 = historical_data[historical_data['Year'] == 2024]['BS.12'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else 1e15
-if pd.isna(loan_2024):
-    loan_2024 = historical_data[historical_data['Year'] == 2024]['BS.13'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else 1e15
+loan_last_complete = historical_data[historical_data['Year'] == last_complete_year]['BS.12'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else 1e15
+if pd.isna(loan_last_complete):
+    loan_last_complete = historical_data[historical_data['Year'] == last_complete_year]['BS.13'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else 1e15
 
-loan_2025_original = forecast_2025['BS.12'].values[0] if len(forecast_2025) > 0 else loan_2024 * 1.15
-if pd.isna(loan_2025_original):
-    loan_2025_original = forecast_2025['BS.13'].values[0] if len(forecast_2025) > 0 else loan_2024 * 1.15
+loan_forecast_year_1_original = forecast_1['BS.12'].values[0] if len(forecast_1) > 0 else loan_last_complete * 1.15
+if pd.isna(loan_forecast_year_1_original):
+    loan_forecast_year_1_original = forecast_1['BS.13'].values[0] if len(forecast_1) > 0 else loan_last_complete * 1.15
 
-loan_2026_original = forecast_2026['BS.12'].values[0] if len(forecast_2026) > 0 else loan_2025_original * 1.15
-if pd.isna(loan_2026_original):
-    loan_2026_original = forecast_2026['BS.13'].values[0] if len(forecast_2026) > 0 else loan_2025_original * 1.15
+loan_forecast_year_2_original = forecast_2['BS.12'].values[0] if len(forecast_2) > 0 else loan_forecast_year_1_original * 1.15
+if pd.isna(loan_forecast_year_2_original):
+    loan_forecast_year_2_original = forecast_2['BS.13'].values[0] if len(forecast_2) > 0 else loan_forecast_year_1_original * 1.15
 
-loan_growth_2025_original = ((loan_2025_original / loan_2024) - 1) * 100 if loan_2024 != 0 else 15
-loan_growth_2026_original = ((loan_2026_original / loan_2025_original) - 1) * 100 if loan_2025_original != 0 else 15
+loan_growth_forecast_year_1_original = ((loan_forecast_year_1_original / loan_last_complete) - 1) * 100 if loan_last_complete != 0 else 15
+loan_growth_forecast_year_2_original = ((loan_forecast_year_2_original / loan_forecast_year_1_original) - 1) * 100 if loan_forecast_year_1_original != 0 else 15
 
-nii_2025_original = forecast_2025['IS.3'].values[0] if len(forecast_2025) > 0 else 0
-nii_2026_original = forecast_2026['IS.3'].values[0] if len(forecast_2026) > 0 else 0
+nii_forecast_1_original = forecast_1['IS.3'].values[0] if len(forecast_1) > 0 else 0
+nii_forecast_2_original = forecast_2['IS.3'].values[0] if len(forecast_2) > 0 else 0
+
+# Handle revert button - set all values to original forecast
+if revert_button:
+    # Set all the session state keys to original values
+    st.session_state[f"{ticker}_nim_{forecast_year_1}"] = nim_forecast_1_original
+    st.session_state[f"{ticker}_nim_{forecast_year_2}"] = nim_forecast_2_original
+    st.session_state[f"{ticker}_loan_growth_{forecast_year_1}"] = loan_growth_forecast_year_1_original
+    st.session_state[f"{ticker}_loan_growth_{forecast_year_2}"] = loan_growth_forecast_year_2_original
+    
+    # We'll add OPEX and Asset Quality values after they're calculated below
+    st.session_state['revert_needed'] = True
+    st.sidebar.success("Values will be reverted to defaults!")
 
 with col1:
-    st.markdown("**2025 Adjustments**")
-    nim_2025_new = st.number_input(
-        "NIM 2025 (%)", 
+    st.markdown(f"**{forecast_year_1} Adjustments**")
+    nim_forecast_year_1_new = st.number_input(
+        f"NIM {forecast_year_1} (%)", 
         min_value=0.0, 
         max_value=10.0, 
-        value=nim_2025_original,
+        value=nim_forecast_1_original,
         step=0.1,
-        key=f"{ticker}_nim_2025"
+        key=f"{ticker}_nim_{forecast_year_1}"
     )
-    loan_growth_2025_new = st.number_input(
-        "Loan Growth YoY 2025 (%)", 
+    loan_growth_forecast_year_1_new = st.number_input(
+        f"Loan Growth YoY {forecast_year_1} (%)", 
         min_value=-20.0, 
         max_value=50.0, 
-        value=loan_growth_2025_original,
+        value=loan_growth_forecast_year_1_original,
         step=1.0,
-        key=f"{ticker}_loan_growth_2025"
+        key=f"{ticker}_loan_growth_{forecast_year_1}"
     )
 
 with col2:
-    st.markdown("**2026 Adjustments**")
-    nim_2026_new = st.number_input(
-        "NIM 2026 (%)", 
+    st.markdown(f"**{forecast_year_2} Adjustments**")
+    nim_forecast_year_2_new = st.number_input(
+        f"NIM {forecast_year_2} (%)", 
         min_value=0.0, 
         max_value=10.0, 
-        value=nim_2026_original,
+        value=nim_forecast_2_original,
         step=0.1,
-        key=f"{ticker}_nim_2026"
+        key=f"{ticker}_nim_{forecast_year_2}"
     )
-    loan_growth_2026_new = st.number_input(
-        "Loan Growth YoY 2026 (%)", 
+    loan_growth_forecast_year_2_new = st.number_input(
+        f"Loan Growth YoY {forecast_year_2} (%)", 
         min_value=-20.0, 
         max_value=50.0, 
-        value=loan_growth_2026_original,
+        value=loan_growth_forecast_year_2_original,
         step=1.0,
-        key=f"{ticker}_loan_growth_2026"
+        key=f"{ticker}_loan_growth_{forecast_year_2}"
     )
 
 # Calculate PBT changes based on formula
 # Formula: Change in PBT = (Loan growth YoY CHANGE vs. old forecast /2) + (New NIM/ Old NIM - 1) * Current NII forecast
 
-# For 2025
-loan_growth_change_2025 = loan_growth_2025_new - loan_growth_2025_original
-nim_ratio_2025 = (nim_2025_new / nim_2025_original) if nim_2025_original != 0 else 1
-pbt_change_segment1_2025 = (loan_growth_change_2025 / 2) * (pbt_2025_original / 100) + (nim_ratio_2025 - 1) * nii_2025_original
+# For forecast_year_1
+loan_growth_change_forecast_year_1 = loan_growth_forecast_year_1_new - loan_growth_forecast_year_1_original
+nim_ratio_forecast_year_1 = (nim_forecast_year_1_new / nim_forecast_1_original) if nim_forecast_1_original != 0 else 1
+pbt_change_segment1_forecast_year_1 = (loan_growth_change_forecast_year_1 / 2) * (pbt_forecast_1_original / 100) + (nim_ratio_forecast_year_1 - 1) * nii_forecast_1_original
 
-# For 2026
-loan_growth_change_2026 = loan_growth_2026_new - loan_growth_2026_original
-nim_ratio_2026 = (nim_2026_new / nim_2026_original) if nim_2026_original != 0 else 1
-pbt_change_segment1_2026 = (loan_growth_change_2026 / 2) * (pbt_2026_original / 100) + (nim_ratio_2026 - 1) * nii_2026_original
+# For forecast_year_2
+loan_growth_change_forecast_year_2 = loan_growth_forecast_year_2_new - loan_growth_forecast_year_2_original
+nim_ratio_forecast_year_2 = (nim_forecast_year_2_new / nim_forecast_2_original) if nim_forecast_2_original != 0 else 1
+pbt_change_segment1_forecast_year_2 = (loan_growth_change_forecast_year_2 / 2) * (pbt_forecast_2_original / 100) + (nim_ratio_forecast_year_2 - 1) * nii_forecast_2_original
 
 # Store segment 1 changes for later use
-st.session_state[f'{ticker}_pbt_change_segment1_2025'] = pbt_change_segment1_2025
-st.session_state[f'{ticker}_pbt_change_segment1_2026'] = pbt_change_segment1_2026
+st.session_state[f'{ticker}_pbt_change_segment1_{forecast_year_1}'] = pbt_change_segment1_forecast_year_1
+st.session_state[f'{ticker}_pbt_change_segment1_{forecast_year_2}'] = pbt_change_segment1_forecast_year_2
 
 # Display impact analysis
 st.subheader("Impact Analysis")
 impact_col1, impact_col2 = st.columns(2)
 
 with impact_col1:
-    st.markdown("**2025 Impact**")
-    st.write(f"Loan Growth Change: {loan_growth_change_2025:.1f}%")
-    st.write(f"NIM Ratio: {nim_ratio_2025:.3f}")
-    st.write(f"PBT Change from Loan Growth: {(loan_growth_change_2025 / 2) * (pbt_2025_original / 100) / 1e12:.2f}T")
-    st.write(f"PBT Change from NIM: {(nim_ratio_2025 - 1) * nii_2025_original / 1e12:.2f}T")
-    st.write(f"**Total PBT Change: {pbt_change_segment1_2025 / 1e12:.2f}T**")
+    st.markdown(f"**{forecast_year_1} Impact**")
+    st.write(f"Loan Growth Change: {loan_growth_change_forecast_year_1:.1f}%")
+    st.write(f"NIM Ratio: {nim_ratio_forecast_year_1:.3f}")
+    st.write(f"PBT Change from Loan Growth: {(loan_growth_change_forecast_year_1 / 2) * (pbt_forecast_1_original / 100) / 1e12:.2f}T")
+    st.write(f"PBT Change from NIM: {(nim_ratio_forecast_year_1 - 1) * nii_forecast_1_original / 1e12:.2f}T")
+    st.write(f"**Total PBT Change: {pbt_change_segment1_forecast_year_1 / 1e12:.2f}T**")
 
 with impact_col2:
-    st.markdown("**2026 Impact**")
-    st.write(f"Loan Growth Change: {loan_growth_change_2026:.1f}%")
-    st.write(f"NIM Ratio: {nim_ratio_2026:.3f}")
-    st.write(f"PBT Change from Loan Growth: {(loan_growth_change_2026 / 2) * (pbt_2026_original / 100) / 1e12:.2f}T")
-    st.write(f"PBT Change from NIM: {(nim_ratio_2026 - 1) * nii_2026_original / 1e12:.2f}T")
-    st.write(f"**Total PBT Change: {pbt_change_segment1_2026 / 1e12:.2f}T**")
+    st.markdown(f"**{forecast_year_2} Impact**")
+    st.write(f"Loan Growth Change: {loan_growth_change_forecast_year_2:.1f}%")
+    st.write(f"NIM Ratio: {nim_ratio_forecast_year_2:.3f}")
+    st.write(f"PBT Change from Loan Growth: {(loan_growth_change_forecast_year_2 / 2) * (pbt_forecast_2_original / 100) / 1e12:.2f}T")
+    st.write(f"PBT Change from NIM: {(nim_ratio_forecast_year_2 - 1) * nii_forecast_2_original / 1e12:.2f}T")
+    st.write(f"**Total PBT Change: {pbt_change_segment1_forecast_year_2 / 1e12:.2f}T**")
 
 # Auto-update when inputs change (removed manual button since Streamlit auto-reruns on input change)
 
@@ -433,8 +460,8 @@ st.header("Segment 2: Operating Expenses (OPEX) Adjustment")
 def prepare_opex_table():
     data_rows = []
     
-    # Add 2023-2024 yearly data
-    for year in [2023, 2024]:
+    # Add last_complete_year-1-last_complete_year yearly data
+    for year in [last_complete_year-1, last_complete_year]:
         year_data = historical_data[historical_data['Year'] == year]
         if len(year_data) > 0:
             row = year_data.iloc[0]
@@ -448,8 +475,8 @@ def prepare_opex_table():
                 'CIR (%)': cir * 100
             })
     
-    # Add forecast data for 2025-2026
-    for year, forecast in [(2025, forecast_2025), (2026, forecast_2026)]:
+    # Add forecast data for forecast_year_1-forecast_year_2
+    for year, forecast in [(forecast_year_1, forecast_1), (forecast_year_2, forecast_2)]:
         if len(forecast) > 0:
             row = forecast.iloc[0]
             opex = row['IS.15'] if pd.notna(row['IS.15']) else 0
@@ -457,10 +484,10 @@ def prepare_opex_table():
             cir = row['CA.6'] if pd.notna(row['CA.6']) else (opex/toi if toi != 0 else 0)
             
             # Calculate YoY growth
-            if year == 2025:
-                opex_prev = historical_data[historical_data['Year'] == 2024]['IS.15'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else opex
-            else:  # 2026
-                opex_prev = forecast_2025['IS.15'].values[0] if len(forecast_2025) > 0 else opex
+            if year == forecast_year_1:
+                opex_prev = historical_data[historical_data['Year'] == last_complete_year]['IS.15'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else opex
+            else:  # forecast_year_2
+                opex_prev = forecast_1['IS.15'].values[0] if len(forecast_1) > 0 else opex
             
             opex_growth = ((opex / opex_prev) - 1) * 100 if opex_prev != 0 else 0
             
@@ -490,96 +517,101 @@ st.subheader("Adjust OPEX Growth")
 col1, col2 = st.columns(2)
 
 # Get original OPEX values
-opex_2024 = historical_data[historical_data['Year'] == 2024]['IS.15'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else 0
-opex_2025_original = forecast_2025['IS.15'].values[0] if len(forecast_2025) > 0 else opex_2024 * 1.1
-opex_2026_original = forecast_2026['IS.15'].values[0] if len(forecast_2026) > 0 else opex_2025_original * 1.1
+opex_last_complete_year = historical_data[historical_data['Year'] == last_complete_year]['IS.15'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else 0
+opex_forecast_year_1_original = forecast_1['IS.15'].values[0] if len(forecast_1) > 0 else opex_last_complete_year * 1.1
+opex_forecast_year_2_original = forecast_2['IS.15'].values[0] if len(forecast_2) > 0 else opex_forecast_year_1_original * 1.1
 
-opex_growth_2025_original = ((opex_2025_original / opex_2024) - 1) * 100 if opex_2024 != 0 else 10
-opex_growth_2026_original = ((opex_2026_original / opex_2025_original) - 1) * 100 if opex_2025_original != 0 else 10
+opex_growth_forecast_year_1_original = ((opex_forecast_year_1_original / opex_last_complete_year) - 1) * 100 if opex_last_complete_year != 0 else 10
+opex_growth_forecast_year_2_original = ((opex_forecast_year_2_original / opex_forecast_year_1_original) - 1) * 100 if opex_forecast_year_1_original != 0 else 10
 
 # Get original TOI values
-toi_2025_original = forecast_2025['IS.14'].values[0] if len(forecast_2025) > 0 else 0
-toi_2026_original = forecast_2026['IS.14'].values[0] if len(forecast_2026) > 0 else 0
+toi_forecast_year_1_original = forecast_1['IS.14'].values[0] if len(forecast_1) > 0 else 0
+toi_forecast_year_2_original = forecast_2['IS.14'].values[0] if len(forecast_2) > 0 else 0
+
+# Handle revert for OPEX if needed
+if st.session_state.get('revert_needed', False):
+    st.session_state[f"{ticker}_opex_growth_{forecast_year_1}"] = opex_growth_forecast_year_1_original
+    st.session_state[f"{ticker}_opex_growth_{forecast_year_2}"] = opex_growth_forecast_year_2_original
 
 with col1:
-    st.markdown("**2025 Adjustments**")
-    opex_growth_2025_new = st.number_input(
-        "OPEX Growth YoY 2025 (%)", 
+    st.markdown(f"**{forecast_year_1} Adjustments**")
+    opex_growth_forecast_year_1_new = st.number_input(
+        f"OPEX Growth YoY {forecast_year_1} (%)", 
         min_value=-30.0, 
         max_value=50.0, 
-        value=opex_growth_2025_original,
+        value=opex_growth_forecast_year_1_original,
         step=1.0,
-        key=f"{ticker}_opex_growth_2025"
+        key=f"{ticker}_opex_growth_{forecast_year_1}"
     )
 
 with col2:
-    st.markdown("**2026 Adjustments**")
-    opex_growth_2026_new = st.number_input(
-        "OPEX Growth YoY 2026 (%)", 
+    st.markdown(f"**{forecast_year_2} Adjustments**")
+    opex_growth_forecast_year_2_new = st.number_input(
+        f"OPEX Growth YoY {forecast_year_2} (%)", 
         min_value=-30.0, 
         max_value=50.0, 
-        value=opex_growth_2026_original,
+        value=opex_growth_forecast_year_2_original,
         step=1.0,
-        key=f"{ticker}_opex_growth_2026"
+        key=f"{ticker}_opex_growth_{forecast_year_2}"
     )
 
 # Calculate new OPEX values
-opex_2025_new = opex_2024 * (1 + opex_growth_2025_new / 100)
-opex_2026_new = opex_2025_new * (1 + opex_growth_2026_new / 100)
+opex_forecast_year_1_new = opex_last_complete_year * (1 + opex_growth_forecast_year_1_new / 100)
+opex_forecast_year_2_new = opex_forecast_year_1_new * (1 + opex_growth_forecast_year_2_new / 100)
 
 # Calculate OPEX changes
-opex_change_2025 = opex_2025_new - opex_2025_original
-opex_change_2026 = opex_2026_new - opex_2026_original
+opex_change_forecast_year_1 = opex_forecast_year_1_new - opex_forecast_year_1_original
+opex_change_forecast_year_2 = opex_forecast_year_2_new - opex_forecast_year_2_original
 
 # Calculate PBT changes from OPEX (OPEX is already negative in P&L)
-pbt_change_segment2_2025 = opex_change_2025
-pbt_change_segment2_2026 = opex_change_2026
+pbt_change_segment2_forecast_year_1 = opex_change_forecast_year_1
+pbt_change_segment2_forecast_year_2 = opex_change_forecast_year_2
 
 # Store segment 2 changes
-st.session_state[f'{ticker}_pbt_change_segment2_2025'] = pbt_change_segment2_2025
-st.session_state[f'{ticker}_pbt_change_segment2_2026'] = pbt_change_segment2_2026
+st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_1}'] = pbt_change_segment2_forecast_year_1
+st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_2}'] = pbt_change_segment2_forecast_year_2
 
 # Calculate new TOI (original TOI + PBT changes from Segment 1)
 # TOI = Revenue - COGS, and NII changes affect TOI
-toi_2025_new = toi_2025_original + st.session_state.get(f'{ticker}_pbt_change_segment1_2025', 0)
-toi_2026_new = toi_2026_original + st.session_state.get(f'{ticker}_pbt_change_segment1_2026', 0)
+toi_forecast_year_1_new = toi_forecast_year_1_original + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0)
+toi_forecast_year_2_new = toi_forecast_year_2_original + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0)
 
 # Calculate new CIR
-cir_2025_original = (opex_2025_original / toi_2025_original * 100) if toi_2025_original != 0 else 0
-cir_2026_original = (opex_2026_original / toi_2026_original * 100) if toi_2026_original != 0 else 0
+cir_forecast_year_1_original = (opex_forecast_year_1_original / toi_forecast_year_1_original * 100) if toi_forecast_year_1_original != 0 else 0
+cir_forecast_year_2_original = (opex_forecast_year_2_original / toi_forecast_year_2_original * 100) if toi_forecast_year_2_original != 0 else 0
 
-cir_2025_new = (opex_2025_new / toi_2025_new * 100) if toi_2025_new != 0 else 0
-cir_2026_new = (opex_2026_new / toi_2026_new * 100) if toi_2026_new != 0 else 0
+cir_forecast_year_1_new = (opex_forecast_year_1_new / toi_forecast_year_1_new * 100) if toi_forecast_year_1_new != 0 else 0
+cir_forecast_year_2_new = (opex_forecast_year_2_new / toi_forecast_year_2_new * 100) if toi_forecast_year_2_new != 0 else 0
 
 # Display CIR analysis
 st.subheader("CIR Impact Analysis")
 cir_col1, cir_col2 = st.columns(2)
 
 with cir_col1:
-    st.markdown("**2025 CIR Analysis**")
-    st.write(f"Original CIR: {cir_2025_original:.1f}%")
-    st.write(f"New CIR: {cir_2025_new:.1f}%")
-    st.write(f"CIR Change: {cir_2025_new - cir_2025_original:+.1f}pp")
+    st.markdown(f"**{forecast_year_1} CIR Analysis**")
+    st.write(f"Original CIR: {cir_forecast_year_1_original:.1f}%")
+    st.write(f"New CIR: {cir_forecast_year_1_new:.1f}%")
+    st.write(f"CIR Change: {cir_forecast_year_1_new - cir_forecast_year_1_original:+.1f}pp")
     st.write(f"")
-    st.write(f"OPEX Change: {opex_change_2025 / 1e12:.2f}T")
-    st.write(f"**PBT Impact: {pbt_change_segment2_2025 / 1e12:+.2f}T**")
+    st.write(f"OPEX Change: {opex_change_forecast_year_1 / 1e12:.2f}T")
+    st.write(f"**PBT Impact: {pbt_change_segment2_forecast_year_1 / 1e12:+.2f}T**")
 
 with cir_col2:
-    st.markdown("**2026 CIR Analysis**")
-    st.write(f"Original CIR: {cir_2026_original:.1f}%")
-    st.write(f"New CIR: {cir_2026_new:.1f}%")
-    st.write(f"CIR Change: {cir_2026_new - cir_2026_original:+.1f}pp")
+    st.markdown(f"**{forecast_year_2} CIR Analysis**")
+    st.write(f"Original CIR: {cir_forecast_year_2_original:.1f}%")
+    st.write(f"New CIR: {cir_forecast_year_2_new:.1f}%")
+    st.write(f"CIR Change: {cir_forecast_year_2_new - cir_forecast_year_2_original:+.1f}pp")
     st.write(f"")
-    st.write(f"OPEX Change: {opex_change_2026 / 1e12:.2f}T")
-    st.write(f"**PBT Impact: {pbt_change_segment2_2026 / 1e12:+.2f}T**")
+    st.write(f"OPEX Change: {opex_change_forecast_year_2 / 1e12:.2f}T")
+    st.write(f"**PBT Impact: {pbt_change_segment2_forecast_year_2 / 1e12:+.2f}T**")
 
 # Calculate total PBT changes (Segment 1 + Segment 2)
-pbt_change_total_2025 = st.session_state.get(f'{ticker}_pbt_change_segment1_2025', 0) + pbt_change_segment2_2025
-pbt_change_total_2026 = st.session_state.get(f'{ticker}_pbt_change_segment1_2026', 0) + pbt_change_segment2_2026
+pbt_change_total_forecast_year_1 = st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0) + pbt_change_segment2_forecast_year_1
+pbt_change_total_forecast_year_2 = st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0) + pbt_change_segment2_forecast_year_2
 
 # Update session state with total adjusted PBT
-st.session_state[f'{ticker}_pbt_2025_adjusted'] = pbt_2025_original + pbt_change_total_2025
-st.session_state[f'{ticker}_pbt_2026_adjusted'] = pbt_2026_original + pbt_change_total_2026
+st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] = pbt_forecast_1_original + pbt_change_total_forecast_year_1
+st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] = pbt_forecast_2_original + pbt_change_total_forecast_year_2
 
 st.markdown("---")
 
@@ -590,14 +622,14 @@ st.header("Segment 3: Asset Quality Assumptions")
 def prepare_asset_quality_table():
     data_rows = []
     
-    # Add 2023-2024 yearly data
-    for year in [2023, 2024]:
+    # Add last_complete_year-1-last_complete_year yearly data
+    for year in [last_complete_year-1, last_complete_year]:
         year_data = historical_data[historical_data['Year'] == year]
         if len(year_data) > 0:
             row = year_data.iloc[0]
             loan = row['BS.12'] if 'BS.12' in row and pd.notna(row['BS.12']) else row['BS.13']
             npl = row['CA.3'] if pd.notna(row['CA.3']) else 0
-            npl_formation = row['CA.23'] if pd.notna(row['CA.23']) else 0
+            npl_formation = abs(row['CA.23']) if pd.notna(row['CA.23']) else 0
             bs14 = row['BS.14'] if pd.notna(row['BS.14']) else 0
             npl_coverage = (-bs14 / (npl * loan) * 100) if (npl * loan) != 0 else 0
             provision_expense = row['IS.17'] if pd.notna(row['IS.17']) else 0
@@ -610,13 +642,13 @@ def prepare_asset_quality_table():
                 'Provision Expense': provision_expense / 1e12
             })
     
-    # Add forecast data for 2025-2026
-    for year, forecast in [(2025, forecast_2025), (2026, forecast_2026)]:
+    # Add forecast data for forecast_year_1-forecast_year_2
+    for year, forecast in [(forecast_year_1, forecast_1), (forecast_year_2, forecast_2)]:
         if len(forecast) > 0:
             row = forecast.iloc[0]
             loan = row['BS.12'] if 'BS.12' in row and pd.notna(row['BS.12']) else row['BS.13']
             npl = row['CA.3'] if pd.notna(row['CA.3']) else 0
-            npl_formation = row['CA.23'] if pd.notna(row['CA.23']) else 0
+            npl_formation = abs(row['CA.23']) if pd.notna(row['CA.23']) else 0
             bs14 = row['BS.14'] if pd.notna(row['BS.14']) else 0
             npl_coverage = (-bs14 / (npl * loan) * 100) if (npl * loan) != 0 else 0
             provision_expense = row['IS.17'] if pd.notna(row['IS.17']) else 0
@@ -647,171 +679,185 @@ st.subheader("Adjust Asset Quality Assumptions")
 col1, col2 = st.columns(2)
 
 # Get original values
-npl_2025_original = forecast_2025['CA.3'].values[0] * 100 if len(forecast_2025) > 0 else 1.5
-npl_2026_original = forecast_2026['CA.3'].values[0] * 100 if len(forecast_2026) > 0 else 1.5
+npl_forecast_year_1_original = forecast_1['CA.3'].values[0] * 100 if len(forecast_1) > 0 else 1.5
+npl_forecast_year_2_original = forecast_2['CA.3'].values[0] * 100 if len(forecast_2) > 0 else 1.5
 
-npl_formation_2025_original = forecast_2025['CA.23'].values[0] * 100 if len(forecast_2025) > 0 else 0.5
-npl_formation_2026_original = forecast_2026['CA.23'].values[0] * 100 if len(forecast_2026) > 0 else 0.5
+# NPL formation in data is negative, convert to positive for display/input
+npl_formation_forecast_year_1_original = abs(forecast_1['CA.23'].values[0] * 100) if len(forecast_1) > 0 else 0.5
+npl_formation_forecast_year_2_original = abs(forecast_2['CA.23'].values[0] * 100) if len(forecast_2) > 0 else 0.5
 
 # Calculate original NPL coverage
-loan_2025_forecast = forecast_2025['BS.12'].values[0] if len(forecast_2025) > 0 else 0
-if pd.isna(loan_2025_forecast):
-    loan_2025_forecast = forecast_2025['BS.13'].values[0] if len(forecast_2025) > 0 else 0
+loan_forecast_year_1_forecast = forecast_1['BS.12'].values[0] if len(forecast_1) > 0 else 0
+if pd.isna(loan_forecast_year_1_forecast):
+    loan_forecast_year_1_forecast = forecast_1['BS.13'].values[0] if len(forecast_1) > 0 else 0
 
-loan_2026_forecast = forecast_2026['BS.12'].values[0] if len(forecast_2026) > 0 else 0
-if pd.isna(loan_2026_forecast):
-    loan_2026_forecast = forecast_2026['BS.13'].values[0] if len(forecast_2026) > 0 else 0
+loan_forecast_year_2_forecast = forecast_2['BS.12'].values[0] if len(forecast_2) > 0 else 0
+if pd.isna(loan_forecast_year_2_forecast):
+    loan_forecast_year_2_forecast = forecast_2['BS.13'].values[0] if len(forecast_2) > 0 else 0
 
-bs14_2025 = forecast_2025['BS.14'].values[0] if len(forecast_2025) > 0 else 0
-bs14_2026 = forecast_2026['BS.14'].values[0] if len(forecast_2026) > 0 else 0
+bs14_forecast_year_1 = forecast_1['BS.14'].values[0] if len(forecast_1) > 0 else 0
+bs14_forecast_year_2 = forecast_2['BS.14'].values[0] if len(forecast_2) > 0 else 0
 
-npl_coverage_2025_original = (-bs14_2025 / (npl_2025_original/100 * loan_2025_forecast) * 100) if (npl_2025_original * loan_2025_forecast) != 0 else 100
-npl_coverage_2026_original = (-bs14_2026 / (npl_2026_original/100 * loan_2026_forecast) * 100) if (npl_2026_original * loan_2026_forecast) != 0 else 100
+npl_coverage_forecast_year_1_original = (-bs14_forecast_year_1 / (npl_forecast_year_1_original/100 * loan_forecast_year_1_forecast) * 100) if (npl_forecast_year_1_original * loan_forecast_year_1_forecast) != 0 else 100
+npl_coverage_forecast_year_2_original = (-bs14_forecast_year_2 / (npl_forecast_year_2_original/100 * loan_forecast_year_2_forecast) * 100) if (npl_forecast_year_2_original * loan_forecast_year_2_forecast) != 0 else 100
+
+# Handle revert for Asset Quality if needed
+if st.session_state.get('revert_needed', False):
+    st.session_state[f"{ticker}_npl_{forecast_year_1}"] = npl_forecast_year_1_original
+    st.session_state[f"{ticker}_npl_{forecast_year_2}"] = npl_forecast_year_2_original
+    st.session_state[f"{ticker}_npl_formation_{forecast_year_1}"] = npl_formation_forecast_year_1_original
+    st.session_state[f"{ticker}_npl_formation_{forecast_year_2}"] = npl_formation_forecast_year_2_original
+    st.session_state[f"{ticker}_npl_coverage_{forecast_year_1}"] = npl_coverage_forecast_year_1_original
+    st.session_state[f"{ticker}_npl_coverage_{forecast_year_2}"] = npl_coverage_forecast_year_2_original
+    
+    # Clear the revert flag and rerun
+    del st.session_state['revert_needed']
+    st.rerun()
 
 with col1:
-    st.markdown("**2025 Adjustments**")
-    npl_2025_new = st.number_input(
-        "NPL 2025 (%)", 
+    st.markdown(f"**{forecast_year_1} Adjustments**")
+    npl_forecast_year_1_new = st.number_input(
+        f"NPL {forecast_year_1} (%)", 
         min_value=0.0, 
         max_value=10.0, 
-        value=npl_2025_original,
+        value=npl_forecast_year_1_original,
         step=0.1,
-        key=f"{ticker}_npl_2025"
+        key=f"{ticker}_npl_{forecast_year_1}"
     )
-    npl_formation_2025_new = st.number_input(
-        "NPL Formation 2025 (%)", 
+    npl_formation_forecast_year_1_new = st.number_input(
+        f"NPL Formation {forecast_year_1} (%)", 
         min_value=0.0, 
         max_value=5.0, 
-        value=npl_formation_2025_original,
+        value=npl_formation_forecast_year_1_original,
         step=0.1,
-        key=f"{ticker}_npl_formation_2025"
+        key=f"{ticker}_npl_formation_{forecast_year_1}"
     )
-    npl_coverage_2025_new = st.number_input(
-        "NPL Coverage 2025 (%)", 
+    npl_coverage_forecast_year_1_new = st.number_input(
+        f"NPL Coverage {forecast_year_1} (%)", 
         min_value=0.0, 
         max_value=200.0, 
-        value=npl_coverage_2025_original,
+        value=npl_coverage_forecast_year_1_original,
         step=1.0,
-        key=f"{ticker}_npl_coverage_2025"
+        key=f"{ticker}_npl_coverage_{forecast_year_1}"
     )
 
 with col2:
-    st.markdown("**2026 Adjustments**")
-    npl_2026_new = st.number_input(
-        "NPL 2026 (%)", 
+    st.markdown(f"**{forecast_year_2} Adjustments**")
+    npl_forecast_year_2_new = st.number_input(
+        f"NPL {forecast_year_2} (%)", 
         min_value=0.0, 
         max_value=10.0, 
-        value=npl_2026_original,
+        value=npl_forecast_year_2_original,
         step=0.1,
-        key=f"{ticker}_npl_2026"
+        key=f"{ticker}_npl_{forecast_year_2}"
     )
-    npl_formation_2026_new = st.number_input(
-        "NPL Formation 2026 (%)", 
+    npl_formation_forecast_year_2_new = st.number_input(
+        f"NPL Formation {forecast_year_2} (%)", 
         min_value=0.0, 
         max_value=5.0, 
-        value=npl_formation_2026_original,
+        value=npl_formation_forecast_year_2_original,
         step=0.1,
-        key=f"{ticker}_npl_formation_2026"
+        key=f"{ticker}_npl_formation_{forecast_year_2}"
     )
-    npl_coverage_2026_new = st.number_input(
-        "NPL Coverage 2026 (%)", 
+    npl_coverage_forecast_year_2_new = st.number_input(
+        f"NPL Coverage {forecast_year_2} (%)", 
         min_value=0.0, 
         max_value=200.0, 
-        value=npl_coverage_2026_original,
+        value=npl_coverage_forecast_year_2_original,
         step=1.0,
-        key=f"{ticker}_npl_coverage_2026"
+        key=f"{ticker}_npl_coverage_{forecast_year_2}"
     )
 
 # Get loan values from Segment 1 (adjusted for loan growth)
-loan_2024_value = loan_2024  # From segment 1
-loan_2025_new = loan_2024_value * (1 + loan_growth_2025_new / 100)
-loan_2026_new = loan_2025_new * (1 + loan_growth_2026_new / 100)
+loan_last_complete_value = loan_last_complete  # From segment 1
+loan_forecast_year_1_new = loan_last_complete_value * (1 + loan_growth_forecast_year_1_new / 100)
+loan_forecast_year_2_new = loan_forecast_year_1_new * (1 + loan_growth_forecast_year_2_new / 100)
 
 # Get previous year values
-bs14_2024 = historical_data[historical_data['Year'] == 2024]['BS.14'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else 0
-npl_2024 = historical_data[historical_data['Year'] == 2024]['CA.3'].values[0] if len(historical_data[historical_data['Year'] == 2024]) > 0 else 0.015
+bs14_last_complete_year = historical_data[historical_data['Year'] == last_complete_year]['BS.14'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else 0
+npl_last_complete_year = historical_data[historical_data['Year'] == last_complete_year]['CA.3'].values[0] if len(historical_data[historical_data['Year'] == last_complete_year]) > 0 else 0.015
 
 # Calculate new provision expense using the formula
 # Step 1: Calculate Absolute NPL
-npl_absolute_2024 = npl_2024 * loan_2024_value
-npl_absolute_2025_new = (npl_2025_new / 100) * loan_2025_new
-npl_absolute_2026_new = (npl_2026_new / 100) * loan_2026_new
+npl_absolute_last_complete_year = npl_last_complete_year * loan_last_complete_value
+npl_absolute_forecast_year_1_new = (npl_forecast_year_1_new / 100) * loan_forecast_year_1_new
+npl_absolute_forecast_year_2_new = (npl_forecast_year_2_new / 100) * loan_forecast_year_2_new
 
-npl_absolute_2025_original = (npl_2025_original / 100) * loan_2025_forecast
-npl_absolute_2026_original = (npl_2026_original / 100) * loan_2026_forecast
+npl_absolute_forecast_year_1_original = (npl_forecast_year_1_original / 100) * loan_forecast_year_1_forecast
+npl_absolute_forecast_year_2_original = (npl_forecast_year_2_original / 100) * loan_forecast_year_2_forecast
 
 # Step 2: Calculate Absolute NPL Formation
-npl_formation_absolute_2025_new = (npl_formation_2025_new / 100) * loan_2024_value
-npl_formation_absolute_2026_new = (npl_formation_2026_new / 100) * loan_2025_new
+npl_formation_absolute_forecast_year_1_new = (npl_formation_forecast_year_1_new / 100) * loan_last_complete_value
+npl_formation_absolute_forecast_year_2_new = (npl_formation_forecast_year_2_new / 100) * loan_forecast_year_1_new
 
-npl_formation_absolute_2025_original = (npl_formation_2025_original / 100) * loan_2024_value
-npl_formation_absolute_2026_original = (npl_formation_2026_original / 100) * loan_2025_forecast
+npl_formation_absolute_forecast_year_1_original = (npl_formation_forecast_year_1_original / 100) * loan_last_complete_value
+npl_formation_absolute_forecast_year_2_original = (npl_formation_forecast_year_2_original / 100) * loan_forecast_year_1_forecast
 
 # Step 3: Calculate Provision absolute value
-provision_2024 = -bs14_2024  # BS.14 is negative, so negate it
-provision_2025_new = (npl_coverage_2025_new / 100) * npl_absolute_2025_new
-provision_2026_new = (npl_coverage_2026_new / 100) * npl_absolute_2026_new
+provision_last_complete_year = -bs14_last_complete_year  # BS.14 is negative, so negate it
+provision_forecast_year_1_new = (npl_coverage_forecast_year_1_new / 100) * npl_absolute_forecast_year_1_new
+provision_forecast_year_2_new = (npl_coverage_forecast_year_2_new / 100) * npl_absolute_forecast_year_2_new
 
-provision_2025_original = (npl_coverage_2025_original / 100) * npl_absolute_2025_original
-provision_2026_original = (npl_coverage_2026_original / 100) * npl_absolute_2026_original
+provision_forecast_year_1_original = (npl_coverage_forecast_year_1_original / 100) * npl_absolute_forecast_year_1_original
+provision_forecast_year_2_original = (npl_coverage_forecast_year_2_original / 100) * npl_absolute_forecast_year_2_original
 
 # Step 4: Calculate New Provision Expense
 # Formula: (NPL_abs - NPL_abs(t-1)) + NPL_formation_abs + (Provision(t-1) - Provision)
-provision_expense_2025_new = (npl_absolute_2025_new - npl_absolute_2024) + npl_formation_absolute_2025_new + (provision_2024 - provision_2025_new)
-provision_expense_2026_new = (npl_absolute_2026_new - npl_absolute_2025_new) + npl_formation_absolute_2026_new + (provision_2025_new - provision_2026_new)
+provision_expense_forecast_year_1_new = -((npl_absolute_forecast_year_1_new - npl_absolute_last_complete_year) + npl_formation_absolute_forecast_year_1_new + (provision_forecast_year_1_new - provision_last_complete_year))
+provision_expense_forecast_year_2_new = -((npl_absolute_forecast_year_2_new - npl_absolute_forecast_year_1_new) + npl_formation_absolute_forecast_year_2_new + (provision_forecast_year_2_new - provision_forecast_year_1_new))
 
-provision_expense_2025_original = forecast_2025['IS.17'].values[0] if len(forecast_2025) > 0 else 0
-provision_expense_2026_original = forecast_2026['IS.17'].values[0] if len(forecast_2026) > 0 else 0
+provision_expense_forecast_year_1_original = forecast_1['IS.17'].values[0] if len(forecast_1) > 0 else 0
+provision_expense_forecast_year_2_original = forecast_2['IS.17'].values[0] if len(forecast_2) > 0 else 0
 
 # Calculate changes in provision expense
-provision_change_2025 = provision_expense_2025_new - provision_expense_2025_original
-provision_change_2026 = provision_expense_2026_new - provision_expense_2026_original
+provision_change_forecast_year_1 = provision_expense_forecast_year_1_new - provision_expense_forecast_year_1_original
+provision_change_forecast_year_2 = provision_expense_forecast_year_2_new - provision_expense_forecast_year_2_original
 
 # Calculate PBT changes from provision expense
-pbt_change_segment3_2025 = provision_change_2025
-pbt_change_segment3_2026 = provision_change_2026
+pbt_change_segment3_forecast_year_1 = provision_change_forecast_year_1
+pbt_change_segment3_forecast_year_2 = provision_change_forecast_year_2
 
 # Store segment 3 changes
-st.session_state[f'{ticker}_pbt_change_segment3_2025'] = pbt_change_segment3_2025
-st.session_state[f'{ticker}_pbt_change_segment3_2026'] = pbt_change_segment3_2026
+st.session_state[f'{ticker}_pbt_change_segment3_{forecast_year_1}'] = pbt_change_segment3_forecast_year_1
+st.session_state[f'{ticker}_pbt_change_segment3_{forecast_year_2}'] = pbt_change_segment3_forecast_year_2
 
 # Display Provision Analysis
 st.subheader("Provision Expense Impact Analysis")
 prov_col1, prov_col2 = st.columns(2)
 
 with prov_col1:
-    st.markdown("**2025 Provision Analysis**")
-    st.write(f"NPL Change: {npl_2025_new - npl_2025_original:+.2f}pp")
-    st.write(f"NPL Coverage Change: {npl_coverage_2025_new - npl_coverage_2025_original:+.1f}pp")
+    st.markdown(f"**{forecast_year_1} Provision Analysis**")
+    st.write(f"NPL Change: {npl_forecast_year_1_new - npl_forecast_year_1_original:+.2f}pp")
+    st.write(f"NPL Coverage Change: {npl_coverage_forecast_year_1_new - npl_coverage_forecast_year_1_original:+.1f}pp")
     st.write(f"")
-    st.write(f"Original Provision Expense: {provision_expense_2025_original / 1e12:.2f}T")
-    st.write(f"New Provision Expense: {provision_expense_2025_new / 1e12:.2f}T")
-    st.write(f"**PBT Impact: {pbt_change_segment3_2025 / 1e12:+.2f}T**")
+    st.write(f"Original Provision Expense: {provision_expense_forecast_year_1_original / 1e12:.2f}T")
+    st.write(f"New Provision Expense: {provision_expense_forecast_year_1_new / 1e12:.2f}T")
+    st.write(f"**PBT Impact: {pbt_change_segment3_forecast_year_1 / 1e12:+.2f}T**")
 
 with prov_col2:
-    st.markdown("**2026 Provision Analysis**")
-    st.write(f"NPL Change: {npl_2026_new - npl_2026_original:+.2f}pp")
-    st.write(f"NPL Coverage Change: {npl_coverage_2026_new - npl_coverage_2026_original:+.1f}pp")
+    st.markdown(f"**{forecast_year_2} Provision Analysis**")
+    st.write(f"NPL Change: {npl_forecast_year_2_new - npl_forecast_year_2_original:+.2f}pp")
+    st.write(f"NPL Coverage Change: {npl_coverage_forecast_year_2_new - npl_coverage_forecast_year_2_original:+.1f}pp")
     st.write(f"")
-    st.write(f"Original Provision Expense: {provision_expense_2026_original / 1e12:.2f}T")
-    st.write(f"New Provision Expense: {provision_expense_2026_new / 1e12:.2f}T")
-    st.write(f"**PBT Impact: {pbt_change_segment3_2026 / 1e12:+.2f}T**")
+    st.write(f"Original Provision Expense: {provision_expense_forecast_year_2_original / 1e12:.2f}T")
+    st.write(f"New Provision Expense: {provision_expense_forecast_year_2_new / 1e12:.2f}T")
+    st.write(f"**PBT Impact: {pbt_change_segment3_forecast_year_2 / 1e12:+.2f}T**")
 
 # Calculate total PBT changes (Segment 1 + Segment 2 + Segment 3)
-pbt_change_total_2025 = (
-    st.session_state.get(f'{ticker}_pbt_change_segment1_2025', 0) + 
-    st.session_state.get(f'{ticker}_pbt_change_segment2_2025', 0) + 
-    pbt_change_segment3_2025
+pbt_change_total_forecast_year_1 = (
+    st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0) + 
+    st.session_state.get(f'{ticker}_pbt_change_segment2_{forecast_year_1}', 0) + 
+    pbt_change_segment3_forecast_year_1
 )
-pbt_change_total_2026 = (
-    st.session_state.get(f'{ticker}_pbt_change_segment1_2026', 0) + 
-    st.session_state.get(f'{ticker}_pbt_change_segment2_2026', 0) + 
-    pbt_change_segment3_2026
+pbt_change_total_forecast_year_2 = (
+    st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0) + 
+    st.session_state.get(f'{ticker}_pbt_change_segment2_{forecast_year_2}', 0) + 
+    pbt_change_segment3_forecast_year_2
 )
 
 # Update session state with total adjusted PBT
-st.session_state[f'{ticker}_pbt_2025_adjusted'] = pbt_2025_original + pbt_change_total_2025
-st.session_state[f'{ticker}_pbt_2026_adjusted'] = pbt_2026_original + pbt_change_total_2026
+st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] = pbt_forecast_1_original + pbt_change_total_forecast_year_1
+st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] = pbt_forecast_2_original + pbt_change_total_forecast_year_2
 
 st.markdown("---")
 
@@ -820,17 +866,17 @@ st.header("Summary of PBT Impact")
 summary_col1, summary_col2 = st.columns(2)
 
 with summary_col1:
-    st.markdown("**2025 PBT Breakdown**")
-    st.write(f"Original PBT: {pbt_2025_original / 1e12:.2f}T")
-    st.write(f"Segment 1 (NII) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment1_2025', 0) / 1e12:+.2f}T")
-    st.write(f"Segment 2 (OPEX) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment2_2025', 0) / 1e12:+.2f}T")
-    st.write(f"Segment 3 (Provision) Impact: {pbt_change_segment3_2025 / 1e12:+.2f}T")
-    st.write(f"**Adjusted PBT: {st.session_state[f'{ticker}_pbt_2025_adjusted'] / 1e12:.2f}T**")
+    st.markdown(f"**{forecast_year_1} PBT Breakdown**")
+    st.write(f"Original PBT: {pbt_forecast_1_original / 1e12:.2f}T")
+    st.write(f"Segment 1 (NII) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0) / 1e12:+.2f}T")
+    st.write(f"Segment 2 (OPEX) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment2_{forecast_year_1}', 0) / 1e12:+.2f}T")
+    st.write(f"Segment 3 (Provision) Impact: {pbt_change_segment3_forecast_year_1 / 1e12:+.2f}T")
+    st.write(f"**Adjusted PBT: {st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] / 1e12:.2f}T**")
 
 with summary_col2:
-    st.markdown("**2026 PBT Breakdown**")
-    st.write(f"Original PBT: {pbt_2026_original / 1e12:.2f}T")
-    st.write(f"Segment 1 (NII) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment1_2026', 0) / 1e12:+.2f}T")
-    st.write(f"Segment 2 (OPEX) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment2_2026', 0) / 1e12:+.2f}T")
-    st.write(f"Segment 3 (Provision) Impact: {pbt_change_segment3_2026 / 1e12:+.2f}T")
-    st.write(f"**Adjusted PBT: {st.session_state[f'{ticker}_pbt_2026_adjusted'] / 1e12:.2f}T**")
+    st.markdown(f"**{forecast_year_2} PBT Breakdown**")
+    st.write(f"Original PBT: {pbt_forecast_2_original / 1e12:.2f}T")
+    st.write(f"Segment 1 (NII) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0) / 1e12:+.2f}T")
+    st.write(f"Segment 2 (OPEX) Impact: {st.session_state.get(f'{ticker}_pbt_change_segment2_{forecast_year_2}', 0) / 1e12:+.2f}T")
+    st.write(f"Segment 3 (Provision) Impact: {pbt_change_segment3_forecast_year_2 / 1e12:+.2f}T")
+    st.write(f"**Adjusted PBT: {st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] / 1e12:.2f}T**")
