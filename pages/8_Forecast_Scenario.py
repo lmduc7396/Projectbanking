@@ -799,8 +799,8 @@ write_off_forecast_year_2 = forecast_2['Nt.220'].values[0] if len(forecast_2) > 
 
 # Formula: Provision_expense = Change_in_NPL + NPL_formation - write_offs + Change_in_provision_balance
 # Since write-offs are negative, we subtract them (which adds their absolute value)
-provision_expense_forecast_year_1_new = -((npl_absolute_forecast_year_1_new - npl_absolute_last_complete_year) + npl_formation_absolute_forecast_year_1_new - write_off_forecast_year_1 + (provision_forecast_year_1_new - provision_last_complete_year))
-provision_expense_forecast_year_2_new = -((npl_absolute_forecast_year_2_new - npl_absolute_forecast_year_1_new) + npl_formation_absolute_forecast_year_2_new - write_off_forecast_year_2 + (provision_forecast_year_2_new - provision_forecast_year_1_new))
+provision_expense_forecast_year_1_new = -(-(npl_absolute_forecast_year_1_new - npl_absolute_last_complete_year) + npl_formation_absolute_forecast_year_1_new + (provision_forecast_year_1_new - provision_last_complete_year))
+provision_expense_forecast_year_2_new = -(-(npl_absolute_forecast_year_2_new - npl_absolute_forecast_year_1_new) + npl_formation_absolute_forecast_year_2_new + (provision_forecast_year_2_new - provision_forecast_year_1_new))
 
 provision_expense_forecast_year_1_original = forecast_1['IS.17'].values[0] if len(forecast_1) > 0 else 0
 provision_expense_forecast_year_2_original = forecast_2['IS.17'].values[0] if len(forecast_2) > 0 else 0
