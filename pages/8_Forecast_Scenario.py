@@ -158,7 +158,7 @@ st.markdown("""
 st.title("Forecast Scenario Analysis")
 
 # Load data
-@st.cache_data
+@st.cache_data(ttl=1)  # Set TTL to 1 second to force refresh
 def load_data():
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
