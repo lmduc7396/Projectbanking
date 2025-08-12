@@ -142,16 +142,14 @@ def Stock_price_plot(ticker: str):
         # Add candlestick chart using continuous index
         fig.add_trace(
             go.Candlestick(
-                x=df['x_index'],  # Use continuous index
-                open=df['open'],
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
+                x=df['x_index'].tolist(),  # Convert to list
+                open=df['open'].tolist(),
+                high=df['high'].tolist(),
+                low=df['low'].tolist(),
+                close=df['close'].tolist(),
                 name='Price',
                 increasing_line_color='green',
-                decreasing_line_color='red',
-                text=df['date_str'],  # Date for hover
-                hovertemplate='Date: %{text}<br>Open: %{open:,.0f}<br>High: %{high:,.0f}<br>Low: %{low:,.0f}<br>Close: %{close:,.0f}<extra></extra>'
+                decreasing_line_color='red'
             ),
             row=1, col=1
         )
@@ -159,12 +157,12 @@ def Stock_price_plot(ticker: str):
         # Add MA10 line (dashed)
         fig.add_trace(
             go.Scatter(
-                x=df['x_index'],  # Use continuous index
-                y=df['MA10'],
+                x=df['x_index'].tolist(),  # Convert to list
+                y=df['MA10'].tolist(),
                 name='MA10',
                 line=dict(color='blue', width=1, dash='dash'),
-                text=df['date_str'],
-                hovertemplate='Date: %{text}<br>MA10: %{y:,.0f}<extra></extra>'
+                mode='lines',
+                hovertemplate='MA10: %{y:,.0f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -172,12 +170,12 @@ def Stock_price_plot(ticker: str):
         # Add MA50 line (dashed)
         fig.add_trace(
             go.Scatter(
-                x=df['x_index'],  # Use continuous index
-                y=df['MA50'],
+                x=df['x_index'].tolist(),  # Convert to list
+                y=df['MA50'].tolist(),
                 name='MA50',
                 line=dict(color='orange', width=1, dash='dash'),
-                text=df['date_str'],
-                hovertemplate='Date: %{text}<br>MA50: %{y:,.0f}<extra></extra>'
+                mode='lines',
+                hovertemplate='MA50: %{y:,.0f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -188,13 +186,12 @@ def Stock_price_plot(ticker: str):
         
         fig.add_trace(
             go.Bar(
-                x=df['x_index'],  # Use continuous index
-                y=df['volume'],
+                x=df['x_index'].tolist(),  # Convert to list
+                y=df['volume'].tolist(),
                 name='Volume',
                 marker_color=colors,
                 showlegend=False,
-                text=df['date_str'],
-                hovertemplate='Date: %{text}<br>Volume: %{y:,.0f}<extra></extra>'
+                hovertemplate='Volume: %{y:,.0f}<extra></extra>'
             ),
             row=2, col=1
         )
