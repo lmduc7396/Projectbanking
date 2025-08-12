@@ -256,11 +256,22 @@ if has_forecast:
         
         return solved_values
 
-    #%% Create forecast structure for future years
-    print("Creating forecast structure for 2025 and 2026...")
+    #%% Dynamically determine forecast years based on most recent full year data
+    # Find the most recent year with full year (LENGTHREPORT=5) data
+    years_with_full_data = dfcompaniesyear['Date_Quarter'].astype(int).unique()
+    years_with_full_data = sorted(years_with_full_data)
+    most_recent_full_year = years_with_full_data[-1] if years_with_full_data else 2024
     
-    # Get the structure from 2024 data to use as template
-    template_year = dfcompaniesyear[dfcompaniesyear['Date_Quarter'] == '2024'].copy()
+    # Calculate forecast years as +1 and +2 from most recent full year
+    forecast_year_1 = most_recent_full_year + 1
+    forecast_year_2 = most_recent_full_year + 2
+    forecast_years = [forecast_year_1, forecast_year_2]
+    
+    print(f"Most recent full year data: {most_recent_full_year}")
+    print(f"Creating forecast structure for {forecast_year_1} and {forecast_year_2}...")
+    
+    # Get the structure from most recent full year data to use as template
+    template_year = dfcompaniesyear[dfcompaniesyear['Date_Quarter'] == str(most_recent_full_year)].copy()
     
     # Get unique tickers from forecast data
     forecast_tickers = forecast_bank['TICKER'].unique()
@@ -268,7 +279,7 @@ if has_forecast:
     # Initialize list to hold forecast rows
     forecast_rows = []
     
-    for year in [2025, 2026]:
+    for year in forecast_years:
         print(f"\nProcessing year {year}...")
         
         # Get forecast data for this year
@@ -283,9 +294,9 @@ if has_forecast:
             
             print(f"  Processing {ticker} for {year}...")
             
-            # Try to find template from 2024 or create new
+            # Try to find template from most recent full year or create new
             if ticker in template_year['TICKER'].values:
-                # Use 2024 as template
+                # Use most recent full year as template
                 new_row = template_year[template_year['TICKER'] == ticker].iloc[0].copy()
             else:
                 # Create new row with default structure
@@ -385,7 +396,7 @@ if has_forecast:
             year = dfcompaniesyear.loc[idx, 'Date_Quarter']
             
             # Only calculate for forecast years
-            if year in ['2025', '2026']:
+            if year in [str(forecast_year_1), str(forecast_year_2)]:
                 # Get current values
                 bs14_current = dfcompaniesyear.loc[idx, 'BS.14']
                 is17 = dfcompaniesyear.loc[idx, 'IS.17']
@@ -409,7 +420,7 @@ if has_forecast:
     print("Calculating sector aggregates for forecast years...")
     
     # Filter forecast data only (now includes calculated Nt.220)
-    forecast_only = dfcompaniesyear[dfcompaniesyear['Date_Quarter'].isin(['2025', '2026'])]
+    forecast_only = dfcompaniesyear[dfcompaniesyear['Date_Quarter'].isin([str(forecast_year_1), str(forecast_year_2)])]
     
     # Recalculate aggregates to include Nt.220
     dfsectoryear_forecast = forecast_only.groupby('Date_Quarter', as_index=False).agg(agg_dict)
@@ -619,17 +630,17 @@ print(f"  - dfsectorquarter.csv: {len(dfsectorquarter)} rows")
 if has_forecast:
     # Convert Year to int for comparison
     dfsectoryear['Year'] = dfsectoryear['Year'].astype(int)
-    historical_rows = len(dfsectoryear[~dfsectoryear['Year'].isin([2025, 2026])])
-    forecast_rows = len(dfsectoryear[dfsectoryear['Year'].isin([2025, 2026])])
+    historical_rows = len(dfsectoryear[~dfsectoryear['Year'].isin([forecast_year_1, forecast_year_2])])
+    forecast_rows_count = len(dfsectoryear[dfsectoryear['Year'].isin([forecast_year_1, forecast_year_2])])
     
     print(f"\nSummary:")
-    print(f"  Historical rows (2018-2024): {historical_rows}")
-    print(f"  Forecast rows (2025-2026): {forecast_rows}")
+    print(f"  Historical rows (2018-{most_recent_full_year}): {historical_rows}")
+    print(f"  Forecast rows ({forecast_year_1}-{forecast_year_2}): {forecast_rows_count}")
     print(f"  Total rows: {len(dfsectoryear)}")
     
     # Generate simple coverage report for forecast years
     print("\nForecast coverage summary:")
-    forecast_years_data = dfsectoryear[dfsectoryear['Year'].isin([2025, 2026])]
+    forecast_years_data = dfsectoryear[dfsectoryear['Year'].isin([forecast_year_1, forecast_year_2])]
     key_metrics = ['BS.13', 'BS.56', 'IS.22', 'IS.24', 'CA.3', 'CA.5', 'CA.16', 'CA.17']
     for metric in key_metrics:
         if metric in forecast_years_data.columns:
