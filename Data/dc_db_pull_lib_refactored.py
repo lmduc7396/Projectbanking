@@ -74,11 +74,12 @@ QUERY_CONFIG = {
         'default_start_date': '2018-01-01'
     },
     'FORECAST': {
-        'base_query': "SELECT * FROM SIL.W_F_IRIS_FORECAST
-                        'incremental_filter': "AND DATE >= '{start_date}'",
-                        'dedupe_columns': ['TICKER', 'DATE'],
-                        'date_format': 'date',
-                        'default_start_date': '2025-01-01'
+        'base_query': "SELECT * FROM SIL.W_F_IRIS_FORECAST",
+        'incremental_filter': "AND DATE >= '{start_date}'",
+        'dedupe_columns': ['TICKER', 'DATE'],
+        'date_format': 'date',
+        'default_start_date': '2025-01-01'
+    }
 }
 
 # Bank queries (always full refresh)
@@ -245,8 +246,8 @@ if __name__ == "__main__":
     #full_refresh_banks()
     
     # 3. Full refresh specific query
-    # full_refresh('VALUATION')
-    
+    full_refresh('FORECAST')
+
     # 4. Incremental update with date filter
     # incremental_update('VALUATION', '2025-07-15')  # Daily data from this date
     # incremental_update('EVEBITDA', '2025-07-15')  # Daily data from this date
