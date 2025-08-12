@@ -38,7 +38,7 @@ st.markdown("""
         border-right: 2px solid #f0f2f6; margin-right: 30px;
     }
     .ticker-value { font-size: 2rem; font-weight: bold; color: #478B81; }
-    .main > div:first-child { padding-top: 270px !important; }
+    .main > div:first-child { padding-top: 320px !important; }
     .block-container { padding-top: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -89,15 +89,15 @@ revert_button = st.sidebar.button("Revert to Default Forecast", type="secondary"
 @st.cache_data
 def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2):
     """Extract all bank data in one optimized function"""
-    # Historical data
-    hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-1, last_complete_year])
+    # Historical data - include one more year for YoY calculation
+    hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
     historical = df_year[hist_mask].set_index('Year')
     
     # Forecast data
     forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
     forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
     
-    # Quarterly data
+    # Quarterly data for current forecast year
     quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
     quarterly = df_quarter[
         (df_quarter['TICKER'] == ticker) & 
@@ -105,9 +105,17 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
         (df_quarter['Date_Quarter'].isin(quarter_codes))
     ]
     
-    return historical, forecast_1, forecast_2, quarterly
+    # Previous year quarterly data for YoY calculation
+    prev_quarter_codes = [f'1Q{str(last_complete_year)[2:]}', f'2Q{str(last_complete_year)[2:]}']
+    quarterly_prev = df_quarter[
+        (df_quarter['TICKER'] == ticker) & 
+        (df_quarter['Year'] == last_complete_year) & 
+        (df_quarter['Date_Quarter'].isin(prev_quarter_codes))
+    ]
+    
+    return historical, forecast_1, forecast_2, quarterly, quarterly_prev
 
-historical_data, forecast_1, forecast_2, quarterly_forecast = get_bank_data(
+historical_data, forecast_1, forecast_2, quarterly_forecast, quarterly_prev = get_bank_data(
     df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2
 )
 
@@ -218,18 +226,37 @@ nim_table['NII'] /= 1e12
 # Calculate loan growth YoY for all periods
 nim_table['Loan Growth YoY (%)'] = 0.0
 
+# Get previous year data for YoY calculation
+prev_year_loan = {}
+if last_complete_year-2 in historical_data.index:
+    prev_year_loan[str(last_complete_year-1)] = historical_data.loc[last_complete_year-2, 'BS.13'] / 1e12
+
 # Historical years growth
-if str(last_complete_year-1) in nim_table.index and str(last_complete_year-2) in nim_table.index:
-    prev_loan = nim_table.loc[str(last_complete_year-2), 'Loan']
-    curr_loan = nim_table.loc[str(last_complete_year-1), 'Loan']
-    if prev_loan != 0:
-        nim_table.loc[str(last_complete_year-1), 'Loan Growth YoY (%)'] = ((curr_loan / prev_loan) - 1) * 100
+if str(last_complete_year-1) in nim_table.index and str(last_complete_year-1) in prev_year_loan:
+    if prev_year_loan[str(last_complete_year-1)] != 0:
+        nim_table.loc[str(last_complete_year-1), 'Loan Growth YoY (%)'] = ((nim_table.loc[str(last_complete_year-1), 'Loan'] / prev_year_loan[str(last_complete_year-1)]) - 1) * 100
 
 if str(last_complete_year) in nim_table.index and str(last_complete_year-1) in nim_table.index:
     prev_loan = nim_table.loc[str(last_complete_year-1), 'Loan']
     curr_loan = nim_table.loc[str(last_complete_year), 'Loan']
     if prev_loan != 0:
         nim_table.loc[str(last_complete_year), 'Loan Growth YoY (%)'] = ((curr_loan / prev_loan) - 1) * 100
+
+# Quarterly YoY growth - compare with same quarter previous year
+for period in nim_table.index:
+    if 'Q' in period:
+        # Extract quarter and year from period (e.g., '1Q25' -> quarter=1, year=25)
+        quarter_num = period[0]
+        year_suffix = period[2:]
+        prev_quarter = f'{quarter_num}Q{str(last_complete_year)[2:]}'
+        
+        # Get previous year same quarter data
+        prev_quarter_row = quarterly_prev[quarterly_prev['Date_Quarter'] == prev_quarter]
+        if not prev_quarter_row.empty:
+            prev_loan = prev_quarter_row['BS.13'].values[0] / 1e12
+            curr_loan = nim_table.loc[period, 'Loan']
+            if prev_loan != 0:
+                nim_table.loc[period, 'Loan Growth YoY (%)'] = ((curr_loan / prev_loan) - 1) * 100
 
 # Forecast years growth
 if f'{forecast_year_1}F' in nim_table.index and str(last_complete_year) in nim_table.index:
@@ -362,18 +389,33 @@ opex_table['CIR (%)'] *= 100
 # Calculate OPEX growth YoY for all periods
 opex_table['OPEX Growth YoY (%)'] = 0.0
 
-# Historical years growth
-if str(last_complete_year-1) in opex_table.index and str(last_complete_year-2) in opex_table.index:
-    prev_opex = historical_data.loc[last_complete_year-2, 'IS.15'] if last_complete_year-2 in historical_data.index else 0
+# Get previous year data for YoY calculation
+if last_complete_year-2 in historical_data.index:
+    prev_opex = historical_data.loc[last_complete_year-2, 'IS.15']
     curr_opex = historical_data.loc[last_complete_year-1, 'IS.15'] if last_complete_year-1 in historical_data.index else 0
-    if prev_opex != 0:
+    if prev_opex != 0 and str(last_complete_year-1) in opex_table.index:
         opex_table.loc[str(last_complete_year-1), 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
-if str(last_complete_year) in opex_table.index and str(last_complete_year-1) in opex_table.index:
-    prev_opex = historical_data.loc[last_complete_year-1, 'IS.15'] if last_complete_year-1 in historical_data.index else 0
+# Historical years growth
+if str(last_complete_year) in opex_table.index and last_complete_year-1 in historical_data.index:
+    prev_opex = historical_data.loc[last_complete_year-1, 'IS.15']
     curr_opex = historical_data.loc[last_complete_year, 'IS.15'] if last_complete_year in historical_data.index else 0
     if prev_opex != 0:
         opex_table.loc[str(last_complete_year), 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
+
+# Quarterly YoY growth - compare with same quarter previous year
+for period in opex_table.index:
+    if 'Q' in period:
+        quarter_num = period[0]
+        prev_quarter = f'{quarter_num}Q{str(last_complete_year)[2:]}'
+        
+        # Get previous year same quarter data
+        prev_quarter_row = quarterly_prev[quarterly_prev['Date_Quarter'] == prev_quarter]
+        if not prev_quarter_row.empty:
+            prev_opex = prev_quarter_row['IS.15'].values[0] / 1e12
+            curr_opex = opex_table.loc[period, 'OPEX']
+            if prev_opex != 0:
+                opex_table.loc[period, 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
 # Forecast years growth
 opex_last = historical_data.loc[last_complete_year, 'IS.15'] if last_complete_year in historical_data.index else 0
