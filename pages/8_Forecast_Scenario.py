@@ -38,12 +38,10 @@ st.markdown("""
         border-right: 2px solid #f0f2f6; margin-right: 30px;
     }
     .ticker-value { font-size: 2rem; font-weight: bold; color: #478B81; }
-    .main > div:first-child { padding-top: 200px !important; }
+    .main > div:first-child { padding-top: 320px !important; }
     .block-container { padding-top: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
-
-st.title(' ')
 
 # OPTIMIZED: Load data with better caching
 @st.cache_data(ttl=1)
