@@ -38,10 +38,12 @@ st.markdown("""
         border-right: 2px solid #f0f2f6; margin-right: 30px;
     }
     .ticker-value { font-size: 2rem; font-weight: bold; color: #478B81; }
-    .main > div:first-child { padding-top: 320px !important; }
+    .main > div:first-child { padding-top: 200px !important; }
     .block-container { padding-top: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
+
+st.title(' ')
 
 # OPTIMIZED: Load data with better caching
 @st.cache_data(ttl=1)
@@ -80,38 +82,177 @@ forecast_mask = df_year['Year'].isin([forecast_year_1, forecast_year_2])
 ticker_mask = df_year['TICKER'].str.len() == 3
 banks_with_forecast = sorted(df_year[forecast_mask & ticker_mask]['TICKER'].unique())
 
-# Sidebar
-ticker = st.sidebar.selectbox("Select Bank:", banks_with_forecast, index=0)
+# Sidebar with Bank/Sector selection
+st.sidebar.markdown("### Analysis Type")
+analysis_type = st.sidebar.radio("Select Analysis Type:", ["Individual Bank", "Sector Analysis"], index=0)
+
+if analysis_type == "Individual Bank":
+    ticker = st.sidebar.selectbox("Select Bank:", banks_with_forecast, index=0)
+else:
+    # Sector options (excluding Private_3 as it has no forecast)
+    sector_options = ['Sector', 'Private_1', 'Private_2', 'SOCB']
+    ticker = st.sidebar.selectbox("Select Sector:", sector_options, index=0)
+
 st.sidebar.markdown("---")
 revert_button = st.sidebar.button("Revert to Default Forecast", type="secondary", use_container_width=True)
+
+# Function to aggregate sector data
+@st.cache_data
+def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None):
+    """Aggregate data for multiple banks into sector totals"""
+    # Filter data for specified banks and years
+    year_data = df_year[(df_year['TICKER'].isin(banks_list)) & (df_year['Year'].isin(years))]
+    
+    if year_data.empty:
+        return pd.DataFrame()
+    
+    # Key metrics to sum
+    sum_metrics = ['BS.13', 'BS.14', 'IS.3', 'IS.15', 'IS.14', 'IS.17', 'IS.18', 'Nt.220']
+    
+    # Group by year and sum
+    aggregated = year_data.groupby('Year')[sum_metrics].sum()
+    
+    # Calculate weighted average ratios
+    # NIM weighted by loans
+    aggregated['CA.13'] = (year_data.groupby('Year').apply(
+        lambda x: (x['CA.13'] * x['BS.13']).sum() / x['BS.13'].sum() if x['BS.13'].sum() != 0 else 0
+    ))
+    
+    # NPL weighted by loans
+    aggregated['CA.3'] = (year_data.groupby('Year').apply(
+        lambda x: (x['CA.3'] * x['BS.13']).sum() / x['BS.13'].sum() if x['BS.13'].sum() != 0 else 0
+    ))
+    
+    # NPL Formation weighted by loans
+    aggregated['CA.23'] = (year_data.groupby('Year').apply(
+        lambda x: (x['CA.23'] * x['BS.13']).sum() / x['BS.13'].sum() if x['BS.13'].sum() != 0 else 0
+    ))
+    
+    # CIR = OPEX / TOI
+    aggregated['CA.6'] = aggregated['IS.15'] / aggregated['IS.14']
+    aggregated['CA.6'] = aggregated['CA.6'].fillna(0)
+    
+    # Handle quarterly data if provided
+    if quarters is not None and df_quarter is not None:
+        quarter_data = df_quarter[(df_quarter['TICKER'].isin(banks_list)) & 
+                                 (df_quarter['Date_Quarter'].isin(quarters))]
+        if not quarter_data.empty:
+            # Aggregate quarterly data
+            quarterly_agg = quarter_data.groupby('Date_Quarter')[sum_metrics].sum()
+            
+            # Calculate weighted ratios for quarters
+            for q in quarters:
+                q_data = quarter_data[quarter_data['Date_Quarter'] == q]
+                if not q_data.empty:
+                    total_loan_q = q_data['BS.13'].sum()
+                    if total_loan_q > 0:
+                        quarterly_agg.loc[q, 'CA.13'] = (q_data['CA.13'] * q_data['BS.13']).sum() / total_loan_q
+                        quarterly_agg.loc[q, 'CA.3'] = (q_data['CA.3'] * q_data['BS.13']).sum() / total_loan_q
+                        quarterly_agg.loc[q, 'CA.23'] = (q_data['CA.23'] * q_data['BS.13']).sum() / total_loan_q
+                    
+                    if quarterly_agg.loc[q, 'IS.14'] != 0:
+                        quarterly_agg.loc[q, 'CA.6'] = quarterly_agg.loc[q, 'IS.15'] / quarterly_agg.loc[q, 'IS.14']
+            
+            return aggregated, quarterly_agg
+    
+    return aggregated
 
 # OPTIMIZED: Batch data extraction
 @st.cache_data
 def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2):
-    """Extract all bank data in one optimized function"""
-    # Historical data - include one more year for YoY calculation
-    hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
-    historical = df_year[hist_mask].set_index('Year')
+    """Extract all bank data in one optimized function - handles both banks and sectors"""
     
-    # Forecast data
-    forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
-    forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
+    # Check if ticker is a sector (length > 3) or individual bank
+    is_sector = len(ticker) > 3
     
-    # Quarterly data for current forecast year
-    quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
-    quarterly = df_quarter[
-        (df_quarter['TICKER'] == ticker) & 
-        (df_quarter['Year'] == forecast_year_1) & 
-        (df_quarter['Date_Quarter'].isin(quarter_codes))
-    ]
-    
-    # Previous year quarterly data for YoY calculation
-    prev_quarter_codes = [f'1Q{str(last_complete_year)[2:]}', f'2Q{str(last_complete_year)[2:]}']
-    quarterly_prev = df_quarter[
-        (df_quarter['TICKER'] == ticker) & 
-        (df_quarter['Year'] == last_complete_year) & 
-        (df_quarter['Date_Quarter'].isin(prev_quarter_codes))
-    ]
+    if is_sector:
+        if ticker == 'Sector':
+            # For 'Sector', aggregate only banks with forecast data
+            banks_with_forecast = df_year[(df_year['Year'].isin([forecast_year_1, forecast_year_2])) & 
+                                         (df_year['TICKER'].str.len() == 3)]['TICKER'].unique()
+            
+            # Get historical data for these banks
+            years = [last_complete_year-2, last_complete_year-1, last_complete_year]
+            historical = aggregate_sector_data(df_year, None, banks_with_forecast, years)
+            
+            # Get forecast data - aggregate from banks
+            forecast_years = [forecast_year_1, forecast_year_2]
+            forecast_data = aggregate_sector_data(df_year, None, banks_with_forecast, forecast_years)
+            
+            forecast_1 = pd.DataFrame()
+            forecast_2 = pd.DataFrame()
+            if forecast_year_1 in forecast_data.index:
+                forecast_1 = pd.DataFrame([forecast_data.loc[forecast_year_1]])
+            if forecast_year_2 in forecast_data.index:
+                forecast_2 = pd.DataFrame([forecast_data.loc[forecast_year_2]])
+            
+            # Get quarterly data
+            quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
+            prev_quarter_codes = [f'1Q{str(last_complete_year)[2:]}', f'2Q{str(last_complete_year)[2:]}']
+            
+            # Aggregate quarterly data
+            all_quarters = quarter_codes + prev_quarter_codes
+            quarterly_result = aggregate_sector_data(df_year, df_quarter, banks_with_forecast, [], all_quarters)
+            
+            # Handle return value (can be DataFrame or tuple)
+            if isinstance(quarterly_result, tuple):
+                _, quarterly_all = quarterly_result
+            else:
+                quarterly_all = pd.DataFrame()
+            
+            quarterly = pd.DataFrame()
+            quarterly_prev = pd.DataFrame()
+            
+            if not quarterly_all.empty:
+                quarterly = quarterly_all[quarterly_all.index.isin(quarter_codes)].reset_index()
+                quarterly['Date_Quarter'] = quarterly['index']
+                quarterly = quarterly.drop('index', axis=1)
+                
+                quarterly_prev = quarterly_all[quarterly_all.index.isin(prev_quarter_codes)].reset_index()
+                quarterly_prev['Date_Quarter'] = quarterly_prev['index']
+                quarterly_prev = quarterly_prev.drop('index', axis=1)
+        else:
+            # For other sectors (Private_1, Private_2, SOCB), use pre-calculated data
+            hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
+            historical = df_year[hist_mask].set_index('Year')
+            
+            forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
+            forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
+            
+            quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
+            quarterly = df_quarter[
+                (df_quarter['TICKER'] == ticker) & 
+                (df_quarter['Year'] == forecast_year_1) & 
+                (df_quarter['Date_Quarter'].isin(quarter_codes))
+            ]
+            
+            prev_quarter_codes = [f'1Q{str(last_complete_year)[2:]}', f'2Q{str(last_complete_year)[2:]}']
+            quarterly_prev = df_quarter[
+                (df_quarter['TICKER'] == ticker) & 
+                (df_quarter['Year'] == last_complete_year) & 
+                (df_quarter['Date_Quarter'].isin(prev_quarter_codes))
+            ]
+    else:
+        # Individual bank - original logic
+        hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
+        historical = df_year[hist_mask].set_index('Year')
+        
+        forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
+        forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
+        
+        quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
+        quarterly = df_quarter[
+            (df_quarter['TICKER'] == ticker) & 
+            (df_quarter['Year'] == forecast_year_1) & 
+            (df_quarter['Date_Quarter'].isin(quarter_codes))
+        ]
+        
+        prev_quarter_codes = [f'1Q{str(last_complete_year)[2:]}', f'2Q{str(last_complete_year)[2:]}']
+        quarterly_prev = df_quarter[
+            (df_quarter['TICKER'] == ticker) & 
+            (df_quarter['Year'] == last_complete_year) & 
+            (df_quarter['Date_Quarter'].isin(prev_quarter_codes))
+        ]
     
     return historical, forecast_1, forecast_2, quarterly, quarterly_prev
 
@@ -849,11 +990,14 @@ pbt_last = historical_data.loc[last_complete_year, 'IS.18'] if last_complete_yea
 pbt_yoy_f1 = ((adjusted_pbt_f1 / pbt_last) - 1) * 100 if pbt_last != 0 else 0
 pbt_yoy_f2 = ((adjusted_pbt_f2 / adjusted_pbt_f1) - 1) * 100 if adjusted_pbt_f1 != 0 else 0
 
+# Determine label based on ticker type
+entity_label = "Sector" if len(ticker) > 3 else "Bank"
+
 header_placeholder.markdown(f'''
 <div class="fixed-header">
     <div class="metrics-container">
         <div class="ticker-box">
-            <div class="metric-label">Bank</div>
+            <div class="metric-label">{entity_label}</div>
             <div class="ticker-value">{ticker}</div>
         </div>
         <div class="metric-box">
