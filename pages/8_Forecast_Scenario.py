@@ -744,11 +744,15 @@ if revert_button:
     st.session_state[f"{ticker}_npl_coverage_f1"] = npl_coverage_f1_orig
     st.session_state[f"{ticker}_npl_coverage_f2"] = npl_coverage_f2_orig
 
+# Adjust max values for sectors vs individual banks
+is_sector = len(ticker) > 3
+npl_formation_max = 50.0 if is_sector else 5.0  # Higher max for sectors
+
 with col1:
     st.markdown(f"**{forecast_year_1} Adjustments**")
     npl_f1_new = st.number_input(f"NPL {forecast_year_1} (%)", 0.0, 10.0,
                                  key=f"{ticker}_npl_f1", step=0.1)
-    npl_formation_f1_new = st.number_input(f"NPL Formation {forecast_year_1} (%)", 0.0, 5.0,
+    npl_formation_f1_new = st.number_input(f"NPL Formation {forecast_year_1} (%)", 0.0, npl_formation_max,
                                            key=f"{ticker}_npl_formation_f1", step=0.1)
     npl_coverage_f1_new = st.number_input(f"NPL Coverage {forecast_year_1} (%)", 0.0, 500.0,
                                           key=f"{ticker}_npl_coverage_f1", step=1.0)
@@ -757,7 +761,7 @@ with col2:
     st.markdown(f"**{forecast_year_2} Adjustments**")
     npl_f2_new = st.number_input(f"NPL {forecast_year_2} (%)", 0.0, 10.0,
                                  key=f"{ticker}_npl_f2", step=0.1)
-    npl_formation_f2_new = st.number_input(f"NPL Formation {forecast_year_2} (%)", 0.0, 5.0,
+    npl_formation_f2_new = st.number_input(f"NPL Formation {forecast_year_2} (%)", 0.0, npl_formation_max,
                                            key=f"{ticker}_npl_formation_f2", step=0.1)
     npl_coverage_f2_new = st.number_input(f"NPL Coverage {forecast_year_2} (%)", 0.0, 500.0,
                                           key=f"{ticker}_npl_coverage_f2", step=1.0)
