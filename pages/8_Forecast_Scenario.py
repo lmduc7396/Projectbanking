@@ -270,26 +270,31 @@ original_values = {
     'loan_growth_f2': ((loan_f2 / loan_f1) - 1) * 100 if loan_f1 != 0 else 15,
 }
 
-# Handle revert
+# Initialize session state for inputs if not exists
+for key, value in original_values.items():
+    if f"{ticker}_{key}" not in st.session_state:
+        st.session_state[f"{ticker}_{key}"] = value
+
+# Handle revert button - reset to original forecast values
 if revert_button:
     for key, value in original_values.items():
         st.session_state[f"{ticker}_{key}"] = value
-    st.sidebar.success("Values reverted to defaults!")
+    st.rerun()
 
 # Input widgets
 with col1:
     st.markdown(f"**{forecast_year_1} Adjustments**")
     nim_f1_new = st.number_input(f"NIM {forecast_year_1} (%)", 0.0, 10.0, 
-                                 original_values['nim_f1'], 0.1, key=f"{ticker}_nim_f1")
+                                 key=f"{ticker}_nim_f1", step=0.1)
     loan_growth_f1_new = st.number_input(f"Loan Growth YoY {forecast_year_1} (%)", -20.0, 50.0,
-                                         original_values['loan_growth_f1'], 1.0, key=f"{ticker}_loan_growth_f1")
+                                         key=f"{ticker}_loan_growth_f1", step=1.0)
 
 with col2:
     st.markdown(f"**{forecast_year_2} Adjustments**")
     nim_f2_new = st.number_input(f"NIM {forecast_year_2} (%)", 0.0, 10.0,
-                                 original_values['nim_f2'], 0.1, key=f"{ticker}_nim_f2")
+                                 key=f"{ticker}_nim_f2", step=0.1)
     loan_growth_f2_new = st.number_input(f"Loan Growth YoY {forecast_year_2} (%)", -20.0, 50.0,
-                                         original_values['loan_growth_f2'], 1.0, key=f"{ticker}_loan_growth_f2")
+                                         key=f"{ticker}_loan_growth_f2", step=1.0)
 
 # OPTIMIZED: Vectorized PBT calculation
 def calculate_pbt_changes(original_values, new_values, forecast_vals):
@@ -396,14 +401,25 @@ st.subheader("Adjust OPEX Growth")
 opex_growth_f1_orig = ((forecast_1_vals['IS.15'] / opex_last) - 1) * 100 if opex_last != 0 else 10
 opex_growth_f2_orig = ((forecast_2_vals['IS.15'] / forecast_1_vals['IS.15']) - 1) * 100 if forecast_1_vals['IS.15'] != 0 else 10
 
+# Initialize session state for OPEX inputs
+if f"{ticker}_opex_growth_f1" not in st.session_state:
+    st.session_state[f"{ticker}_opex_growth_f1"] = opex_growth_f1_orig
+if f"{ticker}_opex_growth_f2" not in st.session_state:
+    st.session_state[f"{ticker}_opex_growth_f2"] = opex_growth_f2_orig
+
+# Reset OPEX values if revert button was pressed
+if revert_button:
+    st.session_state[f"{ticker}_opex_growth_f1"] = opex_growth_f1_orig
+    st.session_state[f"{ticker}_opex_growth_f2"] = opex_growth_f2_orig
+
 col1, col2 = st.columns(2)
 with col1:
     opex_growth_f1_new = st.number_input(f"OPEX Growth YoY {forecast_year_1} (%)", -30.0, 50.0,
-                                         opex_growth_f1_orig, 1.0, key=f"{ticker}_opex_growth_f1")
+                                         key=f"{ticker}_opex_growth_f1", step=1.0)
 
 with col2:
     opex_growth_f2_new = st.number_input(f"OPEX Growth YoY {forecast_year_2} (%)", -30.0, 50.0,
-                                         opex_growth_f2_orig, 1.0, key=f"{ticker}_opex_growth_f2")
+                                         key=f"{ticker}_opex_growth_f2", step=1.0)
 
 # Calculate OPEX changes
 opex_f1_new = opex_last * (1 + opex_growth_f1_new / 100)
@@ -525,27 +541,46 @@ bs14_f2 = forecast_2_vals['BS.14']
 npl_coverage_f1_orig = (-bs14_f1 / (npl_f1_orig/100 * loan_f1) * 100) if (npl_f1_orig * loan_f1) != 0 else 100
 npl_coverage_f2_orig = (-bs14_f2 / (npl_f2_orig/100 * loan_f2) * 100) if (npl_f2_orig * loan_f2) != 0 else 100
 
+# Initialize session state for NPL inputs
+if f"{ticker}_npl_f1" not in st.session_state:
+    st.session_state[f"{ticker}_npl_f1"] = npl_f1_orig
+if f"{ticker}_npl_f2" not in st.session_state:
+    st.session_state[f"{ticker}_npl_f2"] = npl_f2_orig
+if f"{ticker}_npl_formation_f1" not in st.session_state:
+    st.session_state[f"{ticker}_npl_formation_f1"] = npl_formation_f1_orig
+if f"{ticker}_npl_formation_f2" not in st.session_state:
+    st.session_state[f"{ticker}_npl_formation_f2"] = npl_formation_f2_orig
+if f"{ticker}_npl_coverage_f1" not in st.session_state:
+    st.session_state[f"{ticker}_npl_coverage_f1"] = npl_coverage_f1_orig
+if f"{ticker}_npl_coverage_f2" not in st.session_state:
+    st.session_state[f"{ticker}_npl_coverage_f2"] = npl_coverage_f2_orig
+
+# Reset NPL values if revert button was pressed
+if revert_button:
+    st.session_state[f"{ticker}_npl_f1"] = npl_f1_orig
+    st.session_state[f"{ticker}_npl_f2"] = npl_f2_orig
+    st.session_state[f"{ticker}_npl_formation_f1"] = npl_formation_f1_orig
+    st.session_state[f"{ticker}_npl_formation_f2"] = npl_formation_f2_orig
+    st.session_state[f"{ticker}_npl_coverage_f1"] = npl_coverage_f1_orig
+    st.session_state[f"{ticker}_npl_coverage_f2"] = npl_coverage_f2_orig
+
 with col1:
     st.markdown(f"**{forecast_year_1} Adjustments**")
-    npl_f1_new = st.number_input(f"NPL {forecast_year_1} (%)", 0.0, 10.0, npl_f1_orig, 0.1,
-                                 key=f"{ticker}_npl_f1")
-    npl_formation_f1_new = st.number_input(f"NPL Formation {forecast_year_1} (%)", 0.0, 5.0, 
-                                           npl_formation_f1_orig, 0.1,
-                                           key=f"{ticker}_npl_formation_f1")
+    npl_f1_new = st.number_input(f"NPL {forecast_year_1} (%)", 0.0, 10.0,
+                                 key=f"{ticker}_npl_f1", step=0.1)
+    npl_formation_f1_new = st.number_input(f"NPL Formation {forecast_year_1} (%)", 0.0, 5.0,
+                                           key=f"{ticker}_npl_formation_f1", step=0.1)
     npl_coverage_f1_new = st.number_input(f"NPL Coverage {forecast_year_1} (%)", 0.0, 500.0,
-                                          npl_coverage_f1_orig, 1.0,
-                                          key=f"{ticker}_npl_coverage_f1")
+                                          key=f"{ticker}_npl_coverage_f1", step=1.0)
 
 with col2:
     st.markdown(f"**{forecast_year_2} Adjustments**")
-    npl_f2_new = st.number_input(f"NPL {forecast_year_2} (%)", 0.0, 10.0, npl_f2_orig, 0.1,
-                                 key=f"{ticker}_npl_f2")
+    npl_f2_new = st.number_input(f"NPL {forecast_year_2} (%)", 0.0, 10.0,
+                                 key=f"{ticker}_npl_f2", step=0.1)
     npl_formation_f2_new = st.number_input(f"NPL Formation {forecast_year_2} (%)", 0.0, 5.0,
-                                           npl_formation_f2_orig, 0.1,
-                                           key=f"{ticker}_npl_formation_f2")
+                                           key=f"{ticker}_npl_formation_f2", step=0.1)
     npl_coverage_f2_new = st.number_input(f"NPL Coverage {forecast_year_2} (%)", 0.0, 500.0,
-                                          npl_coverage_f2_orig, 1.0,
-                                          key=f"{ticker}_npl_coverage_f2")
+                                          key=f"{ticker}_npl_coverage_f2", step=1.0)
 
 # Get loan values from Segment 1
 loan_last = historical_data.loc[last_complete_year, 'BS.13'] if last_complete_year in historical_data.index else 1e15
