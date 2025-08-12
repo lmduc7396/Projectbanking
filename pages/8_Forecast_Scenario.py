@@ -11,7 +11,6 @@ sys.path.append(project_root)
 # Page configuration
 st.set_page_config(
     page_title="Forecast Scenario Analysis",
-    page_icon="📊",
     layout="wide"
 )
 
@@ -43,8 +42,6 @@ st.markdown("""
     .block-container { padding-top: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
-
-st.title("Forecast Scenario Analysis")
 
 # OPTIMIZED: Load data with better caching
 @st.cache_data(ttl=1)
