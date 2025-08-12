@@ -51,8 +51,14 @@ def fetch_historical_price(ticker: str, days: int = 365) -> pd.DataFrame:
             columns_to_keep = ['tradingDate', 'open', 'high', 'low', 'close', 'volume']
             df = df[[col for col in columns_to_keep if col in df.columns]]
             
+            # Remove any rows with null dates
+            df = df.dropna(subset=['tradingDate'])
+            
             # Sort by date
             df = df.sort_values('tradingDate')
+            
+            # Reset index to ensure continuous indexing
+            df = df.reset_index(drop=True)
             
             return df
         else:
@@ -102,8 +108,22 @@ def Stock_price_plot(ticker: str):
         df = get_cached_stock_data(ticker, days)
     
     if df is not None and not df.empty:
+        # Check for missing price data
+        missing_price_data = df[(df['close'].isna() | (df['close'] == 0)) & (df['volume'] > 0)]
+        if not missing_price_data.empty:
+            st.warning(f"Found {len(missing_price_data)} days with volume but missing/zero price data")
+            with st.expander("View missing data days"):
+                st.dataframe(missing_price_data[['tradingDate', 'open', 'high', 'low', 'close', 'volume']])
+        
         # Convert dates to strings for categorical x-axis (removes gaps)
         df['date_str'] = df['tradingDate'].dt.strftime('%Y-%m-%d')
+        
+        # Use index for x-axis to ensure no gaps
+        df['x_index'] = range(len(df))
+        
+        # Calculate moving averages
+        df['MA10'] = df['close'].rolling(window=10, min_periods=1).mean()
+        df['MA50'] = df['close'].rolling(window=50, min_periods=1).mean()
         
         # Create subplots: candlestick on top, volume on bottom
         fig = make_subplots(
@@ -114,10 +134,15 @@ def Stock_price_plot(ticker: str):
             subplot_titles=(f'{ticker} Price', 'Volume')
         )
         
-        # Add candlestick chart with string dates (no gaps)
+        # Create tick text and values for showing dates at intervals
+        tick_interval = max(1, len(df) // 20)  # Show about 20 ticks
+        tickvals = list(range(0, len(df), tick_interval))
+        ticktext = [df.iloc[i]['date_str'] for i in tickvals]
+        
+        # Add candlestick chart using continuous index
         fig.add_trace(
             go.Candlestick(
-                x=df['date_str'],  # Use string dates for categorical axis
+                x=df['x_index'],  # Use continuous index
                 open=df['open'],
                 high=df['high'],
                 low=df['low'],
@@ -125,8 +150,34 @@ def Stock_price_plot(ticker: str):
                 name='Price',
                 increasing_line_color='green',
                 decreasing_line_color='red',
-                hovertext=df['date_str'],  # Show date in hover
-                hoverinfo='x+y+text'
+                text=df['date_str'],  # Date for hover
+                hovertemplate='Date: %{text}<br>Open: %{open:,.0f}<br>High: %{high:,.0f}<br>Low: %{low:,.0f}<br>Close: %{close:,.0f}<extra></extra>'
+            ),
+            row=1, col=1
+        )
+        
+        # Add MA10 line (dashed)
+        fig.add_trace(
+            go.Scatter(
+                x=df['x_index'],  # Use continuous index
+                y=df['MA10'],
+                name='MA10',
+                line=dict(color='blue', width=1, dash='dash'),
+                text=df['date_str'],
+                hovertemplate='Date: %{text}<br>MA10: %{y:,.0f}<extra></extra>'
+            ),
+            row=1, col=1
+        )
+        
+        # Add MA50 line (dashed)
+        fig.add_trace(
+            go.Scatter(
+                x=df['x_index'],  # Use continuous index
+                y=df['MA50'],
+                name='MA50',
+                line=dict(color='orange', width=1, dash='dash'),
+                text=df['date_str'],
+                hovertemplate='Date: %{text}<br>MA50: %{y:,.0f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -137,13 +188,13 @@ def Stock_price_plot(ticker: str):
         
         fig.add_trace(
             go.Bar(
-                x=df['date_str'],  # Use string dates for categorical axis
+                x=df['x_index'],  # Use continuous index
                 y=df['volume'],
                 name='Volume',
                 marker_color=colors,
                 showlegend=False,
-                hovertext=df['date_str'],  # Show date in hover
-                hoverinfo='x+y+text'
+                text=df['date_str'],
+                hovertemplate='Date: %{text}<br>Volume: %{y:,.0f}<extra></extra>'
             ),
             row=2, col=1
         )
@@ -152,18 +203,32 @@ def Stock_price_plot(ticker: str):
         fig.update_layout(
             title=f"{ticker} - Stock Price & Volume",
             height=600,
-            showlegend=False,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
             xaxis_rangeslider_visible=False,
             hovermode='x unified'
         )
         
-        # Update x-axes to categorical (removes gaps for non-trading days)
+        # Update x-axes with custom tick labels to show dates
         fig.update_xaxes(
-            type='category',  # Categorical axis removes gaps
             title_text="Date", 
             row=2, col=1,
             tickangle=-45,  # Angle the dates for better readability
-            nticks=20  # Limit number of ticks shown
+            tickmode='array',
+            tickvals=tickvals,
+            ticktext=ticktext
+        )
+        
+        # Hide x-axis labels on top chart
+        fig.update_xaxes(
+            row=1, col=1,
+            showticklabels=False
         )
         
         # Update y-axes
@@ -178,6 +243,7 @@ def Stock_price_plot(ticker: str):
             latest = df.iloc[-1]
             first = df.iloc[0]
             
+            # First row of metrics
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -205,6 +271,7 @@ def Stock_price_plot(ticker: str):
                     "Avg Volume",
                     f"{avg_volume:,.0f}"
                 )
+            
     else:
         # Show helpful message if no data
         st.warning(f"No stock price data available for {ticker}")
