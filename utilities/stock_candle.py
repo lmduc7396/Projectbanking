@@ -102,19 +102,8 @@ def Stock_price_plot(ticker: str):
         df = get_cached_stock_data(ticker, days)
     
     if df is not None and not df.empty:
-        # Check for missing price data
-        missing_price_data = df[(df['close'].isna() | (df['close'] == 0)) & (df['volume'] > 0)]
-        if not missing_price_data.empty:
-            st.warning(f"Found {len(missing_price_data)} days with volume but missing/zero price data")
-            with st.expander("View missing data days"):
-                st.dataframe(missing_price_data[['tradingDate', 'open', 'high', 'low', 'close', 'volume']])
-        
         # Convert dates to strings for categorical x-axis (removes gaps)
         df['date_str'] = df['tradingDate'].dt.strftime('%Y-%m-%d')
-        
-        # Calculate moving averages
-        df['MA10'] = df['close'].rolling(window=10, min_periods=1).mean()
-        df['MA50'] = df['close'].rolling(window=50, min_periods=1).mean()
         
         # Create subplots: candlestick on top, volume on bottom
         fig = make_subplots(
@@ -142,30 +131,6 @@ def Stock_price_plot(ticker: str):
             row=1, col=1
         )
         
-        # Add MA10 line (dashed)
-        fig.add_trace(
-            go.Scatter(
-                x=df['date_str'],
-                y=df['MA10'],
-                name='MA10',
-                line=dict(color='blue', width=1, dash='dash'),
-                hovertemplate='MA10: %{y:,.0f}<extra></extra>'
-            ),
-            row=1, col=1
-        )
-        
-        # Add MA50 line (dashed)
-        fig.add_trace(
-            go.Scatter(
-                x=df['date_str'],
-                y=df['MA50'],
-                name='MA50',
-                line=dict(color='orange', width=1, dash='dash'),
-                hovertemplate='MA50: %{y:,.0f}<extra></extra>'
-            ),
-            row=1, col=1
-        )
-        
         # Add volume bars
         colors = ['red' if row['close'] < row['open'] else 'green' 
                   for _, row in df.iterrows()]
@@ -187,14 +152,7 @@ def Stock_price_plot(ticker: str):
         fig.update_layout(
             title=f"{ticker} - Stock Price & Volume",
             height=600,
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1
-            ),
+            showlegend=False,
             xaxis_rangeslider_visible=False,
             hovermode='x unified'
         )
@@ -220,7 +178,6 @@ def Stock_price_plot(ticker: str):
             latest = df.iloc[-1]
             first = df.iloc[0]
             
-            # First row of metrics
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -248,7 +205,6 @@ def Stock_price_plot(ticker: str):
                     "Avg Volume",
                     f"{avg_volume:,.0f}"
                 )
-            
     else:
         # Show helpful message if no data
         st.warning(f"No stock price data available for {ticker}")
