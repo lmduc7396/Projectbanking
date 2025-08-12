@@ -4,7 +4,6 @@ Utility functions for determining forecast years dynamically based on available 
 import pandas as pd
 import os
 from typing import Tuple, List
-from .path_utils import get_data_path
 
 def get_forecast_years(dfcompaniesyear: pd.DataFrame = None) -> Tuple[int, int, int]:
     """
@@ -23,7 +22,11 @@ def get_forecast_years(dfcompaniesyear: pd.DataFrame = None) -> Tuple[int, int, 
     if dfcompaniesyear is None:
         # Try to load BS_Bank data to find most recent full year
         try:
-            bs_bank_path = get_data_path('BS_Bank.csv')
+            # Get the path to Data folder
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
+            bs_bank_path = os.path.join(project_root, 'Data', 'BS_Bank.csv')
+            
             if os.path.exists(bs_bank_path):
                 bs_bank = pd.read_csv(bs_bank_path)
                 # Filter for full year data (LENGTHREPORT=5)

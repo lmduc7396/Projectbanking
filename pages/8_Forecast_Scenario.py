@@ -8,8 +8,6 @@ import os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-from utilities.forecast_utils import get_forecast_years
-
 # Page configuration
 st.set_page_config(
     page_title="Forecast Scenario Analysis",
@@ -56,8 +54,22 @@ def load_data():
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     
-    # Use forecast_utils for dynamic year determination
-    last_complete_year, forecast_year_1, forecast_year_2 = get_forecast_years()
+    # Dynamically determine forecast years from data
+    # Get years from actual bank data (3-letter tickers only)
+    years_with_data = df_year[df_year['TICKER'].str.len() == 3]['Year'].unique()
+    years_with_data = sorted(years_with_data)
+    
+    # Find the most recent historical year (not a forecast year)
+    # Forecast years are typically the last 2 years in the data
+    if len(years_with_data) >= 3:
+        last_complete_year = int(years_with_data[-3])  # Third from last is the last complete year
+        forecast_year_1 = int(years_with_data[-2])     # Second from last is first forecast year
+        forecast_year_2 = int(years_with_data[-1])     # Last is second forecast year
+    else:
+        # If not enough years, use the available years
+        last_complete_year = int(years_with_data[0]) if years_with_data else None
+        forecast_year_1 = last_complete_year + 1 if last_complete_year else None
+        forecast_year_2 = last_complete_year + 2 if last_complete_year else None
     
     # Pre-process quarter data
     df_quarter['Year'] = 2000 + df_quarter['Date_Quarter'].str.extract(r'Q(\d+)', expand=False).astype(int)
