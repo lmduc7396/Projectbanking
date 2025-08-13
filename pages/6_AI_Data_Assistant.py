@@ -15,12 +15,12 @@ from utilities.qualitative_data_handler import QualitativeDataHandler
 from utilities.valuation_tool import calculate_valuation_metrics
 
 st.set_page_config(
-    page_title="Dug GPT",
+    page_title="Duc GPT",
     layout="wide"
 )
 
 st.title("Duc GPT")
-st.markdown("Ask questions about banking.")
+st.markdown("Only banking related questions are supported. Please refer to the rules below for guidance.")
 
 #%% Initialize components
 if 'discovery_agent' not in st.session_state:
