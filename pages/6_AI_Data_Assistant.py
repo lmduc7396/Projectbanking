@@ -12,15 +12,14 @@ from utilities.openai_utils import get_openai_client
 from utilities.data_discovery import DataDiscoveryAgent
 from utilities.query_router import QueryRouter
 from utilities.qualitative_data_handler import QualitativeDataHandler
-from utilities.valuation_tool import calculate_valuation_metrics
 
 st.set_page_config(
-    page_title="AI Data Assistant",
+    page_title="Dug GPT",
     layout="wide"
 )
 
-st.title("AI Data Assistant")
-st.markdown("Ask questions about banking data. AI finds relevant data and provides answers.")
+st.title("Duc GPT")
+st.markdown("Ask questions about banking.")
 
 #%% Initialize components
 if 'discovery_agent' not in st.session_state:
@@ -87,7 +86,7 @@ for message in st.session_state.chat_history:
             with st.expander("View Data Context"):
                 st.json(message["data_context"])
 
-user_question = st.chat_input("Ask anything about your banking data...")
+user_question = st.chat_input("Ask anything about banking.")
 
 if user_question:
     st.session_state.chat_history.append({"role": "user", "content": user_question})
@@ -136,47 +135,17 @@ if user_question:
                     if data_result['data_found']:
                         client = get_openai_client()
                         
-                        # Get valuation data if valuation is true in query_analysis
-                        valuation_data_text = ""
-                        if query_analysis.get('valuation', False):
-                            valuation_data_text = "\n\nValuation Metrics:\n"
-                            tickers = query_analysis.get('tickers', [])
-                            for ticker in tickers:
-                                try:
-                                    val_metrics = calculate_valuation_metrics(ticker)
-                                    if 'error' not in val_metrics:
-                                        valuation_data_text += f"""
-{ticker}:
-- Current P/B: {val_metrics['current_pb']}
-- Current P/E: {val_metrics['current_pe']}
-- P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
-- P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
-- P/B 3Y CDF: {val_metrics.get('pb_3y_cdf', 'N/A')}
-- P/B 3Y Z-score: {val_metrics.get('pb_3y_zscore', 'N/A')}
-- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
-- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
-- P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
-- P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
-- P/E 3Y CDF: {val_metrics.get('pe_3y_cdf', 'N/A')}
-- P/E 3Y Z-score: {val_metrics.get('pe_3y_zscore', 'N/A')}
-- P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
-- P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
-"""
-                                except:
-                                    pass
-                        
                         # Create prompt with question and data
                         enhanced_prompt = f"""
 Question: {user_question}
 
 Data Table:
-{data_result['data_table']}{valuation_data_text}
+{data_result['data_table']}
 
 Instructions:
 - Give a concise and punchy answer. If asked for data only provide the most relevant data.
 - Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
 - Round numbers appropriately (billions, millions, percentages to 1 decimal)
-- Highlight only the most important findings
 - Be direct and specific with bank names and numbers
 """
                         
@@ -228,16 +197,16 @@ Analyze this qualitative banking question and extract:
 2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
    - If "current" or "latest", return ["{st.session_state.query_router.latest_quarter}"]
    - If no timeframe, return latest 4 quarters: {st.session_state.query_router._get_latest_4_quarters()}
+3. VALUATION: Boolean - true if the question is about valuation metrics (e.g., P/E, P/B)
+    - true if mentioned valuation terms like "P/E", "P/B", "valuation", "metrics"
+    - true if user ask for investment recommendation
+    - false otherwise
 
 Question: "{user_question}"
 
-Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "valuation": true/false}}
+Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "has_valuation": true/false}}
 
-Examples:
-- "Compare Private_1 and Private_2 in 2Q25" → {{"tickers": ["Private_1", "Private_2"], "timeframe": ["2Q25"], "has_sectors": true, "valuation": false}}
-- "Which bank is cheaper ACB or VCB?" → {{"tickers": ["ACB", "VCB"], "timeframe": ["2Q25"], "has_sectors": false, "valuation": true}}
-- "Compare ACB, VCB and TCB performance" → {{"tickers": ["ACB", "VCB", "TCB"], "timeframe": {st.session_state.query_router._get_latest_4_quarters()}, "has_sectors": false, "valuation": false}}
-- "Is SOCB overvalued vs Private_1?" → {{"tickers": ["SOCB", "Private_1"], "timeframe": ["{st.session_state.query_router.latest_quarter}"], "has_sectors": true, "valuation": true}}
+
 """
                 
                 parse_response = client.chat.completions.create(
@@ -294,34 +263,6 @@ Examples:
                 # Combine all data
                 qualitative_data = "\n\n".join(all_qualitative_data)
                 
-                # Get valuation data if valuation is true
-                valuation_data_text = ""
-                if parsed.get('valuation', False):
-                    valuation_data_text = "\n\nValuation Metrics:\n"
-                    for ticker in tickers:
-                        try:
-                            val_metrics = calculate_valuation_metrics(ticker)
-                            if 'error' not in val_metrics:
-                                valuation_data_text += f"""
-{ticker}:
-- Current P/B: {val_metrics['current_pb']}
-- Current P/E: {val_metrics['current_pe']}
-- P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
-- P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
-- P/B 3Y CDF: {val_metrics.get('pb_3y_cdf', 'N/A')}
-- P/B 3Y Z-score: {val_metrics.get('pb_3y_zscore', 'N/A')}
-- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
-- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
-- P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
-- P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
-- P/E 3Y CDF: {val_metrics.get('pe_3y_cdf', 'N/A')}
-- P/E 3Y Z-score: {val_metrics.get('pe_3y_zscore', 'N/A')}
-- P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
-- P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
-"""
-                        except:
-                            pass
-                
                 with st.expander("Qualitative Data Retrieved", expanded=False):
                     st.text(qualitative_data[:3000] + "..." if len(qualitative_data) > 3000 else qualitative_data)
             
@@ -332,11 +273,10 @@ Examples:
 Question: {user_question}
 
 Available Analysis and Commentary:
-{qualitative_data}{valuation_data_text}
+{qualitative_data}
 
 Instructions:
 - Open with a concise conclusion of key findings, afterward followed with detailed analysis
-- Provide a narrative response drawing from the available analysis
 - Write fluently and naturally, like a banking analyst report.
 - Focus on key themes, trends, and insights
 - Use specific examples and data points from the analysis

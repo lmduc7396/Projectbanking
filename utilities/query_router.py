@@ -140,32 +140,24 @@ class QueryRouter:
         
         4. NEED_COMPONENTS: Boolean - true if the question requires component bank data
            - true if asking for comparisons WITHIN a sector (e.g., "which bank in SOCB has highest ROE")
-           - true if asking for rankings or identifying specific banks within sectors]
-           - True if asking for detailed breakdowns of sector performance
+           - true if asking for rankings or identifying specific banks within sectors
            - True if contains inclusive words like among, within, compare
            - false if only asking for aggregated sector data
-        
-        5. NEEDS_VALUATION: Boolean - true if the question requires valuation metrics (P/B, P/E ratios)
-           - true if mentioning: valuation, expensive, cheap, P/E, P/B, price-to-book, price-to-earnings
-           - true if asking about: overvalued, undervalued, fairly valued, investment, buy, sell, rating
-           - false for pure operational metrics (ROE, NIM, NPL, etc.)
-        
+
+        5. VALUATION: Boolean - true if the query is about valuation metrics like P/E, P/B, etc.
+           - true if the query mentions specific valuation metrics
+           - true if asking for investment view 
+           - false if otherwise
+
         Return your answer in JSON format:
         {{
             "tickers": [...],
             "items": [...],
             "timeframe": [...],
             "need_components": true/false,
-            "needs_valuation": true/false
+            "valuation": true/false
         }}
-        
-        Examples:
-        - "Show me ROE for VCB in 2Q25" -> {{"tickers": ["VCB"], "items": ["ROE"], "timeframe": ["2Q25"], "need_components": false}}
-        - "What's the NIM for SOCB in 2024?" -> {{"tickers": ["SOCB"], "items": ["NIM"], "timeframe": ["2024"], "need_components": false}}
-        - "What's ACB current CASA?" -> {{"tickers": ["ACB"], "items": ["CASA"], "timeframe": ["{self.latest_quarter}"], "need_components": false}}
-        - "Which bank in SOCB has highest ROE?" -> {{"tickers": ["SOCB"], "items": ["ROE"], "timeframe": {latest_4_quarters}, "need_components": true}}
-        - "Rank all banks by NPL" -> {{"tickers": ["ALL_BANKS"], "items": ["NPL"], "timeframe": {latest_4_quarters}, "need_components": false}}
-        """
+               """
         
         try:
             response = self.client.chat.completions.create(
@@ -264,7 +256,7 @@ class QueryRouter:
                 'timeframe': timeframe,
                 'data_source': data_source,
                 'need_components': parsed.get('need_components', False),
-                'needs_valuation': parsed.get('needs_valuation', False)
+                'valuation': parsed.get('valuation', False)
             }
             
         except Exception as e:
@@ -339,5 +331,5 @@ class QueryRouter:
             'timeframe': timeframe,
             'data_source': data_source,
             'need_components': need_components,
-            'needs_valuation': False
+            'valuation': False
         }
