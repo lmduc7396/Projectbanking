@@ -103,6 +103,8 @@ if user_question:
                 
                 with st.expander("Query Analysis", expanded=False):
                     st.json(query_analysis)
+                    # Debug: Show valuation flag
+                    st.info(f"Valuation needed: {query_analysis.get('valuation', False)}")
             
             with st.spinner("Discovering relevant data..."):
                 data_result = st.session_state.discovery_agent.find_relevant_data(
@@ -139,6 +141,7 @@ if user_question:
                         # Get valuation data if valuation is true in query_analysis
                         valuation_data_text = ""
                         if query_analysis.get('valuation', False):
+                            st.info(f"Adding valuation data for tickers: {query_analysis.get('tickers', [])}")
                             valuation_data_text = "\n\nValuation Metrics:\n"
                             tickers = query_analysis.get('tickers', [])
                             for ticker in tickers:
@@ -335,9 +338,9 @@ Available Analysis and Commentary:
 
 Instructions:
 - Open with a concise conclusion of key findings, afterward followed with detailed analysis
-- Write fluently and naturally, like a banking analyst report.
-- Focus on key themes, trends, and insights
+- Give a concise and punchy answer. If asked for data only provide the most relevant data.
 - Use specific examples and data points from the analysis
+- Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
 - Be punchy and assertive, max 2 paragraphs. Don't divert from the question
 - Reference specific quarters and banks when relevant
 """
