@@ -12,6 +12,7 @@ from utilities.openai_utils import get_openai_client
 from utilities.data_discovery import DataDiscoveryAgent
 from utilities.query_router import QueryRouter
 from utilities.qualitative_data_handler import QualitativeDataHandler
+from utilities.valuation_tool import calculate_valuation_metrics
 
 st.set_page_config(
     page_title="Dug GPT",
@@ -135,12 +136,41 @@ if user_question:
                     if data_result['data_found']:
                         client = get_openai_client()
                         
+                        # Get valuation data if valuation is true in query_analysis
+                        valuation_data_text = ""
+                        if query_analysis.get('valuation', False):
+                            valuation_data_text = "\n\nValuation Metrics:\n"
+                            tickers = query_analysis.get('tickers', [])
+                            for ticker in tickers:
+                                try:
+                                    val_metrics = calculate_valuation_metrics(ticker)
+                                    if 'error' not in val_metrics:
+                                        valuation_data_text += f"""
+{ticker}:
+- Current P/B: {val_metrics['current_pb']}
+- Current P/E: {val_metrics['current_pe']}
+- P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
+- P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
+- P/B 3Y CDF: {val_metrics.get('pb_3y_cdf', 'N/A')}
+- P/B 3Y Z-score: {val_metrics.get('pb_3y_zscore', 'N/A')}
+- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
+- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
+- P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
+- P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
+- P/E 3Y CDF: {val_metrics.get('pe_3y_cdf', 'N/A')}
+- P/E 3Y Z-score: {val_metrics.get('pe_3y_zscore', 'N/A')}
+- P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
+- P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
+"""
+                                except:
+                                    pass
+                        
                         # Create prompt with question and data
                         enhanced_prompt = f"""
 Question: {user_question}
 
 Data Table:
-{data_result['data_table']}
+{data_result['data_table']}{valuation_data_text}
 
 Instructions:
 - Give a concise and punchy answer. If asked for data only provide the most relevant data.
@@ -204,7 +234,7 @@ Analyze this qualitative banking question and extract:
 
 Question: "{user_question}"
 
-Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "has_valuation": true/false}}
+Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "valuation": true/false}}
 
 
 """
@@ -263,6 +293,34 @@ Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, 
                 # Combine all data
                 qualitative_data = "\n\n".join(all_qualitative_data)
                 
+                # Get valuation data if valuation is true
+                valuation_data_text = ""
+                if parsed.get('valuation', False):
+                    valuation_data_text = "\n\nValuation Metrics:\n"
+                    for ticker in tickers:
+                        try:
+                            val_metrics = calculate_valuation_metrics(ticker)
+                            if 'error' not in val_metrics:
+                                valuation_data_text += f"""
+{ticker}:
+- Current P/B: {val_metrics['current_pb']}
+- Current P/E: {val_metrics['current_pe']}
+- P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
+- P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
+- P/B 3Y CDF: {val_metrics.get('pb_3y_cdf', 'N/A')}
+- P/B 3Y Z-score: {val_metrics.get('pb_3y_zscore', 'N/A')}
+- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
+- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
+- P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
+- P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
+- P/E 3Y CDF: {val_metrics.get('pe_3y_cdf', 'N/A')}
+- P/E 3Y Z-score: {val_metrics.get('pe_3y_zscore', 'N/A')}
+- P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
+- P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
+"""
+                        except:
+                            pass
+                
                 with st.expander("Qualitative Data Retrieved", expanded=False):
                     st.text(qualitative_data[:3000] + "..." if len(qualitative_data) > 3000 else qualitative_data)
             
@@ -273,7 +331,7 @@ Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, 
 Question: {user_question}
 
 Available Analysis and Commentary:
-{qualitative_data}
+{qualitative_data}{valuation_data_text}
 
 Instructions:
 - Open with a concise conclusion of key findings, afterward followed with detailed analysis
