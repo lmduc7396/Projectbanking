@@ -142,7 +142,7 @@ if user_question:
                 else:
                     st.warning("No data found matching the query")
             
-            with st.spinner("Generating response..."):
+            with st.spinner("Duc is typing..."):
                 try:
                     if data_result and data_result.get('data_found'):
                         client = get_openai_client()
@@ -208,7 +208,7 @@ if user_question:
                 with st.expander("Qualitative Data Retrieved", expanded=False):
                     st.text(qualitative_data[:3000] + "..." if len(qualitative_data) > 3000 else qualitative_data)
             
-            with st.spinner("Generating qualitative analysis..."):
+            with st.spinner("Duc is typing..."):
                 try:
                     answer = generate_qualitative_response(
                         user_question=user_question,
