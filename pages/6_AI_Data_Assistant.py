@@ -2,17 +2,20 @@
 
 import streamlit as st
 import pandas as pd
-import json
 import os
 from datetime import datetime
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utilities.openai_utils import get_openai_client
-from utilities.data_discovery import DataDiscoveryAgent
-from utilities.query_router import QueryRouter
-from utilities.qualitative_data_handler import QualitativeDataHandler
-from utilities.valuation_tool import calculate_valuation_metrics
+from AI_MPC.data_discovery import DataDiscoveryAgent
+from AI_MPC.query_router import QueryRouter
+from AI_MPC.qualitative_data_handler import QualitativeDataHandler
+from AI_MPC.qualitative_query_parser import parse_qualitative_query
+from AI_MPC.valuation_formatter import format_valuation_data, format_valuation_data_batch
+from AI_MPC.response_generator import generate_quantitative_response, generate_qualitative_response
+from AI_MPC.qualitative_data_collector import collect_qualitative_data, collect_qualitative_data_batch
+from AI_MPC.parallel_data_fetcher import fetch_quantitative_data_parallel, fetch_qualitative_data_parallel
 
 st.set_page_config(
     page_title="Duc GPT",
@@ -106,12 +109,18 @@ if user_question:
                     # Debug: Show valuation flag
                     st.info(f"Valuation needed: {query_analysis.get('valuation', False)}")
             
-            with st.spinner("Discovering relevant data..."):
-                data_result = st.session_state.discovery_agent.find_relevant_data(
-                    query_analysis
+            with st.spinner("Discovering relevant data and fetching valuation (parallel)..."):
+                # Use parallel fetching for better performance
+                parallel_results = fetch_quantitative_data_parallel(
+                    query_analysis,
+                    st.session_state.discovery_agent,
+                    format_valuation_data_batch if len(query_analysis.get('tickers', [])) > 1 else format_valuation_data
                 )
                 
-                if data_result['data_found']:
+                data_result = parallel_results['data_result']
+                valuation_data_text = parallel_results['valuation_data']
+                
+                if data_result and data_result.get('data_found'):
                     st.success(f"Found {data_result['row_count']} rows with {data_result['column_count']} columns")
             
             st.info("Debug: Data Being Sent to OpenAI")
@@ -135,67 +144,17 @@ if user_question:
             
             with st.spinner("Generating response..."):
                 try:
-                    if data_result['data_found']:
+                    if data_result and data_result.get('data_found'):
                         client = get_openai_client()
                         
-                        # Get valuation data if valuation is true in query_analysis
-                        valuation_data_text = ""
-                        if query_analysis.get('valuation', False):
-                            st.info(f"Adding valuation data for tickers: {query_analysis.get('tickers', [])}")
-                            valuation_data_text = "\n\nValuation Metrics:\n"
-                            tickers = query_analysis.get('tickers', [])
-                            for ticker in tickers:
-                                try:
-                                    val_metrics = calculate_valuation_metrics(ticker)
-                                    if 'error' not in val_metrics:
-                                        valuation_data_text += f"""
-{ticker}:
-- Current P/B: {val_metrics['current_pb']}
-- Current P/E: {val_metrics['current_pe']}
-- P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
-- P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
-- P/B 3Y CDF: {val_metrics.get('pb_3y_cdf', 'N/A')}
-- P/B 3Y Z-score: {val_metrics.get('pb_3y_zscore', 'N/A')}
-- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
-- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
-- P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
-- P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
-- P/E 3Y CDF: {val_metrics.get('pe_3y_cdf', 'N/A')}
-- P/E 3Y Z-score: {val_metrics.get('pe_3y_zscore', 'N/A')}
-- P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
-- P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
-"""
-                                except:
-                                    pass
-                        
-                        # Create prompt with question and data
-                        enhanced_prompt = f"""
-Question: {user_question}
-
-Data Table:
-{data_result['data_table']}{valuation_data_text}
-
-Instructions:
-- Give a concise and punchy answer. If asked for data only provide the most relevant data.
-- Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
-- Round numbers appropriately (billions, millions, percentages to 1 decimal)
-- Be direct and specific with bank names and numbers
-"""
-                        
-                        st.info("Debug: Prompt Being Sent to OpenAI")
-                        with st.expander("Full Prompt to OpenAI (Debug)", expanded=False):
-                            st.code(enhanced_prompt, language='text')
-                        
-                        response = client.chat.completions.create(
+                        answer = generate_quantitative_response(
+                            user_question=user_question,
+                            data_result=data_result,
+                            valuation_data_text=valuation_data_text,
+                            client=client,
                             model=model,
-                            messages=[
-                                {"role": "system", "content": "You are a concise banking analyst. Give short, punchy answers with properly formatted numbers. Convert decimals to percentages, use billions/millions for large numbers. Maximum 2-3 sentences."},
-                                {"role": "user", "content": enhanced_prompt}
-                            ],
                             temperature=temperature
                         )
-                        
-                        answer = response.choices[0].message.content
                         
                         st.success("OpenAI Response:")
                         st.markdown(answer)
@@ -214,150 +173,51 @@ Instructions:
         else:  # Qualitative
             # New qualitative flow
             with st.spinner("Analyzing your qualitative question..."):
-                # First parse the query to extract tickers and timeframe
+                # Parse the query to extract tickers and timeframe
                 client = get_openai_client()
                 
-                parse_prompt = f"""
-Analyze this qualitative banking question and extract:
-1. TICKERS: List ALL bank codes or sector names mentioned. Valid sectors are:
-   - Sector (overall banking sector)
-   - SOCB (state-owned commercial banks)
-   - Private_1, Private_2, Private_3 (private bank groups)
-   IMPORTANT: 
-   - Return ALL tickers mentioned in the question as a list
-   - Preserve the exact format with underscore for Private sectors (e.g., "Private_1" not "Private 1")
-   
-2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
-   - If "current" or "latest", return ["{st.session_state.query_router.latest_quarter}"]
-   - If no timeframe, return latest 4 quarters: {st.session_state.query_router._get_latest_4_quarters()}
-3. VALUATION: Boolean - true if the question is about valuation metrics (e.g., P/E, P/B)
-    - true if mentioned valuation terms like "P/E", "P/B", "valuation", "metrics"
-    - true if user ask for investment recommendation
-    - false otherwise
-
-Question: "{user_question}"
-
-Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "valuation": true/false}}
-
-
-"""
-                
-                parse_response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "Extract structured data from banking questions."},
-                        {"role": "user", "content": parse_prompt}
-                    ],
-                    temperature=0,
-                    response_format={"type": "json_object"}
+                parsed = parse_qualitative_query(
+                    user_question=user_question,
+                    client=client,
+                    latest_quarter=st.session_state.query_router.latest_quarter,
+                    latest_4_quarters=st.session_state.query_router._get_latest_4_quarters()
                 )
-                
-                import json
-                parsed = json.loads(parse_response.choices[0].message.content)
-                
-                # Ensure tickers preserve underscores for Private sectors
-                tickers = parsed.get('tickers', [])
-                normalized_tickers = []
-                for ticker in tickers:
-                    if ticker.startswith('Private'):
-                        # Normalize Private sector format
-                        ticker_parts = ticker.replace(' ', '_').split('_')
-                        if len(ticker_parts) >= 2 and ticker_parts[1].isdigit():
-                            normalized_tickers.append(f"Private_{ticker_parts[1]}")
-                        else:
-                            normalized_tickers.append(ticker)
-                    else:
-                        normalized_tickers.append(ticker)
-                parsed['tickers'] = normalized_tickers
                 
                 with st.expander("Qualitative Query Analysis", expanded=False):
                     st.json(parsed)
                     st.info(f"Parsed tickers: {parsed.get('tickers', [])} | Timeframe: {parsed.get('timeframe', [])}")
             
-            with st.spinner("Retrieving qualitative data..."):
+            with st.spinner("Retrieving qualitative and valuation data (parallel)..."):
                 # Get qualitative data for all tickers mentioned
                 tickers = parsed.get('tickers', [])
                 timeframe = parsed.get('timeframe', [])
                 has_sectors = parsed.get('has_sectors', False)
                 
-                # Collect data for all tickers
-                all_qualitative_data = []
-                for ticker in tickers:
-                    # Determine if this specific ticker is a sector
-                    is_sector = ticker in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
-                    
-                    ticker_data = st.session_state.qualitative_handler.format_qualitative_data(
-                        ticker=ticker,
-                        timeframe=timeframe,
-                        is_sector=is_sector
-                    )
-                    all_qualitative_data.append(ticker_data)
+                # Use parallel fetching and batch processing
+                parallel_results = fetch_qualitative_data_parallel(
+                    tickers=tickers,
+                    timeframe=timeframe,
+                    qualitative_handler=st.session_state.qualitative_handler,
+                    valuation_formatter=format_valuation_data_batch if len(tickers) > 1 else format_valuation_data,
+                    need_valuation=parsed.get('valuation', False)
+                )
                 
-                # Combine all data
-                qualitative_data = "\n\n".join(all_qualitative_data)
-                
-                # Get valuation data if valuation is true
-                valuation_data_text = ""
-                if parsed.get('valuation', False):
-                    valuation_data_text = "\n\nValuation Metrics:\n"
-                    for ticker in tickers:
-                        try:
-                            val_metrics = calculate_valuation_metrics(ticker)
-                            if 'error' not in val_metrics:
-                                valuation_data_text += f"""
-{ticker}:
-- Current P/B: {val_metrics['current_pb']}
-- Current P/E: {val_metrics['current_pe']}
-- P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
-- P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
-- P/B 3Y CDF: {val_metrics.get('pb_3y_cdf', 'N/A')}
-- P/B 3Y Z-score: {val_metrics.get('pb_3y_zscore', 'N/A')}
-- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
-- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
-- P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
-- P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
-- P/E 3Y CDF: {val_metrics.get('pe_3y_cdf', 'N/A')}
-- P/E 3Y Z-score: {val_metrics.get('pe_3y_zscore', 'N/A')}
-- P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
-- P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
-"""
-                        except:
-                            pass
+                qualitative_data = parallel_results['qualitative_data']
+                valuation_data_text = parallel_results['valuation_data']
                 
                 with st.expander("Qualitative Data Retrieved", expanded=False):
                     st.text(qualitative_data[:3000] + "..." if len(qualitative_data) > 3000 else qualitative_data)
             
             with st.spinner("Generating qualitative analysis..."):
                 try:
-                    # Create qualitative prompt
-                    qual_prompt = f"""
-Question: {user_question}
-
-Available Analysis and Commentary:
-{qualitative_data}{valuation_data_text}
-
-Instructions:
-- Open with a concise conclusion of key findings, afterward followed with detailed analysis
-- Give a concise and punchy answer. If asked for data only provide the most relevant data.
-- Use specific examples and data points from the analysis
-- Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
-- Be punchy and assertive, max 2 paragraphs. Don't divert from the question
-- Reference specific quarters and banks when relevant
-"""
-                    
-                    with st.expander("Qualitative Prompt to OpenAI", expanded=False):
-                        st.code(qual_prompt[:1000] + "...", language='text')
-                    
-                    response = client.chat.completions.create(
+                    answer = generate_qualitative_response(
+                        user_question=user_question,
+                        qualitative_data=qualitative_data,
+                        valuation_data_text=valuation_data_text,
+                        client=client,
                         model=model,
-                        messages=[
-                            {"role": "system", "content": "You are a senior banking analyst writing comprehensive sector analysis. Draw insights from the provided commentary and analysis to answer questions with depth and nuance."},
-                            {"role": "user", "content": qual_prompt}
-                        ],
                         temperature=temperature
                     )
-                    
-                    answer = response.choices[0].message.content
                     
                     st.success("Qualitative Analysis:")
                     st.markdown(answer)

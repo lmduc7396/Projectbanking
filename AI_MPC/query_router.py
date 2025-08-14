@@ -2,7 +2,9 @@
 import re
 import pandas as pd
 import os
+import sys
 from typing import Dict, List, Any, Optional
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utilities.openai_utils import get_openai_client
 
 class QueryRouter:
