@@ -209,10 +209,10 @@ Available Analysis and Commentary:
 
 Instructions:
 - Open with a concise conclusion of key findings, afterward followed with detailed analysis
-- Give a concise and punchy answer. If asked for data only provide the most relevant data.
+- Give a concise and punchy answer, narrative driven like a financial analyst
 - Use specific examples and data points from the analysis
 - Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
-- Be punchy and assertive, max 2 paragraphs. Don't divert from the question
+- Be punchy and assertive, max 2 paragraphs.
 - Reference specific quarters and banks when relevant
 """
                     
