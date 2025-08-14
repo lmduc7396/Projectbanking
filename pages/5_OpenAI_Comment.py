@@ -18,17 +18,39 @@ load_dotenv()
 
 # Load your data (same as main file)
 # Cache version: increment this when data structure changes to force cache refresh
-CACHE_VERSION = 2
+CACHE_VERSION = 3  # Incremented to force cache refresh for EVF sector fix
 
 @st.cache_data
 def load_data(version=CACHE_VERSION):
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
-    return df_quarter, df_year, keyitem
+    bank_type = pd.read_excel(os.path.join(project_root, 'Data/Bank_Type.xlsx'))
+    return df_quarter, df_year, keyitem, bank_type
 
-df_quarter, df_year, keyitem = load_data()
+df_quarter, df_year, keyitem, bank_type_mapping = load_data()
 color_sequence = px.colors.qualitative.Bold
+
+def get_ticker_sector(ticker, df_quarter, bank_type_mapping):
+    """Get sector for a ticker with fallback logic"""
+    # First try to get from df_quarter
+    ticker_data = df_quarter[df_quarter['TICKER'] == ticker]
+    if not ticker_data.empty and 'Type' in ticker_data.columns:
+        sector = ticker_data['Type'].iloc[0]
+        if pd.notna(sector) and sector != 'nan':
+            return sector
+    
+    # Fallback to Bank_Type.xlsx mapping
+    if ticker in bank_type_mapping['TICKER'].values:
+        bank_row = bank_type_mapping[bank_type_mapping['TICKER'] == ticker].iloc[0]
+        if 'Type' in bank_row and pd.notna(bank_row['Type']):
+            return bank_row['Type']
+    
+    # If ticker is a sector itself (like "Sector", "SOCB", etc.)
+    if len(ticker) > 3:
+        return ticker
+    
+    return "Unknown"
 
 # Page configuration
 st.set_page_config(
@@ -95,14 +117,14 @@ with col3:
 if ticker:
     ticker_data = df_quarter[df_quarter['TICKER'] == ticker]
     if not ticker_data.empty:
-        # Get sector from the database for this ticker
-        ticker_sector = ticker_data['Type'].iloc[0] if not ticker_data.empty else "Unknown"
+        # Get sector from the database for this ticker using fallback logic
+        ticker_sector = get_ticker_sector(ticker, df_quarter, bank_type_mapping)
         
         # Check if data exists for selected quarter
         quarter_data = ticker_data[ticker_data['Date_Quarter'] == selected_quarter]
         quarter_status = "Available" if not quarter_data.empty else "No data"
         
-        st.info(f"**{ticker}** | Quarter: **{selected_quarter}** ({quarter_status}) | Sector: {ticker_sector}")
+        st.info(f"**{ticker}** | Quarter: **{selected_quarter}** ({quarter_status}) | Sector: **{ticker_sector}**")
         
         # Check if cached analysis exists for this ticker and quarter
         if cache_exists and not force_regenerate:
@@ -147,10 +169,10 @@ with col2:
 
 # Generation logic
 if generate_button and ticker and selected_quarter:
-    # Get sector from database
+    # Get sector from database using fallback logic
     ticker_data = df_quarter[df_quarter['TICKER'] == ticker]
     if not ticker_data.empty:
-        sector = ticker_data['Type'].iloc[0]
+        sector = get_ticker_sector(ticker, df_quarter, bank_type_mapping)
         
         # Check if data exists for the selected quarter
         quarter_data = ticker_data[ticker_data['Date_Quarter'] == selected_quarter]
