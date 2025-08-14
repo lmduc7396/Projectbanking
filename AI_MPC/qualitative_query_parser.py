@@ -33,14 +33,21 @@ Analyze this qualitative banking question and extract:
 2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
    - If "current" or "latest", return ["{latest_quarter}"]
    - If no timeframe, return latest 4 quarters: {latest_4_quarters}
+
 3. VALUATION: Boolean - true if the question is about valuation metrics (e.g., P/E, P/B)
     - true if mentioned valuation terms like "P/E", "P/B", "valuation", "metrics"
     - true if user ask for investment recommendation
     - false otherwise
 
+4. NEED_COMPONENTS: Boolean - true if the question requires individual bank data within a sector
+   - true if asking for comparisons WITHIN a sector (e.g., "which bank in SOCB", "among all Private_1 banks")
+   - true if asking "which one", "best among", "worst in", "ranking within"
+   - true if the question implies selecting or comparing individual banks within a sector group
+   - false if only asking about sector-level aggregated analysis
+
 Question: "{user_question}"
 
-Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "valuation": true/false}}
+Return JSON: {{"tickers": [...], "timeframe": [...], "has_sectors": true/false, "valuation": true/false, "need_components": true/false}}
 
 
 """

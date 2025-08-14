@@ -170,7 +170,8 @@ if user_question:
                     timeframe=timeframe,
                     qualitative_handler=st.session_state.qualitative_handler,
                     valuation_formatter=format_valuation_data_batch if len(tickers) > 1 else format_valuation_data,
-                    need_valuation=parsed.get('valuation', False)
+                    need_valuation=parsed.get('valuation', False),
+                    need_components=parsed.get('need_components', False)
                 )
                 
                 qualitative_data = parallel_results['qualitative_data']

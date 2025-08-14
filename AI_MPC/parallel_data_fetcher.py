@@ -62,7 +62,8 @@ def fetch_qualitative_data_parallel(tickers: List[str],
                                    timeframe: List[str],
                                    qualitative_handler,
                                    valuation_formatter=None,
-                                   need_valuation: bool = False) -> Dict[str, Any]:
+                                   need_valuation: bool = False,
+                                   need_components: bool = False) -> Dict[str, Any]:
     """
     Fetch qualitative data and valuation data in parallel
     
@@ -89,7 +90,8 @@ def fetch_qualitative_data_parallel(tickers: List[str],
             collect_qualitative_batch,
             tickers,
             timeframe,
-            qualitative_handler
+            qualitative_handler,
+            need_components
         )
         futures.append(('qualitative', future_qual))
         
@@ -118,24 +120,15 @@ def fetch_qualitative_data_parallel(tickers: List[str],
 
 def collect_qualitative_batch(tickers: List[str], 
                              timeframe: List[str], 
-                             qualitative_handler) -> str:
+                             qualitative_handler,
+                             need_components: bool = False) -> str:
     """
     Helper function to collect qualitative data for batch processing
     Can be optimized further with batch queries
     """
-    all_qualitative_data = []
-    
-    for ticker in tickers:
-        is_sector = ticker in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
-        
-        ticker_data = qualitative_handler.format_qualitative_data(
-            ticker=ticker,
-            timeframe=timeframe,
-            is_sector=is_sector
-        )
-        all_qualitative_data.append(ticker_data)
-    
-    return "\n\n".join(all_qualitative_data)
+    # Use the updated collect_qualitative_data function with need_components
+    from AI_MPC.qualitative_data_collector import collect_qualitative_data
+    return collect_qualitative_data(tickers, timeframe, qualitative_handler, need_components)
 
 
 async def fetch_all_data_async(query_type: str,
