@@ -14,11 +14,15 @@ from utilities.quarter_utils import quarter_to_numeric, quarter_sort_key
 # Load environment variables
 load_dotenv()
 
+# Get project root directory
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+data_dir = os.path.join(project_root, 'Data')
+
 # Load data
 print("Loading data...")
-df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
-keyitem = pd.read_excel('Data/Key_items.xlsx')
-bank_type_mapping = pd.read_excel('Data/Bank_Type.xlsx')
+df_quarter = pd.read_csv(os.path.join(data_dir, 'dfsectorquarter.csv'))
+keyitem = pd.read_excel(os.path.join(data_dir, 'Key_items.xlsx'))
+bank_type_mapping = pd.read_excel(os.path.join(data_dir, 'Bank_Type.xlsx'))
 
 print(f"Bank Type mapping structure:")
 print(bank_type_mapping.head())

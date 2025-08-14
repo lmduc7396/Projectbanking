@@ -1,3 +1,4 @@
+#%%
 #!/usr/bin/env python3
 """
 Unified script to run bulk generators for banking analysis

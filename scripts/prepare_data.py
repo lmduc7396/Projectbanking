@@ -63,6 +63,12 @@ temp = pd.merge(dfis,dfbs,on=['TICKER','YEARREPORT','LENGTHREPORT'],how='inner')
 temp2 = pd.merge(temp,dfnt,on=['TICKER','YEARREPORT','LENGTHREPORT'],how='inner')
 temp3 = pd.merge(temp2,Type,on=['TICKER'],how='left')
 dfall = pd.merge(temp3,write_off,on=['TICKER','YEARREPORT','LENGTHREPORT'],how='left')
+
+# Filter to only include banks that are in Bank_Type.xlsx
+valid_tickers = Type['TICKER'].unique().tolist()
+dfall = dfall[dfall['TICKER'].isin(valid_tickers)]
+print(f"Filtered to {len(dfall['TICKER'].unique())} banks from Bank_Type.xlsx")
+
 dfall = dfall.sort_values(by=['TICKER','ENDDATE_x'])
 bank_type = ['SOCB','Private_1','Private_2','Private_3','Sector']
 
@@ -273,8 +279,11 @@ if has_forecast:
     # Get the structure from most recent full year data to use as template
     template_year = dfcompaniesyear[dfcompaniesyear['Date_Quarter'] == str(most_recent_full_year)].copy()
     
-    # Get unique tickers from forecast data
-    forecast_tickers = forecast_bank['TICKER'].unique()
+    # Get unique tickers from forecast data that are also in Bank_Type
+    valid_tickers = Type['TICKER'].unique().tolist()
+    all_forecast_tickers = forecast_bank['TICKER'].unique()
+    forecast_tickers = [t for t in all_forecast_tickers if t in valid_tickers]
+    print(f"Filtered forecast tickers: {len(forecast_tickers)} out of {len(all_forecast_tickers)} are in Bank_Type.xlsx")
     
     # Initialize list to hold forecast rows
     forecast_rows = []
