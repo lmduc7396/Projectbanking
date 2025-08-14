@@ -117,6 +117,20 @@ if user_question:
                     if data_result and data_result.get('data_found'):
                         client = get_openai_client()
                         
+                        # Prepare the final prompt for debugging
+                        final_prompt = f"""
+Question: {user_question}
+
+Data Table:
+{data_result['data_table']}{valuation_data_text}
+
+Instructions:
+- Give a concise and punchy answer. If asked for data only provide the most relevant data.
+- Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
+- Round numbers appropriately (billions, millions, percentages to 1 decimal)
+- Be direct and specific with bank names and numbers
+"""
+                        
                         answer = generate_quantitative_response(
                             user_question=user_question,
                             data_result=data_result,
@@ -127,6 +141,13 @@ if user_question:
                         )
                         
                         st.markdown(answer)
+                        
+                        # Show debug information in expander
+                        with st.expander("🔍 Debug: View Final OpenAI Prompt"):
+                            st.text("System Message:")
+                            st.code("You are a concise banking analyst. Give short, punchy answers with properly formatted numbers. Convert decimals to percentages, use billions/millions for large numbers. Maximum 2-3 sentences.")
+                            st.text("User Prompt:")
+                            st.code(final_prompt)
                         
                         st.session_state.chat_history.append({
                             "role": "assistant",
@@ -179,6 +200,22 @@ if user_question:
             
             with st.spinner("Duc is typing..."):
                 try:
+                    # Prepare the final prompt for debugging
+                    final_qual_prompt = f"""
+Question: {user_question}
+
+Available Analysis and Commentary:
+{qualitative_data}{valuation_data_text}
+
+Instructions:
+- Open with a concise conclusion of key findings, afterward followed with detailed analysis
+- Give a concise and punchy answer. If asked for data only provide the most relevant data.
+- Use specific examples and data points from the analysis
+- Convert decimals to percentages (0.02 = 2%, 0.134 = 13.4%)
+- Be punchy and assertive, max 2 paragraphs. Don't divert from the question
+- Reference specific quarters and banks when relevant
+"""
+                    
                     answer = generate_qualitative_response(
                         user_question=user_question,
                         qualitative_data=qualitative_data,
@@ -189,6 +226,15 @@ if user_question:
                     )
                     
                     st.markdown(answer)
+                    
+                    # Show debug information in expander
+                    with st.expander("🔍 Debug: View Final OpenAI Prompt"):
+                        st.text("System Message:")
+                        st.code("You are a senior banking analyst writing comprehensive sector analysis. Draw insights from the provided commentary and analysis to answer questions with depth and nuance.")
+                        st.text("User Prompt:")
+                        st.code(final_qual_prompt)
+                        st.text("Parsed Query Info:")
+                        st.json(parsed)
                     
                     st.session_state.chat_history.append({
                         "role": "assistant",

@@ -15,26 +15,34 @@ def format_valuation_data(tickers: List[str]) -> str:
     Returns:
         Formatted string with valuation metrics
     """
-    valuation_data_text = "\n\nValuation Metrics:\n"
+    valuation_data_text = "\n\n" + "="*60 + "\nVALUATION METRICS\n" + "="*60 + "\n"
     
     for ticker in tickers:
         try:
             val_metrics = calculate_valuation_metrics(ticker)
             if 'error' not in val_metrics:
                 valuation_data_text += f"""
-{ticker}:
+{"="*40}
+[{ticker}] VALUATION DATA
+{"="*40}
+
+{ticker} Current Metrics:
 - Current P/B: {val_metrics['current_pb']}
 - Current P/E: {val_metrics['current_pe']}
+
+{ticker} Historical Position (1 Year):
 - P/B 1Y CDF: {val_metrics.get('pb_1y_cdf', 'N/A')}
 - P/B 1Y Z-score: {val_metrics.get('pb_1y_zscore', 'N/A')}
-- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
-- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
 - P/E 1Y CDF: {val_metrics.get('pe_1y_cdf', 'N/A')}
 - P/E 1Y Z-score: {val_metrics.get('pe_1y_zscore', 'N/A')}
+
+{ticker} Historical Position (Full History):
+- P/B Full CDF: {val_metrics.get('pb_full_cdf', 'N/A')}
+- P/B Full Z-score: {val_metrics.get('pb_full_zscore', 'N/A')}
 - P/E Full CDF: {val_metrics.get('pe_full_cdf', 'N/A')}
 - P/E Full Z-score: {val_metrics.get('pe_full_zscore', 'N/A')}
 
-Sector ({val_metrics.get('sector', 'N/A')}) Comparison:
+{ticker} vs Sector ({val_metrics.get('sector', 'N/A')}) Comparison:
 - Sector P/B: {val_metrics.get('sector_pb', 'N/A')}
 - Sector P/E: {val_metrics.get('sector_pe', 'N/A')}
 - Sector P/B 1Y CDF: {val_metrics.get('sector_pb_1y_cdf', 'N/A')}
@@ -49,7 +57,7 @@ Sector ({val_metrics.get('sector', 'N/A')}) Comparison:
         except:
             pass
     
-    return valuation_data_text if valuation_data_text != "\n\nValuation Metrics:\n" else ""
+    return valuation_data_text if valuation_data_text != "\n\n" + "="*60 + "\nVALUATION METRICS\n" + "="*60 + "\n" else ""
 
 
 def format_valuation_data_batch(tickers: List[str]) -> str:
@@ -70,7 +78,7 @@ def format_valuation_data_batch(tickers: List[str]) -> str:
     from datetime import timedelta
     from scipy import stats
     
-    valuation_data_text = "\n\nValuation Metrics:\n"
+    valuation_data_text = "\n\n" + "="*60 + "\nVALUATION METRICS\n" + "="*60 + "\n"
     
     # Load data once
     data_path = 'Data/Valuation_banking.csv'
@@ -179,22 +187,30 @@ def format_valuation_data_batch(tickers: List[str]) -> str:
         # Format results
         for ticker, metrics in results.items():
             valuation_data_text += f"""
-{ticker}:
+{"="*40}
+[{ticker}] VALUATION DATA
+{"="*40}
+
+{ticker} Current Metrics:
 - Current P/B: {metrics['current_pb']}
 - Current P/E: {metrics['current_pe']}
+
+{ticker} Historical Position (1 Year):
 - P/B 1Y CDF: {metrics.get('pb_1y_cdf', 'N/A')}
 - P/B 1Y Z-score: {metrics.get('pb_1y_zscore', 'N/A')}
-- P/B Full CDF: {metrics.get('pb_full_cdf', 'N/A')}
-- P/B Full Z-score: {metrics.get('pb_full_zscore', 'N/A')}
 - P/E 1Y CDF: {metrics.get('pe_1y_cdf', 'N/A')}
 - P/E 1Y Z-score: {metrics.get('pe_1y_zscore', 'N/A')}
+
+{ticker} Historical Position (Full History):
+- P/B Full CDF: {metrics.get('pb_full_cdf', 'N/A')}
+- P/B Full Z-score: {metrics.get('pb_full_zscore', 'N/A')}
 - P/E Full CDF: {metrics.get('pe_full_cdf', 'N/A')}
 - P/E Full Z-score: {metrics.get('pe_full_zscore', 'N/A')}
 """
             
             if 'sector' in metrics:
                 valuation_data_text += f"""
-Sector ({metrics.get('sector', 'N/A')}) Comparison:
+{ticker} vs Sector ({metrics.get('sector', 'N/A')}) Comparison:
 - Sector P/B: {metrics.get('sector_pb', 'N/A')}
 - Sector P/E: {metrics.get('sector_pe', 'N/A')}
 - Sector P/B 1Y CDF: {metrics.get('sector_pb_1y_cdf', 'N/A')}
@@ -211,4 +227,4 @@ Sector ({metrics.get('sector', 'N/A')}) Comparison:
         print(f"Error in batch valuation processing: {str(e)}")
         return ""
     
-    return valuation_data_text if valuation_data_text != "\n\nValuation Metrics:\n" else ""
+    return valuation_data_text if valuation_data_text != "\n\n" + "="*60 + "\nVALUATION METRICS\n" + "="*60 + "\n" else ""
