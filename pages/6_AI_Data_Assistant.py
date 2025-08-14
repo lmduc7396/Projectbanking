@@ -86,9 +86,6 @@ with st.expander("Rules for questions"):
 for message in st.session_state.chat_history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if "data_context" in message:
-            with st.expander("View Data Context"):
-                st.json(message["data_context"])
 
 user_question = st.chat_input("Ask anything about banking.")
 
@@ -101,15 +98,10 @@ if user_question:
     with st.chat_message("assistant"):
         if question_type == "Quantitative":
             # Original quantitative flow
-            with st.spinner("Analyzing your question..."):
+            with st.spinner("Duc is analyzing..."):
                 query_analysis = st.session_state.query_router.analyze_query(user_question)
-                
-                with st.expander("Query Analysis", expanded=False):
-                    st.json(query_analysis)
-                    # Debug: Show valuation flag
-                    st.info(f"Valuation needed: {query_analysis.get('valuation', False)}")
             
-            with st.spinner("Discovering relevant data and fetching valuation (parallel)..."):
+            with st.spinner("Duc is searching data..."):
                 # Use parallel fetching for better performance
                 parallel_results = fetch_quantitative_data_parallel(
                     query_analysis,
@@ -119,28 +111,6 @@ if user_question:
                 
                 data_result = parallel_results['data_result']
                 valuation_data_text = parallel_results['valuation_data']
-                
-                if data_result and data_result.get('data_found'):
-                    st.success(f"Found {data_result['row_count']} rows with {data_result['column_count']} columns")
-            
-            st.info("Debug: Data Being Sent to OpenAI")
-            with st.expander("Data Table and Context (Debug)", expanded=False):
-                st.subheader("1. Data Summary:")
-                st.json(data_result.get('summary', {}))
-                
-                st.subheader("2. Actual Data Table:")
-                if data_result.get('data_table'):
-                    st.code(data_result['data_table'], language='text')
-                    
-                    # Try to display as dataframe
-                    try:
-                        import io
-                        df_display = pd.read_csv(io.StringIO(data_result['data_table']), sep=r'\s\s+', engine='python')
-                        st.dataframe(df_display)
-                    except:
-                        pass
-                else:
-                    st.warning("No data found matching the query")
             
             with st.spinner("Duc is typing..."):
                 try:
@@ -156,7 +126,6 @@ if user_question:
                             temperature=temperature
                         )
                         
-                        st.success("OpenAI Response:")
                         st.markdown(answer)
                         
                         st.session_state.chat_history.append({
@@ -165,14 +134,20 @@ if user_question:
                             "data_context": data_result.get('summary', {})
                         })
                     else:
-                        st.warning("No data found to answer your question. Please try rephrasing or check if the data exists for the specified timeframe and banks.")
+                        answer = "No data found to answer your question. Please try rephrasing or check if the data exists for the specified timeframe and banks."
+                        st.warning(answer)
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": answer,
+                            "data_context": {"error": "No data found"}
+                        })
                     
                 except Exception as e:
                     st.error(f"Error generating response: {str(e)}")
         
         else:  # Qualitative
             # New qualitative flow
-            with st.spinner("Analyzing your qualitative question..."):
+            with st.spinner("Duc is analyzing..."):
                 # Parse the query to extract tickers and timeframe
                 client = get_openai_client()
                 
@@ -182,12 +157,8 @@ if user_question:
                     latest_quarter=st.session_state.query_router.latest_quarter,
                     latest_4_quarters=st.session_state.query_router._get_latest_4_quarters()
                 )
-                
-                with st.expander("Qualitative Query Analysis", expanded=False):
-                    st.json(parsed)
-                    st.info(f"Parsed tickers: {parsed.get('tickers', [])} | Timeframe: {parsed.get('timeframe', [])}")
             
-            with st.spinner("Retrieving qualitative and valuation data (parallel)..."):
+            with st.spinner("Duc is gathering insights..."):
                 # Get qualitative data for all tickers mentioned
                 tickers = parsed.get('tickers', [])
                 timeframe = parsed.get('timeframe', [])
@@ -204,9 +175,6 @@ if user_question:
                 
                 qualitative_data = parallel_results['qualitative_data']
                 valuation_data_text = parallel_results['valuation_data']
-                
-                with st.expander("Qualitative Data Retrieved", expanded=False):
-                    st.text(qualitative_data[:3000] + "..." if len(qualitative_data) > 3000 else qualitative_data)
             
             with st.spinner("Duc is typing..."):
                 try:
@@ -219,7 +187,6 @@ if user_question:
                         temperature=temperature
                     )
                     
-                    st.success("Qualitative Analysis:")
                     st.markdown(answer)
                     
                     st.session_state.chat_history.append({
