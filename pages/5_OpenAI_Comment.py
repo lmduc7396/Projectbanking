@@ -88,7 +88,7 @@ tickers = sorted([x for x in df_quarter['TICKER'].unique() if isinstance(x, str)
 available_quarters = sort_quarters(df_quarter['Date_Quarter'].unique(), reverse=True)
 
 # Input controls
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     ticker = st.selectbox(
@@ -107,6 +107,14 @@ with col2:
     )
 
 with col3:
+    model_choice = st.selectbox(
+        "Model:",
+        ["gpt-4o", "gpt-4o-mini"],
+        index=0,
+        help="gpt-4o: Most capable (recommended)\ngpt-4o-mini: Faster & cheaper"
+    )
+
+with col4:
     force_regenerate = st.checkbox(
         "Force Regenerate", 
         value=False,
