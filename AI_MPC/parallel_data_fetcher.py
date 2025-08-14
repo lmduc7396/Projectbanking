@@ -73,6 +73,7 @@ def fetch_qualitative_data_parallel(tickers: List[str],
         qualitative_handler: QualitativeDataHandler instance
         valuation_formatter: Optional function to format valuation data
         need_valuation: Whether to fetch valuation data
+        need_components: Whether to include component banks for sectors
     
     Returns:
         Dictionary with qualitative and valuation data
@@ -81,6 +82,39 @@ def fetch_qualitative_data_parallel(tickers: List[str],
         'qualitative_data': "",
         'valuation_data': ""
     }
+    
+    # If need_components is True, expand tickers to include component banks for valuation
+    valuation_tickers = list(tickers)  # Copy the original list
+    if need_components and need_valuation:
+        import pandas as pd
+        import os
+        try:
+            comments_path = os.path.join(qualitative_handler.data_dir, 'banking_comments.xlsx')
+            if os.path.exists(comments_path):
+                comments_df = pd.read_excel(comments_path)
+                
+                expanded_tickers = []
+                for ticker in tickers:
+                    expanded_tickers.append(ticker)
+                    
+                    # Check if it's a sector
+                    if 'SECTOR' in comments_df.columns:
+                        sector_entries = comments_df[comments_df['TICKER'] == ticker]
+                        if not sector_entries.empty:
+                            is_sector = sector_entries['SECTOR'].iloc[0] == 'Sector'
+                            
+                            if is_sector:
+                                # Get all banks in this sector
+                                sector_banks = comments_df[
+                                    (comments_df['SECTOR'] == ticker) & 
+                                    (comments_df['TICKER'] != ticker)
+                                ]['TICKER'].unique().tolist()
+                                expanded_tickers.extend(sector_banks)
+                
+                # Remove duplicates while preserving order
+                valuation_tickers = list(dict.fromkeys(expanded_tickers))
+        except Exception as e:
+            print(f"Error expanding tickers for valuation: {str(e)}")
     
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = []
@@ -95,11 +129,11 @@ def fetch_qualitative_data_parallel(tickers: List[str],
         )
         futures.append(('qualitative', future_qual))
         
-        # Submit valuation task if needed
-        if need_valuation and valuation_formatter and tickers:
+        # Submit valuation task if needed with expanded tickers
+        if need_valuation and valuation_formatter and valuation_tickers:
             future_val = executor.submit(
                 valuation_formatter,
-                tickers
+                valuation_tickers  # Use expanded tickers for valuation
             )
             futures.append(('valuation', future_val))
         
