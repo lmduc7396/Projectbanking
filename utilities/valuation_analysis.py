@@ -250,3 +250,65 @@ def get_sector_and_components(df: pd.DataFrame, sector: str) -> List[str]:
         component_banks = [t for t in component_banks if t != sector]
         # Add sector at the beginning
         return [sector] + sorted(component_banks)
+
+def generate_valuation_histogram(df: pd.DataFrame, ticker: str, metric_col: str, n_bins: int = 8) -> Dict:
+    """
+    Generate histogram data for a ticker's valuation metric
+    Returns bin edges, counts, current value bin, and formatted data for visualization
+    """
+    # Get historical data for the ticker
+    ticker_data = df[df['TICKER'] == ticker][metric_col].dropna()
+    
+    if len(ticker_data) < 20:  # Need minimum data points
+        return None
+    
+    # Remove outliers for cleaner distribution
+    clean_data = remove_outliers_iqr(ticker_data, multiplier=3.0)
+    
+    # Get current value (most recent)
+    current_value = ticker_data.iloc[-1] if len(ticker_data) > 0 else None
+    
+    if current_value is None or pd.isna(current_value):
+        return None
+    
+    # Create histogram bins
+    counts, bin_edges = np.histogram(clean_data, bins=n_bins)
+    
+    # Find which bin the current value belongs to
+    current_bin_idx = None
+    for i in range(len(bin_edges) - 1):
+        if bin_edges[i] <= current_value < bin_edges[i + 1]:
+            current_bin_idx = i
+            break
+    # Handle edge case where current value equals the last edge
+    if current_value == bin_edges[-1] and len(counts) > 0:
+        current_bin_idx = len(counts) - 1
+    
+    # Create bin centers for plotting
+    bin_centers = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(len(bin_edges) - 1)]
+    
+    # Format bin labels
+    bin_labels = []
+    for i in range(len(bin_edges) - 1):
+        label = f"{bin_edges[i]:.1f}-{bin_edges[i + 1]:.1f}"
+        bin_labels.append(label)
+    
+    # Calculate percentile
+    percentile = (clean_data <= current_value).sum() / len(clean_data) * 100
+    
+    histogram_data = {
+        'ticker': ticker,
+        'current_value': current_value,
+        'current_bin_idx': current_bin_idx,
+        'bin_edges': bin_edges.tolist(),
+        'bin_centers': bin_centers,
+        'bin_labels': bin_labels,
+        'counts': counts.tolist(),
+        'percentile': percentile,
+        'n_total': len(clean_data),
+        'min_value': float(clean_data.min()),
+        'max_value': float(clean_data.max()),
+        'median': float(clean_data.median())
+    }
+    
+    return histogram_data

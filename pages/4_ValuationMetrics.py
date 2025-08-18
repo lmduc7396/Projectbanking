@@ -21,7 +21,8 @@ from utilities.valuation_analysis import (
     calculate_historical_stats,
     prepare_statistics_table,
     get_sector_and_components,
-    get_valuation_status
+    get_valuation_status,
+    generate_valuation_histogram
 )
 
 # Page configuration
@@ -181,22 +182,26 @@ fig_candle.update_layout(
 
 st.plotly_chart(fig_candle, use_container_width=True, config={'displayModeBar': False, 'staticPlot': False})
 
-# Chart 2: Historical Valuation Time Series
+# Combined Ticker Selection for Charts 2 and 3
 st.markdown("---")
-st.subheader("Historical Valuation Trend")
+st.subheader("Individual Bank/Sector Analysis")
+st.caption("Select a ticker to view both historical trend and distribution analysis")
 
-col1, col2 = st.columns([2, 8])
+# Common ticker and date range selection
+col_select1, col_select2, col_select3 = st.columns([2, 2, 6])
 
-with col1:
-    # Ticker selection for time series
+with col_select1:
+    # Ticker selection for both charts
     all_tickers = sorted(df['TICKER'].unique())
     selected_ticker = st.selectbox(
         "Select Bank/Sector:",
         all_tickers,
-        index=all_tickers.index('Sector') if 'Sector' in all_tickers else 0
+        index=all_tickers.index('Sector') if 'Sector' in all_tickers else 0,
+        key="common_ticker_select"
     )
-    
-    # Date range selection
+
+with col_select2:
+    # Date range selection for time series
     date_range = st.selectbox(
         "Time Period:",
         ["1 Year", "2 Years", "3 Years", "5 Years", "All Time"],
@@ -215,7 +220,11 @@ with col1:
     else:
         start_date = df['TRADE_DATE'].min()
 
-with col2:
+# Display charts side by side
+col_chart1, col_chart2 = st.columns([6, 6])
+
+# Chart 2: Historical Valuation Time Series
+with col_chart1:
     # Filter data for selected ticker and date range
     ticker_df = df[(df['TICKER'] == selected_ticker) & (df['TRADE_DATE'] >= start_date)].copy()
     ticker_df = ticker_df.sort_values('TRADE_DATE')
@@ -276,10 +285,10 @@ with col2:
             
             # Update layout
             fig_ts.update_layout(
-                title=f"{selected_ticker} - {metric_type} Historical Trend",
+                title=f"{selected_ticker} - {metric_type} Trend",
                 xaxis_title="Date",
                 yaxis_title=f"{metric_type} Ratio",
-                height=500,
+                height=400,
                 hovermode='x unified',
                 legend=dict(
                     orientation="h",
@@ -292,15 +301,13 @@ with col2:
             
             st.plotly_chart(fig_ts, use_container_width=True)
             
-            # Show statistics
-            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+            # Show statistics below the chart
+            col_stat1, col_stat2 = st.columns(2)
             with col_stat1:
                 st.metric("Current", f"{hist_stats['current']:.2f}" if hist_stats['current'] else "N/A")
-            with col_stat2:
                 st.metric("Mean", f"{hist_stats['mean']:.2f}")
-            with col_stat3:
+            with col_stat2:
                 st.metric("Std Dev", f"{hist_stats['std']:.2f}")
-            with col_stat4:
                 z_score = hist_stats.get('z_score')
                 if z_score is not None:
                     status, color = get_valuation_status(z_score)
@@ -308,7 +315,63 @@ with col2:
     else:
         st.warning(f"No data available for {selected_ticker}")
 
-# Table 3: Valuation Statistics Table
+# Chart 3: Valuation Distribution Histogram
+with col_chart2:
+    # Generate histogram data for the same selected ticker
+    hist_data = generate_valuation_histogram(df, selected_ticker, metric_col)
+    
+    if hist_data:
+        # Create histogram figure
+        fig_hist = go.Figure()
+        
+        # Create bar colors - highlight current bin
+        bar_colors = ['#E0E0E0'] * len(hist_data['counts'])
+        if hist_data['current_bin_idx'] is not None:
+            bar_colors[hist_data['current_bin_idx']] = '#478B81'
+        
+        # Add bars
+        fig_hist.add_trace(go.Bar(
+            x=hist_data['bin_labels'],
+            y=hist_data['counts'],
+            marker_color=bar_colors,
+            text=hist_data['counts'],
+            textposition='auto',
+            showlegend=False,
+            hovertemplate='Range: %{x}<br>Count: %{y}<extra></extra>'
+        ))
+        
+        # Update layout
+        fig_hist.update_layout(
+            title=dict(
+                text=f"{selected_ticker} - {metric_type} Distribution<br>" +
+                     f"<sub>Current: {hist_data['current_value']:.2f} (CDF: {hist_data['percentile']:.1f}%)</sub>",
+                x=0.5,
+                xanchor='center'
+            ),
+            xaxis_title=f"{metric_type} Range",
+            yaxis_title="Frequency",
+            height=400,
+            showlegend=False,
+            hovermode='x',
+            bargap=0.1
+        )
+        
+        # Display histogram
+        st.plotly_chart(fig_hist, use_container_width=True)
+        
+        # Show distribution statistics below the histogram
+        col_dist1, col_dist2 = st.columns(2)
+        with col_dist1:
+            st.metric("Current Value", f"{hist_data['current_value']:.2f}")
+            st.metric("Percentile (CDF)", f"{hist_data['percentile']:.1f}%")
+        with col_dist2:
+            st.metric("Median", f"{hist_data['median']:.2f}")
+            st.metric("Data Points", hist_data['n_total'])
+    else:
+        st.info(f"Insufficient data to generate histogram for {selected_ticker}")
+    
+
+# Table: Valuation Statistics Table
 st.markdown("---")
 st.subheader("Valuation Statistics Summary")
 
@@ -316,61 +379,86 @@ st.subheader("Valuation Statistics Summary")
 stats_df = prepare_statistics_table(df, metric_col)
 
 if not stats_df.empty:
-    # Format the dataframe for display
-    display_df = stats_df.copy()
+    # Create interactive table using Plotly
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
     
-    # Remove Type column
-    if 'Type' in display_df.columns:
-        display_df = display_df.drop('Type', axis=1)
+    # Keep original dataframe for processing
+    table_df = stats_df.copy()
     
-    # Format numeric columns
-    for col in ['Current', 'Mean']:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+    # Remove Type column for display
+    if 'Type' in table_df.columns:
+        table_df = table_df.drop('Type', axis=1)
     
-    if 'CDF (%)' in display_df.columns:
-        display_df['CDF (%)'] = display_df['CDF (%)'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
+    # Prepare formatted values for display
+    formatted_current = table_df['Current'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+    formatted_mean = table_df['Mean'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+    formatted_cdf = table_df['CDF (%)'].apply(lambda x: f"{x:.1f}%" if pd.notna(x) else "N/A")
+    formatted_zscore = table_df['Z-Score'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
     
-    if 'Z-Score' in display_df.columns:
-        display_df['Z-Score'] = display_df['Z-Score'].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "N/A")
+    # Prepare colors for status column
+    status_colors = []
+    for status in table_df['Status']:
+        if status == "Very Cheap":
+            status_colors.append('#90EE90')
+        elif status == "Cheap":
+            status_colors.append('#B8E6B8')
+        elif status == "Fair":
+            status_colors.append('#FFFFCC')
+        elif status == "Expensive":
+            status_colors.append('#FFD4A3')
+        elif status == "Very Expensive":
+            status_colors.append('#FFB3B3')
+        else:
+            status_colors.append('white')
     
-    # Define pastel colors for status
-    def color_status(val):
-        if val == "Very Cheap":
-            return 'background-color: #90EE90; color: black'  # Light green
-        elif val == "Cheap":
-            return 'background-color: #B8E6B8; color: black'  # Lighter green
-        elif val == "Fair":
-            return 'background-color: #FFFFCC; color: black'  # Light yellow
-        elif val == "Expensive":
-            return 'background-color: #FFD4A3; color: black'  # Light orange
-        elif val == "Very Expensive":
-            return 'background-color: #FFB3B3; color: black'  # Light red
-        return ''
+    # Identify sector rows for highlighting
+    row_colors = []
+    for ticker in table_df['Ticker']:
+        if ticker in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']:
+            row_colors.append('#E8E8E8')
+        else:
+            row_colors.append('white')
     
-    # Function to highlight sector rows
-    def highlight_sectors(row):
-        if row['Ticker'] in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']:
-            return ['background-color: #E8E8E8; font-weight: bold'] * len(row)
-        return [''] * len(row)
+    # Create the main table figure
+    fig_table = go.Figure(data=[go.Table(
+        header=dict(
+            values=['Ticker', 'Current', 'Mean', 'CDF (%)', 'Z-Score', 'Status'],
+            fill_color='#478B81',
+            font=dict(color='white', size=12),
+            align='left',
+            height=30
+        ),
+        cells=dict(
+            values=[
+                table_df['Ticker'],
+                formatted_current,
+                formatted_mean,
+                formatted_cdf,
+                formatted_zscore,
+                table_df['Status']
+            ],
+            fill_color=[
+                row_colors,  # Ticker column
+                row_colors,  # Current column
+                row_colors,  # Mean column
+                row_colors,  # CDF column
+                row_colors,  # Z-Score column
+                status_colors  # Status column with custom colors
+            ],
+            align='left',
+            height=25,
+            font=dict(size=13)
+        )
+    )])
     
-    # Set Ticker as index
-    display_df = display_df.set_index('Ticker')
-    
-    # Apply styling (adjust highlight_sectors to work with index)
-    def highlight_sectors_indexed(s):
-        if s.name in ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']:
-            return ['background-color: #E8E8E8; font-weight: bold'] * len(s)
-        return [''] * len(s)
-    
-    styled_df = display_df.style.apply(highlight_sectors_indexed, axis=1).applymap(color_status, subset=['Status'])
-    
-    # Display table
-    st.dataframe(
-        styled_df,
-        use_container_width=True,
-        height=600
+    fig_table.update_layout(
+        height=600,
+        margin=dict(l=0, r=0, t=0, b=0)
     )
+    
+    # Display the main table
+    st.plotly_chart(fig_table, use_container_width=True)
     
     # Summary statistics
     st.markdown("---")
