@@ -51,12 +51,22 @@ def collect_qualitative_data(tickers: List[str], timeframe: List[str], qualitati
                         all_qualitative_data.append(f"=== SECTOR OVERVIEW: {ticker} ===\n{sector_data}")
                         processed_tickers.add(ticker)
                         
-                        # Get all individual banks in this sector from the SECTOR column
-                        # Filter for banks where SECTOR matches the ticker but TICKER is not the sector itself
-                        sector_banks = comments_df[
-                            (comments_df['SECTOR'] == ticker) & 
-                            (comments_df['TICKER'] != ticker)
-                        ]['TICKER'].unique()
+                        # Get all individual banks based on the ticker type
+                        if ticker == 'Sector':
+                            # For overall Sector, get all individual banks (3-letter tickers)
+                            # excluding sub-sector aggregates
+                            sub_sectors = ['SOCB', 'Private_1', 'Private_2', 'Private_3']
+                            sector_banks = comments_df[
+                                (comments_df['TICKER'].str.len() == 3) & 
+                                (~comments_df['TICKER'].isin(sub_sectors)) &
+                                (comments_df['TICKER'] != 'Sector')
+                            ]['TICKER'].unique()
+                        else:
+                            # For sub-sectors (SOCB, Private_1, etc.), get banks with matching SECTOR
+                            sector_banks = comments_df[
+                                (comments_df['SECTOR'] == ticker) & 
+                                (comments_df['TICKER'] != ticker)
+                            ]['TICKER'].unique()
                         
                         if len(sector_banks) > 0:
                             all_qualitative_data.append(f"\n=== INDIVIDUAL BANKS IN {ticker} ===")
@@ -194,11 +204,22 @@ def collect_qualitative_data_batch(tickers: List[str], timeframe: List[str], qua
                         is_sector = sector_entries['SECTOR'].iloc[0] == 'Sector'
                 
                 if is_sector:
-                    # Get all banks with this sector in SECTOR column
-                    sector_banks = comments_df[
-                        (comments_df['SECTOR'] == ticker) & 
-                        (comments_df['TICKER'] != ticker)
-                    ]['TICKER'].unique().tolist()
+                    # Get all individual banks based on the ticker type
+                    if ticker == 'Sector':
+                        # For overall Sector, get all individual banks (3-letter tickers)
+                        # excluding sub-sector aggregates
+                        sub_sectors = ['SOCB', 'Private_1', 'Private_2', 'Private_3']
+                        sector_banks = comments_df[
+                            (comments_df['TICKER'].str.len() == 3) & 
+                            (~comments_df['TICKER'].isin(sub_sectors)) &
+                            (comments_df['TICKER'] != 'Sector')
+                        ]['TICKER'].unique().tolist()
+                    else:
+                        # For sub-sectors (SOCB, Private_1, etc.), get banks with matching SECTOR
+                        sector_banks = comments_df[
+                            (comments_df['SECTOR'] == ticker) & 
+                            (comments_df['TICKER'] != ticker)
+                        ]['TICKER'].unique().tolist()
                     expanded_tickers.extend(sector_banks)
             
             # Remove duplicates
@@ -239,10 +260,20 @@ def collect_qualitative_data_batch(tickers: List[str], timeframe: List[str], qua
                         all_qualitative_data.append(formatted_text)
                     
                     # Add individual banks in sector
-                    sector_banks = filtered_df[
-                        (filtered_df['SECTOR'] == ticker) & 
-                        (filtered_df['TICKER'] != ticker)
-                    ]['TICKER'].unique()
+                    if ticker == 'Sector':
+                        # For overall Sector, get all individual banks
+                        sub_sectors = ['SOCB', 'Private_1', 'Private_2', 'Private_3']
+                        sector_banks = filtered_df[
+                            (filtered_df['TICKER'].str.len() == 3) & 
+                            (~filtered_df['TICKER'].isin(sub_sectors)) &
+                            (filtered_df['TICKER'] != 'Sector')
+                        ]['TICKER'].unique()
+                    else:
+                        # For sub-sectors, get banks with matching SECTOR
+                        sector_banks = filtered_df[
+                            (filtered_df['SECTOR'] == ticker) & 
+                            (filtered_df['TICKER'] != ticker)
+                        ]['TICKER'].unique()
                     
                     if len(sector_banks) > 0:
                         all_qualitative_data.append(f"\n=== INDIVIDUAL BANKS IN {ticker} ===")

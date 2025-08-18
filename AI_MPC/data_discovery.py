@@ -123,7 +123,10 @@ class DataDiscoveryAgent:
                     # Special handling for "Sector" - get all individual banks
                     if 'Sector' in tickers:
                         # Get all individual banks (3-letter tickers)
-                        component_df = df[df['TICKER'].str.len() == 3]
+                        # IMPORTANT: Exclude sub-sector aggregates (SOCB, Private_1, etc.)
+                        sub_sectors = ['SOCB', 'Private_1', 'Private_2', 'Private_3']
+                        component_df = df[(df['TICKER'].str.len() == 3) & 
+                                         (~df['TICKER'].isin(sub_sectors))]
                     else:
                         # Get banks matching the specific sector types
                         component_df = df[df['Type'].isin(tickers)]
