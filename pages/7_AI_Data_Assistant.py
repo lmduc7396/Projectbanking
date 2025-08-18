@@ -42,7 +42,7 @@ with st.sidebar:
     # Manual question type selector
     question_type = st.radio(
         "Question Type",
-        ["Quantitative", "Qualitative"],
+        ["Qualitative", "Quantitative"],
         help="Quantitative: Numbers and metrics from data tables\nQualitative: Analysis and commentary from AI-generated reports"
     )
     
