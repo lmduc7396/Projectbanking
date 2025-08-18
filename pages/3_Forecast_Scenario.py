@@ -46,7 +46,7 @@ st.markdown("""
 st.title(' ')
 
 # OPTIMIZED: Load data with better caching
-@st.cache_data(ttl=1)
+@st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
     """Load all required data in one optimized function"""
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
@@ -97,7 +97,7 @@ st.sidebar.markdown("---")
 revert_button = st.sidebar.button("Revert to Default Forecast", type="secondary", use_container_width=True)
 
 # Function to aggregate sector data
-@st.cache_data
+@st.cache_data(ttl=3600)  # Refresh cache every hour
 def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None):
     """Aggregate data for multiple banks into sector totals"""
     # Filter data for specified banks and years

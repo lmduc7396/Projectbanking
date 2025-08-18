@@ -14,7 +14,7 @@ from utilities.banking_table import Banking_table
 from utilities.stock_candle import Stock_price_plot
 
 # Load your data (same as main file)
-@st.cache_data
+@st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
@@ -32,7 +32,7 @@ st.set_page_config(
 )
 
 # Function to detect the last complete year from historical data
-@st.cache_data
+@st.cache_data(ttl=3600)  # Refresh cache every hour
 def get_last_historical_year():
     """Detect the last complete year (LENGTHREPORT=5) from original historical data"""
     try:

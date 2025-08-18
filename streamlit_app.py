@@ -23,7 +23,7 @@ st.set_page_config(
 load_dotenv()
 
 # Load your data
-@st.cache_data
+@st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
     df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
     df_year = pd.read_csv('Data/dfsectoryear.csv')

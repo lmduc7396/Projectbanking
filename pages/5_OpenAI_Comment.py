@@ -17,11 +17,8 @@ from utilities.openai_comments import openai_comment
 load_dotenv()
 
 # Load your data (same as main file)
-# Cache version: increment this when data structure changes to force cache refresh
-CACHE_VERSION = 3  # Incremented to force cache refresh for EVF sector fix
-
-@st.cache_data
-def load_data(version=CACHE_VERSION):
+@st.cache_data(ttl=3600)  # Refresh cache every hour
+def load_data():
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))

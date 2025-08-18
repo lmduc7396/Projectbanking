@@ -33,7 +33,7 @@ st.set_page_config(
 )
 
 # Load data
-@st.cache_data
+@st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_valuation_data():
     """Load valuation data"""
     file_path = os.path.join(project_root, 'Data', 'Valuation_banking.csv')
