@@ -100,6 +100,18 @@ class BankingToolSystem:
                     
                     # Create clean parameter definition without 'required' field
                     clean_param = {k: v for k, v in param_def.items() if k != "required"}
+                    
+                    # Fix the type definition for parameters that accept both string and array
+                    if "type" in clean_param and clean_param["type"] == ["string", "array"]:
+                        # OpenAI expects proper JSON schema - use anyOf for multiple types
+                        clean_param = {
+                            "anyOf": [
+                                {"type": "string"},
+                                {"type": "array", "items": {"type": "string"}}
+                            ],
+                            "description": clean_param.get("description", "")
+                        }
+                    
                     clean_params[param_name] = clean_param
             
             schema = {

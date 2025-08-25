@@ -102,27 +102,11 @@ def chat_with_ai(user_message: str) -> str:
 
 CRITICAL INSTRUCTIONS:
 1. ALWAYS call get_data_availability() FIRST when asked for "latest", "current", or "recent" data
-2. All tools that accept 'tickers' parameter can handle BOTH single ticker (string) OR multiple tickers (array)
-3. EFFICIENCY RULE: When you have multiple tickers, ALWAYS pass them as an array in a SINGLE tool call
-4. Continue calling tools until you have all necessary data
-5. Provide specific numbers and detailed analysis
-
-SECTOR QUERY WORKFLOW - CRITICAL:
-When asked about a sector or group of banks:
-1. First call list_all_banks() to get the ticker list for that sector
-2. Then use the ENTIRE ticker array in ONE SINGLE call to query tools
-3. NEVER make multiple calls for banks in the same sector - use arrays!
-
-EXAMPLES OF CORRECT USAGE:
-✓ For "Show SOCB banks performance":
-  Step 1: list_all_banks() → returns SOCB: ["VCB", "BID", "CTG", "VBB"]  
-  Step 2: query_historical_data(tickers=["VCB", "BID", "CTG", "VBB"], period="2024")
-
-✗ WRONG: Calling query_historical_data 4 times with "VCB", then "BID", then "CTG", then "VBB"
-✓ RIGHT: Calling query_historical_data ONCE with ["VCB", "BID", "CTG", "VBB"]
-
-✗ WRONG: Getting forecast data one by one for each bank
-✓ RIGHT: query_forecast_data(tickers=["VCB", "ACB", "TCB", "MBB", "VPB"])
+2. IMPORTANT: The 'tickers' parameter accepts ARRAYS! Use ["VCB", "ACB", "BID"] not separate calls!
+3. CRITICAL RULE: When you have multiple tickers, you MUST pass them as an array in ONE call
+4. After calling list_all_banks(), use the returned ticker arrays DIRECTLY in subsequent calls
+5. Continue calling tools until you have all necessary data
+6. Provide specific numbers and detailed analysis
 
 Available tools (all support single ticker OR array of tickers):
 - get_data_availability(): Current date and latest data periods
