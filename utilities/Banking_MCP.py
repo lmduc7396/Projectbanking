@@ -149,45 +149,6 @@ class BankingToolSystem:
                 "status": "success"
             }
         
-        # Tool 2: Get Bank Information
-        @self.tool(
-            name="get_bank_info",
-            description="Get bank sector classification and basic information",
-            parameters={
-                "ticker": {"type": "string", "description": "Bank ticker symbol (e.g., VCB, ACB)"}
-            }
-        )
-        def get_bank_info(ticker: str) -> Dict:
-            """Get bank sector and info"""
-            ticker = ticker.upper()
-            bank_types = self.data['bank_types']
-            
-            bank_info = bank_types[bank_types['TICKER'] == ticker]
-            if bank_info.empty:
-                return {"error": f"Bank {ticker} not found", "status": "failed"}
-            
-            sector = bank_info.iloc[0]['Type']
-            
-            # Get latest metrics
-            yearly = self.data['historical_year']
-            latest = yearly[yearly['TICKER'] == ticker].iloc[-1] if not yearly[yearly['TICKER'] == ticker].empty else None
-            
-            result = {
-                "ticker": ticker,
-                "sector": sector,
-                "status": "success"
-            }
-            
-            if latest is not None:
-                result.update({
-                    "latest_year": str(latest['Year']),
-                    "total_assets": latest.get('Total Assets', None),
-                    "total_equity": latest.get('Total Equity', None),
-                    "loan": latest.get('Loan', None),
-                    "deposit": latest.get('Deposit', None)
-                })
-            
-            return result
         
         # Tool 3: List All Banks
         @self.tool(
@@ -270,149 +231,106 @@ class BankingToolSystem:
         # Tool 5: Query Forecast Data
         @self.tool(
             name="query_forecast_data",
-            description="Query forecast data for 2025-2026",
+            description="Query forecast data with automatic inclusion of latest historical year for comparison",
             parameters={
                 "ticker": {"type": "string", "description": "Bank ticker or sector", "required": False},
-                "year": {"type": "string", "description": "2025 or 2026", "required": False}
+                "year": {"type": "string", "description": "Specific forecast year or 'all' for all years", "required": False}
             }
         )
         def query_forecast_data(ticker: str = None, year: str = None) -> Dict:
-            """Query forecast data"""
-            df = self.data['forecast'].copy()
+            """Query forecast data with historical context"""
+            # Get forecast data
+            forecast_df = self.data['forecast'].copy()
+            historical_df = self.data['historical_year'].copy()
             
+            # Dynamically determine the latest historical year
+            latest_historical_year = historical_df['Year'].max()
+            
+            # Get available forecast years
+            forecast_years = sorted(forecast_df['Year'].unique())
+            
+            # Apply ticker filter if specified
             if ticker:
                 ticker = ticker.upper()
-                df = df[df['TICKER'] == ticker]
+                forecast_df = forecast_df[forecast_df['TICKER'] == ticker]
+                historical_df = historical_df[historical_df['TICKER'] == ticker]
             
-            if year:
-                df = df[df['Year'] == int(year)]
+            # Apply year filter for forecast if specified
+            if year and year != 'all':
+                try:
+                    forecast_df = forecast_df[forecast_df['Year'] == int(year)]
+                except ValueError:
+                    return {"error": f"Invalid year format: {year}", "status": "failed"}
             
-            if df.empty:
+            if forecast_df.empty:
                 return {"error": "No forecast data found", "status": "failed"}
             
-            # Key forecast metrics
-            key_metrics = ["Loan", "Deposit", "NPL", "ROA", "ROE", "NIM", "NPATMI"]
-            available = [m for m in key_metrics if m in df.columns]
+            # Get latest historical data for comparison
+            latest_historical = historical_df[historical_df['Year'] == latest_historical_year]
             
-            return {
-                "records": len(df),
-                "data": df[['TICKER', 'Year'] + available].to_dict('records'),
-                "status": "success"
+            # Key metrics to include
+            key_metrics = ["Loan", "NPL", "ROA", "ROE", "NIM", "PBT"]
+            available_metrics = [m for m in key_metrics if m in forecast_df.columns and m in historical_df.columns]
+            
+            # Prepare response
+            response = {
+                "latest_actual_year": int(latest_historical_year),
+                "forecast_years": [int(y) for y in forecast_years],
+                "requested_ticker": ticker if ticker else "All",
+                "metrics_included": available_metrics
             }
-        
-        # Tool 6: Calculate Growth Metrics
-        @self.tool(
-            name="calculate_growth_metrics",
-            description="Calculate growth rates for metrics",
-            parameters={
-                "ticker": {"type": "string", "description": "Bank ticker"},
-                "metric": {"type": "string", "description": "Metric name (e.g., Loan, Deposit)"},
-                "periods": {"type": "integer", "description": "Number of periods to analyze", "required": False}
-            }
-        )
-        def calculate_growth_metrics(ticker: str, metric: str, periods: int = 5) -> Dict:
-            """Calculate growth metrics"""
-            ticker = ticker.upper()
             
-            # Get historical data
-            df = self.data['historical_year']
-            bank_data = df[df['TICKER'] == ticker].sort_values('Year').tail(periods + 1)
-            
-            if bank_data.empty or metric not in bank_data.columns:
-                return {"error": f"No data for {ticker} or metric {metric}", "status": "failed"}
-            
-            # Calculate growth rates
-            values = bank_data[metric].values
-            years = bank_data['Year'].values
-            
-            growth_rates = []
-            for i in range(1, len(values)):
-                if values[i-1] != 0:
-                    growth = ((values[i] - values[i-1]) / values[i-1]) * 100
-                    growth_rates.append({
-                        "year": int(years[i]),
-                        "value": float(values[i]),
-                        "growth_rate": float(growth)
-                    })
-            
-            # Calculate CAGR if possible
-            if len(values) >= 2 and values[0] > 0:
-                n_years = len(values) - 1
-                cagr = (pow(values[-1] / values[0], 1/n_years) - 1) * 100
-            else:
-                cagr = None
-            
-            return {
-                "ticker": ticker,
-                "metric": metric,
-                "growth_data": growth_rates,
-                "cagr": cagr,
-                "average_growth": np.mean([g["growth_rate"] for g in growth_rates]) if growth_rates else None,
-                "status": "success"
-            }
-        
-        # Tool 7: Get Valuation Analysis
-        @self.tool(
-            name="get_valuation_analysis",
-            description="Get valuation statistics with Z-score and percentiles",
-            parameters={
-                "ticker": {"type": "string", "description": "Bank ticker"},
-                "metric": {
-                    "type": "string", 
-                    "description": "Valuation metric",
-                    "enum": ["PE", "PB", "PS"],
-                    "required": False
+            # Add actual historical data
+            if not latest_historical.empty:
+                historical_data = latest_historical[['TICKER', 'Year'] + available_metrics].to_dict('records')
+                response["actual_data"] = {
+                    "year": int(latest_historical_year),
+                    "records": len(historical_data),
+                    "data": historical_data
                 }
-            }
-        )
-        def get_valuation_analysis(ticker: str, metric: str = "PB") -> Dict:
-            """Get valuation analysis"""
-            if 'valuation' not in self.data:
-                return {"error": "Valuation data not available", "status": "failed"}
             
-            ticker = ticker.upper()
-            df = self.data['valuation']
-            
-            # Map metric names
-            metric_map = {
-                "PE": "PE_RATIO",
-                "PB": "PX_TO_BOOK_RATIO", 
-                "PS": "PX_TO_SALES_RATIO"
+            # Add forecast data
+            forecast_data = forecast_df[['TICKER', 'Year'] + available_metrics].to_dict('records')
+            response["forecast_data"] = {
+                "years": sorted(forecast_df['Year'].unique().tolist()),
+                "records": len(forecast_data),
+                "data": forecast_data
             }
             
-            col_name = metric_map.get(metric, "PX_TO_BOOK_RATIO")
+            # Calculate growth rates if single ticker
+            if ticker and not latest_historical.empty and len(forecast_data) > 0:
+                comparison = {}
+                historical_record = latest_historical.iloc[0] if len(latest_historical) > 0 else None
+                
+                for forecast_record in forecast_data:
+                    forecast_year = forecast_record['Year']
+                    year_comparison = {}
+                    
+                    for metric in available_metrics:
+                        if historical_record is not None and metric in historical_record:
+                            hist_val = historical_record[metric]
+                            forecast_val = forecast_record.get(metric)
+                            
+                            if hist_val and forecast_val and hist_val != 0:
+                                growth = ((forecast_val - hist_val) / hist_val) * 100
+                                year_comparison[metric] = {
+                                    "actual": float(hist_val),
+                                    "forecast": float(forecast_val),
+                                    "growth_pct": round(growth, 2)
+                                }
+                    
+                    if year_comparison:
+                        comparison[f"year_{forecast_year}"] = year_comparison
+                
+                if comparison:
+                    response["comparison"] = comparison
             
-            if col_name not in df.columns:
-                return {"error": f"Metric {metric} not found", "status": "failed"}
-            
-            bank_data = df[df['TICKER'] == ticker][col_name].dropna()
-            
-            if bank_data.empty:
-                return {"error": f"No valuation data for {ticker}", "status": "failed"}
-            
-            current = bank_data.iloc[-1]
-            mean = bank_data.mean()
-            std = bank_data.std()
-            
-            z_score = (current - mean) / std if std != 0 else 0
-            percentile = stats.percentileofscore(bank_data, current)
-            
-            return {
-                "ticker": ticker,
-                "metric": metric,
-                "current_value": float(current),
-                "mean": float(mean),
-                "median": float(bank_data.median()),
-                "std": float(std),
-                "z_score": float(z_score),
-                "percentile_rank": float(percentile),
-                "min": float(bank_data.min()),
-                "max": float(bank_data.max()),
-                "interpretation": "Undervalued" if z_score < -1 else "Overvalued" if z_score > 1 else "Fair valued",
-                "status": "success"
-            }
+            response["status"] = "success"
+            return response
         
-        # Tool 8: Compare Banks
+        
+        
+        # Tool 10: Compare Banks
         @self.tool(
             name="compare_banks",
             description="Compare multiple banks on specific metrics",
@@ -476,49 +394,8 @@ class BankingToolSystem:
                 "status": "success"
             }
         
-        # Tool 9: Get AI Commentary
-        @self.tool(
-            name="get_ai_commentary",
-            description="Get AI-generated qualitative analysis and commentary",
-            parameters={
-                "ticker": {"type": "string", "description": "Bank ticker or 'Sector' for sector analysis"},
-                "quarter": {"type": "string", "description": "Quarter like 2024-Q3"}
-            }
-        )
-        def get_ai_commentary(ticker: str, quarter: str) -> Dict:
-            """Get AI commentary"""
-            ticker = ticker.upper()
-            
-            if ticker == "SECTOR" and 'quarterly_analysis' in self.data:
-                # Get sector analysis
-                df = self.data['quarterly_analysis']
-                analysis = df[df['QUARTER'] == quarter] if 'QUARTER' in df.columns else pd.DataFrame()
-                
-                if not analysis.empty:
-                    return {
-                        "type": "sector",
-                        "quarter": quarter,
-                        "analysis": analysis.iloc[0].to_dict(),
-                        "status": "success"
-                    }
-            elif 'comments' in self.data:
-                # Get bank-specific commentary
-                df = self.data['comments']
-                comment = df[(df['TICKER'] == ticker) & (df['QUARTER'] == quarter)]
-                
-                if not comment.empty:
-                    return {
-                        "type": "bank",
-                        "ticker": ticker,
-                        "quarter": quarter,
-                        "comment": comment.iloc[0]['COMMENT'],
-                        "generated_at": str(comment.iloc[0].get('GENERATED_AT', '')),
-                        "status": "success"
-                    }
-            
-            return {"error": "No commentary found", "status": "failed"}
         
-        # Tool 10: Get Sector Performance
+        # Tool 11: Get Sector Performance
         @self.tool(
             name="get_sector_performance",
             description="Get aggregated performance metrics for a sector",
@@ -580,18 +457,9 @@ class BankingToolSystem:
             result["status"] = "success"
             return result
         
-        # Tool 11: Get Stock Performance
-        @self.tool(
-            name="get_stock_performance",
-            description="Get stock price performance between two dates",
-            parameters={
-                "ticker": {"type": "string", "description": "Stock ticker symbol (e.g., VPB, VCB)"},
-                "start_date": {"type": "string", "description": "Start date in YYYY-MM-DD format"},
-                "end_date": {"type": "string", "description": "End date in YYYY-MM-DD format"}
-            }
-        )
-        def get_stock_performance(ticker: str, start_date: str, end_date: str) -> Dict:
-            """Get stock price performance between two dates"""
+        # Helper function for single stock performance (internal use)
+        def get_stock_performance_single(ticker: str, start_date: str, end_date: str) -> Dict:
+            """Get stock price performance for a single ticker"""
             ticker = ticker.upper()
             
             try:
@@ -691,6 +559,402 @@ class BankingToolSystem:
                 return {"error": f"Error fetching stock data: {str(e)}", "status": "failed"}
             except Exception as e:
                 return {"error": f"Unexpected error: {str(e)}", "status": "failed"}
+        
+        # Tool 7: Get AI Commentary (Universal - handles single or multiple)
+        @self.tool(
+            name="get_ai_commentary",
+            description="Get AI-generated commentary for one or multiple banks",
+            parameters={
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Bank ticker (string) or list of tickers (array). Use 'Sector' for sector analysis"
+                },
+                "quarter": {"type": "string", "description": "Quarter like 2024-Q3"}
+            }
+        )
+        def get_ai_commentary(tickers, quarter: str) -> Dict:
+            """Get AI commentary for one or multiple banks"""
+            # Convert single ticker to list for uniform processing
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            
+            results = {}
+            errors = []
+            
+            for ticker in tickers:
+                ticker = ticker.upper()
+                
+                if ticker == "SECTOR" and 'quarterly_analysis' in self.data:
+                    # Get sector analysis
+                    df = self.data['quarterly_analysis']
+                    analysis = df[df['QUARTER'] == quarter] if 'QUARTER' in df.columns else pd.DataFrame()
+                    
+                    if not analysis.empty:
+                        results[ticker] = {
+                            "type": "sector",
+                            "quarter": quarter,
+                            "analysis": analysis.iloc[0].to_dict()
+                        }
+                    else:
+                        errors.append(f"No sector analysis for {quarter}")
+                elif 'comments' in self.data:
+                    # Get bank-specific commentary
+                    df = self.data['comments']
+                    comment = df[(df['TICKER'] == ticker) & (df['QUARTER'] == quarter)]
+                    
+                    if not comment.empty:
+                        results[ticker] = {
+                            "type": "bank",
+                            "ticker": ticker,
+                            "quarter": quarter,
+                            "comment": comment.iloc[0]['COMMENT'],
+                            "generated_at": str(comment.iloc[0].get('GENERATED_AT', ''))
+                        }
+                    else:
+                        errors.append(f"No commentary for {ticker} in {quarter}")
+                else:
+                    errors.append(f"Comments data not available for {ticker}")
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1:
+                if len(results) == 1:
+                    single_result = list(results.values())[0]
+                    single_result["status"] = "success"
+                    return single_result
+                elif errors:
+                    return {"error": errors[0], "status": "failed"}
+            
+            # Return batch format for multiple tickers
+            return {
+                "results": results,
+                "requested": len(tickers),
+                "found": len(results),
+                "errors": errors if errors else None,
+                "status": "success" if results else "failed"
+            }
+        
+        # Tool 8: Get Valuation Analysis (Universal - handles single or multiple)
+        @self.tool(
+            name="get_valuation_analysis",
+            description="Get valuation analysis with Z-score and percentiles for one or multiple banks",
+            parameters={
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Bank ticker (string) or list of tickers (array)"
+                },
+                "metric": {
+                    "type": "string", 
+                    "description": "Valuation metric",
+                    "enum": ["PE", "PB", "PS"],
+                    "required": False
+                }
+            }
+        )
+        def get_valuation_analysis(tickers, metric: str = "PB") -> Dict:
+            """Get valuation analysis for one or multiple banks"""
+            if 'valuation' not in self.data:
+                return {"error": "Valuation data not available", "status": "failed"}
+            
+            # Convert single ticker to list for uniform processing
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            
+            df = self.data['valuation']
+            
+            # Map metric names
+            metric_map = {
+                "PE": "PE_RATIO",
+                "PB": "PX_TO_BOOK_RATIO", 
+                "PS": "PX_TO_SALES_RATIO"
+            }
+            
+            col_name = metric_map.get(metric, "PX_TO_BOOK_RATIO")
+            
+            if col_name not in df.columns:
+                return {"error": f"Metric {metric} not found", "status": "failed"}
+            
+            results = {}
+            comparison_data = []
+            
+            for ticker in tickers:
+                ticker = ticker.upper()
+                bank_data = df[df['TICKER'] == ticker][col_name].dropna()
+                
+                if not bank_data.empty:
+                    current = bank_data.iloc[-1]
+                    mean = bank_data.mean()
+                    std = bank_data.std()
+                    z_score = (current - mean) / std if std != 0 else 0
+                    percentile = stats.percentileofscore(bank_data, current)
+                    
+                    results[ticker] = {
+                        "current_value": float(current),
+                        "mean": float(mean),
+                        "median": float(bank_data.median()),
+                        "std": float(std),
+                        "z_score": float(z_score),
+                        "percentile_rank": float(percentile),
+                        "min": float(bank_data.min()),
+                        "max": float(bank_data.max()),
+                        "interpretation": "Undervalued" if z_score < -1 else "Overvalued" if z_score > 1 else "Fair valued"
+                    }
+                    
+                    comparison_data.append({
+                        "ticker": ticker,
+                        "current": float(current),
+                        "z_score": float(z_score),
+                        "percentile": float(percentile),
+                        "interpretation": results[ticker]["interpretation"]
+                    })
+            
+            # Sort by z_score for ranking
+            comparison_data = sorted(comparison_data, key=lambda x: x["z_score"])
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1 and len(results) == 1:
+                ticker = tickers[0]
+                single_result = results[ticker].copy()
+                single_result["ticker"] = ticker
+                single_result["metric"] = metric
+                single_result["status"] = "success"
+                return single_result
+            
+            # Return batch format for multiple tickers
+            return {
+                "metric": metric,
+                "detailed_results": results,
+                "comparison": comparison_data,
+                "most_undervalued": comparison_data[0]["ticker"] if comparison_data else None,
+                "most_overvalued": comparison_data[-1]["ticker"] if comparison_data else None,
+                "requested": len(tickers),
+                "found": len(results),
+                "status": "success" if results else "failed"
+            }
+        
+        # Tool 9: Get Stock Performance (Universal - handles single or multiple)
+        @self.tool(
+            name="get_stock_performance",
+            description="Get stock price performance between two dates for one or multiple banks",
+            parameters={
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Stock ticker (string) or list of tickers (array)"
+                },
+                "start_date": {"type": "string", "description": "Start date in YYYY-MM-DD format"},
+                "end_date": {"type": "string", "description": "End date in YYYY-MM-DD format"}
+            }
+        )
+        def get_stock_performance(tickers, start_date: str, end_date: str) -> Dict:
+            """Get stock performance for one or multiple banks"""
+            import concurrent.futures
+            
+            # Convert single ticker to list for uniform processing
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            
+            def fetch_single_stock(ticker):
+                """Helper function to fetch single stock data"""
+                return ticker, get_stock_performance_single(ticker, start_date, end_date)
+            
+            results = {}
+            performance_comparison = []
+            
+            # Use ThreadPoolExecutor for parallel API calls
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                # Submit all tasks
+                futures = [executor.submit(fetch_single_stock, ticker.upper()) for ticker in tickers]
+                
+                # Collect results as they complete
+                for future in concurrent.futures.as_completed(futures):
+                    ticker, result = future.result()
+                    results[ticker] = result
+                    
+                    if result.get("status") == "success":
+                        performance_comparison.append({
+                            "ticker": ticker,
+                            "start_price": result["start_price"],
+                            "end_price": result["end_price"],
+                            "performance_pct": result["performance_pct"]
+                        })
+            
+            # Sort by performance
+            performance_comparison = sorted(performance_comparison, 
+                                          key=lambda x: x["performance_pct"], 
+                                          reverse=True)
+            
+            # Calculate summary statistics
+            if performance_comparison:
+                performances = [p["performance_pct"] for p in performance_comparison]
+                summary = {
+                    "best_performer": performance_comparison[0]["ticker"],
+                    "worst_performer": performance_comparison[-1]["ticker"],
+                    "average_performance": round(sum(performances) / len(performances), 2),
+                    "median_performance": round(sorted(performances)[len(performances)//2], 2)
+                }
+            else:
+                summary = None
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1 and tickers[0] in results:
+                single_result = results[tickers[0]].copy()
+                return single_result
+            
+            # Return batch format for multiple tickers
+            return {
+                "period": {"start": start_date, "end": end_date},
+                "detailed_results": results,
+                "ranking": performance_comparison,
+                "summary": summary,
+                "requested": len(tickers),
+                "successful": len(performance_comparison),
+                "status": "success" if performance_comparison else "failed"
+            }
+        
+        # Tool 2: Get Bank Information (Universal - handles single or multiple)
+        @self.tool(
+            name="get_bank_info",
+            description="Get bank sector classification for one or multiple banks",
+            parameters={
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Bank ticker (string) or list of tickers (array)"
+                }
+            }
+        )
+        def get_bank_info(tickers) -> Dict:
+            """Get sector classification for one or multiple banks"""
+            # Convert single ticker to list for uniform processing
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            
+            bank_types = self.data['bank_types']
+            
+            results = {}
+            by_sector = {}
+            
+            for ticker in tickers:
+                ticker = ticker.upper()
+                bank_info = bank_types[bank_types['TICKER'] == ticker]
+                
+                if not bank_info.empty:
+                    sector = bank_info.iloc[0]['Type']
+                    results[ticker] = sector
+                    
+                    # Group by sector
+                    if sector not in by_sector:
+                        by_sector[sector] = []
+                    by_sector[sector].append(ticker)
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1:
+                if len(results) == 1:
+                    ticker = tickers[0]
+                    return {
+                        "ticker": ticker,
+                        "sector": results[ticker],
+                        "status": "success"
+                    }
+                else:
+                    return {"error": f"Bank {tickers[0]} not found", "status": "failed"}
+            
+            # Return batch format for multiple tickers
+            return {
+                "banks": results,
+                "by_sector": by_sector,
+                "requested": len(tickers),
+                "found": len(results),
+                "status": "success" if results else "failed"
+            }
+        
+        # Tool 6: Calculate Growth Metrics (Universal - handles single or multiple)
+        @self.tool(
+            name="calculate_growth_metrics",
+            description="Calculate growth rates and CAGR for metrics for one or multiple banks",
+            parameters={
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Bank ticker (string) or list of tickers (array)"
+                },
+                "metric": {"type": "string", "description": "Metric name (e.g., Loan, Deposit)"},
+                "periods": {"type": "integer", "description": "Number of periods to analyze", "required": False}
+            }
+        )
+        def calculate_growth_metrics(tickers, metric: str, periods: int = 5) -> Dict:
+            """Calculate growth metrics for one or multiple banks"""
+            # Convert single ticker to list for uniform processing
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            
+            df = self.data['historical_year']
+            
+            results = {}
+            comparison = []
+            
+            for ticker in tickers:
+                ticker = ticker.upper()
+                bank_data = df[df['TICKER'] == ticker].sort_values('Year').tail(periods + 1)
+                
+                if not bank_data.empty and metric in bank_data.columns:
+                    values = bank_data[metric].values
+                    years = bank_data['Year'].values
+                    
+                    growth_rates = []
+                    for i in range(1, len(values)):
+                        if values[i-1] != 0:
+                            growth = ((values[i] - values[i-1]) / values[i-1]) * 100
+                            growth_rates.append({
+                                "year": int(years[i]),
+                                "value": float(values[i]),
+                                "growth_rate": float(growth)
+                            })
+                    
+                    # Calculate CAGR
+                    cagr = None
+                    if len(values) >= 2 and values[0] > 0:
+                        n_years = len(values) - 1
+                        cagr = (pow(values[-1] / values[0], 1/n_years) - 1) * 100
+                    
+                    avg_growth = np.mean([g["growth_rate"] for g in growth_rates]) if growth_rates else None
+                    
+                    results[ticker] = {
+                        "growth_data": growth_rates,
+                        "cagr": cagr,
+                        "average_growth": avg_growth,
+                        "latest_value": float(values[-1]) if len(values) > 0 else None
+                    }
+                    
+                    if cagr is not None:
+                        comparison.append({
+                            "ticker": ticker,
+                            "cagr": round(cagr, 2),
+                            "avg_growth": round(avg_growth, 2) if avg_growth else None,
+                            "latest_value": float(values[-1])
+                        })
+            
+            # Sort by CAGR
+            comparison = sorted(comparison, key=lambda x: x["cagr"], reverse=True)
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1 and len(results) == 1:
+                ticker = tickers[0]
+                single_result = results[ticker].copy()
+                single_result["ticker"] = ticker
+                single_result["metric"] = metric
+                single_result["periods"] = periods
+                single_result["status"] = "success"
+                return single_result
+            
+            # Return batch format for multiple tickers
+            return {
+                "metric": metric,
+                "periods": periods,
+                "detailed_results": results,
+                "ranking": comparison,
+                "best_growth": comparison[0]["ticker"] if comparison else None,
+                "requested": len(tickers),
+                "analyzed": len(results),
+                "status": "success" if results else "failed"
+            }
     
     def execute_tool(self, tool_name: str, arguments: Dict = None) -> Dict:
         """Execute a tool by name with arguments"""

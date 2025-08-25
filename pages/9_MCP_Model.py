@@ -102,25 +102,23 @@ def chat_with_ai(user_message: str) -> str:
 
 CRITICAL INSTRUCTIONS:
 1. ALWAYS call get_data_availability() FIRST when asked for "latest", "current", or "recent" data
-2. Call multiple tools as needed to gather complete information
+2. All tools that accept 'tickers' parameter can handle BOTH single ticker (string) OR multiple tickers (array). Always use arrays when required multiple tickers.
 3. Continue calling tools until you have all necessary data
-4. For comparisons, get data for ALL relevant entities
-5. Provide specific numbers and detailed analysis
+4. Provide specific numbers and detailed analysis
 
-Available tools:
+Available tools (all support single or multiple tickers where applicable):
 - get_data_availability(): Current date and latest data periods
-- get_bank_info(ticker): Bank sector and basic info
+- get_bank_info(tickers): Bank sector classification - accepts single ticker or array
 - list_all_banks(): All banks by sector
 - query_historical_data(ticker, period, metric_group): Historical metrics
-- query_forecast_data(ticker, year): 2025-2026 forecasts
-- calculate_growth_metrics(ticker, metric, periods): Growth analysis
-- get_valuation_analysis(ticker, metric): Valuation with Z-scores
+- query_forecast_data(ticker, year): Forecast data with automatic latest historical year for comparison
+- calculate_growth_metrics(tickers, metric, periods): Growth analysis - accepts single ticker or array
+- get_valuation_analysis(tickers, metric): Valuation with Z-scores - accepts single ticker or array
 - compare_banks(tickers, metrics, period): Compare multiple banks
-- get_ai_commentary(ticker, quarter): AI-generated analysis
+- get_ai_commentary(tickers, quarter): AI-generated analysis - accepts single ticker or array
 - get_sector_performance(sector, period): Sector aggregates
-- get_stock_performance(ticker, start_date, end_date): Get stock price and performance between dates
-
-REMEMBER: Call tools sequentially until you have complete information!"""
+- get_stock_performance(tickers, start_date, end_date): Stock performance - accepts single ticker or array
+"""
     })
     
     # Add conversation history
