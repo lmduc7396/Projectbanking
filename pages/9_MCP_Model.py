@@ -111,15 +111,14 @@ Available tools:
 - get_bank_info(tickers[]): Bank sector classification
 - list_all_banks(): All banks grouped by sector
 - query_historical_data(tickers[], period, metric_group): Historical metrics
-- query_forecast_data(tickers[]): ALL forecast years + latest historical
-- calculate_growth_metrics(tickers[], metric, periods): Growth analysis
+- query_forecast_data(tickers[]): Forecast data 
+- calculate_growth_metrics(tickers[], metric, periods): Growth rates and CAGR calculation
 - get_valuation_analysis(tickers[], metric): Valuation with Z-scores
 - compare_banks(tickers[], metrics, period): Compare multiple banks
-- get_ai_commentary(tickers[], quarter): AI-generated analysis
+- get_ai_commentary(tickers[], quarter): analysis for deeper insights
 - get_sector_performance(sector, period): Pre-aggregated sector metrics
 - get_stock_performance(tickers[], start_date, end_date): Stock performance
 
-REMEMBER: One tool call per data request - batch all tickers together using arrays!
 """
     })
     
