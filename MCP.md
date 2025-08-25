@@ -134,6 +134,14 @@ Get AI-generated qualitative analysis.
   - `quarter` (string): Quarter like "2024-Q3"
 - **Returns**: Qualitative analysis text
 
+#### `get_stock_performance(ticker, start_date, end_date)`
+Get stock price performance between two dates.
+- **Parameters**:
+  - `ticker` (string): Stock ticker symbol (e.g., "VPB", "VCB")
+  - `start_date` (string): Start date in YYYY-MM-DD format
+  - `end_date` (string): End date in YYYY-MM-DD format
+- **Returns**: Starting price, ending price, and performance percentage
+
 ## Adding New Tools
 
 To add a new tool, follow these steps:
@@ -207,6 +215,15 @@ def your_tool_name(self, param1: str, param2: float = None) -> Dict:
 3. OpenAI calls `query_forecast_data()` for growth prospects
 4. OpenAI calls `get_ai_commentary()` for qualitative insights
 5. OpenAI synthesizes all data into recommendation
+
+### Example 4: Stock Performance Query
+**User**: "What's the YTD price performance for VPB?"
+
+**System Flow**:
+1. OpenAI calls `get_data_availability()` → Gets current date (2024-08-25)
+2. OpenAI determines YTD start date → 2023-12-31 (last day of previous year)
+3. OpenAI calls `get_stock_performance("VPB", "2023-12-31", "2024-08-25")`
+4. OpenAI presents result: "VPB has increased 13.51% YTD, from 18,500 VND to 21,000 VND"
 
 ## Streamlit Integration
 

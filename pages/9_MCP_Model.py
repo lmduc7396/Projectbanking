@@ -118,6 +118,7 @@ Available tools:
 - compare_banks(tickers, metrics, period): Compare multiple banks
 - get_ai_commentary(ticker, quarter): AI-generated analysis
 - get_sector_performance(sector, period): Sector aggregates
+- get_stock_performance(ticker, start_date, end_date): Get stock price and performance between dates
 
 REMEMBER: Call tools sequentially until you have complete information!"""
     })

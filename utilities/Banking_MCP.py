@@ -11,6 +11,8 @@ from pathlib import Path
 import json
 from functools import wraps
 from scipy import stats
+import requests
+from datetime import datetime, timedelta
 
 
 class BankingToolSystem:
@@ -577,6 +579,118 @@ class BankingToolSystem:
             
             result["status"] = "success"
             return result
+        
+        # Tool 11: Get Stock Performance
+        @self.tool(
+            name="get_stock_performance",
+            description="Get stock price performance between two dates",
+            parameters={
+                "ticker": {"type": "string", "description": "Stock ticker symbol (e.g., VPB, VCB)"},
+                "start_date": {"type": "string", "description": "Start date in YYYY-MM-DD format"},
+                "end_date": {"type": "string", "description": "End date in YYYY-MM-DD format"}
+            }
+        )
+        def get_stock_performance(ticker: str, start_date: str, end_date: str) -> Dict:
+            """Get stock price performance between two dates"""
+            ticker = ticker.upper()
+            
+            try:
+                # Parse dates
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+                
+                # Calculate days between dates (add some buffer days)
+                days_diff = (end_dt - start_dt).days + 30
+                
+                # TCBS API endpoint
+                url = "https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term"
+                
+                # Calculate timestamps
+                from_timestamp = int((end_dt - timedelta(days=days_diff)).timestamp())
+                to_timestamp = int((end_dt + timedelta(days=5)).timestamp())  # Add buffer for end date
+                
+                # API parameters
+                params = {
+                    "ticker": ticker,
+                    "type": "stock",
+                    "resolution": "D",
+                    "from": str(from_timestamp),
+                    "to": str(to_timestamp)
+                }
+                
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "application/json"
+                }
+                
+                # Fetch data
+                response = requests.get(url, params=params, headers=headers, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'data' in data and data['data']:
+                    # Convert to DataFrame
+                    df = pd.DataFrame(data['data'])
+                    
+                    # Convert timestamp to datetime
+                    if 'tradingDate' in df.columns:
+                        if df['tradingDate'].dtype == 'object' and isinstance(df['tradingDate'].iloc[0], str) and 'T' in df['tradingDate'].iloc[0]:
+                            df['tradingDate'] = pd.to_datetime(df['tradingDate'])
+                        else:
+                            df['tradingDate'] = pd.to_datetime(df['tradingDate'], unit='ms')
+                    
+                    # Convert to date only for comparison
+                    df['date'] = df['tradingDate'].dt.date
+                    
+                    # Sort by date
+                    df = df.sort_values('date')
+                    
+                    # Find closest dates to requested dates
+                    start_date_obj = start_dt.date()
+                    end_date_obj = end_dt.date()
+                    
+                    # Get data for start date (or closest available)
+                    start_data = df[df['date'] <= start_date_obj].tail(1)
+                    if start_data.empty:
+                        start_data = df.head(1)  # Use first available if no earlier data
+                    
+                    # Get data for end date (or closest available)
+                    end_data = df[df['date'] <= end_date_obj].tail(1)
+                    if end_data.empty:
+                        end_data = df.tail(1)  # Use last available if no data up to end date
+                    
+                    if not start_data.empty and not end_data.empty:
+                        start_price = float(start_data.iloc[0]['close'])
+                        end_price = float(end_data.iloc[0]['close'])
+                        start_actual_date = str(start_data.iloc[0]['date'])
+                        end_actual_date = str(end_data.iloc[0]['date'])
+                        
+                        # Calculate performance
+                        if start_price > 0:
+                            performance_pct = ((end_price - start_price) / start_price) * 100
+                        else:
+                            performance_pct = 0
+                        
+                        return {
+                            "ticker": ticker,
+                            "start_date": start_actual_date,
+                            "start_price": start_price,
+                            "end_date": end_actual_date,
+                            "end_price": end_price,
+                            "performance_pct": round(performance_pct, 2),
+                            "status": "success"
+                        }
+                    else:
+                        return {"error": "Insufficient data for the requested date range", "status": "failed"}
+                else:
+                    return {"error": f"No price data available for {ticker}", "status": "failed"}
+                    
+            except ValueError as e:
+                return {"error": f"Invalid date format. Use YYYY-MM-DD: {str(e)}", "status": "failed"}
+            except requests.exceptions.RequestException as e:
+                return {"error": f"Error fetching stock data: {str(e)}", "status": "failed"}
+            except Exception as e:
+                return {"error": f"Unexpected error: {str(e)}", "status": "failed"}
     
     def execute_tool(self, tool_name: str, arguments: Dict = None) -> Dict:
         """Execute a tool by name with arguments"""
