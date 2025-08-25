@@ -50,10 +50,13 @@ Tools are functions that OpenAI can call to access banking data. Each tool:
 
 ### 2. Tool Chaining
 
-OpenAI can call multiple tools in sequence to answer complex questions:
+OpenAI can call unlimited tools in sequence to answer complex questions:
 1. First call `get_data_availability()` to understand what data is available
 2. Then call `query_historical_data()` to get specific metrics
 3. Finally call `calculate_growth_metrics()` to compute growth rates
+4. Continue calling as many tools as needed until the analysis is complete
+
+The system allows up to 50 tool calls per query (effectively unlimited for practical purposes) to ensure comprehensive analysis without artificial restrictions.
 
 ### 3. Parallel Tool Calls
 
@@ -230,7 +233,6 @@ The system is fully integrated with Streamlit:
 ```
 OPENAI_API_KEY=your-api-key-here
 OPENAI_MODEL=gpt-4-turbo-preview
-MAX_TOOL_ROUNDS=5
 ENABLE_TOOL_LOGGING=true
 ```
 

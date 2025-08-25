@@ -26,8 +26,7 @@ load_dotenv()
 
 # Page configuration
 st.set_page_config(
-    page_title="AI Banking Assistant",
-    page_icon="🤖",
+    page_title="DucGPT MCP version",
     layout="wide"
 )
 
@@ -85,10 +84,10 @@ def format_tool_result(result: Dict) -> str:
     return json.dumps(display_result, indent=2, default=str)
 
 
-def chat_with_ai(user_message: str, max_rounds: int = 5) -> str:
+def chat_with_ai(user_message: str) -> str:
     """
     Send message to OpenAI and handle tool calls
-    Supports multiple rounds of tool execution
+    Allows unlimited tool execution rounds for complete analysis
     """
     if not st.session_state.openai_client:
         return "❌ OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file."
@@ -131,13 +130,15 @@ REMEMBER: Call tools sequentially until you have complete information!"""
     messages.append({"role": "user", "content": user_message})
     
     # Get tool schemas
-    
+
     tools = st.session_state.tool_system.get_openai_tools()
     
     # Initialize progress tracking
-    with st.spinner("🤔 Analyzing your question..."):
+    max_rounds = 50  # Safety limit to prevent infinite loops
+    with st.spinner("DucGPT is typing ..."):
         rounds = 0
         final_response = None
+        tool_call_count = 0
         
         while rounds < max_rounds:
             rounds += 1
@@ -149,7 +150,7 @@ REMEMBER: Call tools sequentially until you have complete information!"""
                     messages=messages,
                     tools=tools,
                     tool_choice="auto",
-                    temperature=0.7
+                    temperature=0.5
                 )
             except Exception as e:
                 return f"❌ Error calling OpenAI: {str(e)}"
@@ -168,8 +169,9 @@ REMEMBER: Call tools sequentially until you have complete information!"""
                     function_name = tool_call.function.name
                     function_args = json.loads(tool_call.function.arguments)
                     
-                    # Update status
-                    tool_status.info(f"🔧 Executing tool: **{function_name}**")
+                    # Update status with counter
+                    tool_call_count += 1
+                    tool_status.info(f"🔧 Executing tool #{tool_call_count}: **{function_name}**")
                     
                     # Execute the tool
                     tool_result = execute_tool_call(function_name, function_args)
@@ -203,17 +205,23 @@ REMEMBER: Call tools sequentially until you have complete information!"""
             else:
                 # No more tool calls, we have the final response
                 final_response = assistant_message.content
+                # Add tool count summary if tools were used
+                if tool_call_count > 0:
+                    final_response = f"{final_response}\n\n---\n*Analysis completed using {tool_call_count} tool{'s' if tool_call_count > 1 else ''}.*"
                 break
         
         if not final_response:
-            final_response = "I've gathered the data but need to formulate a complete response. Please ask me to continue."
+            if rounds >= max_rounds:
+                final_response = f"I've executed {tool_call_count} tools but may need more to fully answer your question. The analysis so far is incomplete. Please ask me to continue if you need more details."
+            else:
+                final_response = "Your question is too generic, please ask actual Duc"
         
         return final_response
 
 
 def main():
-    st.title("🤖 AI Banking Analysis Assistant")
-    st.markdown("Powered by OpenAI with access to Vietnamese banking data")
+    st.title("DucGPT MCP version")
+    st.markdown("Only banking related questions are supported.")
     
     # Check API key
     if not st.session_state.openai_client:
@@ -229,13 +237,11 @@ def main():
         # Model selection
         model = st.selectbox(
             "Model",
-            ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
+            ["gpt-4-turbo-preview", "gpt-3.5-turbo"],
             index=0
         )
         os.environ["OPENAI_MODEL"] = model
         
-        # Tool execution settings
-        max_rounds = st.slider("Max Tool Rounds", 1, 10, 5)
         
         # Show available tools
         with st.expander("📋 Available Tools", expanded=False):
@@ -289,7 +295,7 @@ def main():
             st.write("• Which bank has the best valuation right now?")
     
     # Chat input
-    user_input = st.chat_input("Ask about Vietnamese banking data...")
+    user_input = st.chat_input("Ask DucGPT")
     
     if user_input:
         # Add user message to display
@@ -301,7 +307,7 @@ def main():
             response_container = st.empty()
             
             # Get response with tool execution
-            response = chat_with_ai(user_input, max_rounds)
+            response = chat_with_ai(user_input)
             
             # Display response
             response_container.write(response)
