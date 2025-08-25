@@ -281,10 +281,10 @@ def main():
             with st.chat_message("assistant"):
                 st.write(msg["content"])
     
-    # Example queries
+    # Rules
     if len(st.session_state.conversation_history) == 0:
         st.info("**Rules, please read before asking:**")
-        st.write("1. Be as specific as possible, don't ask for valuation, ask for PB for example.")
+        st.write("1. Be as specific as possible, don't ask for valuation, ask for PB for example")
         st.write("2. This DucGPT can provide historical and forecast data, in-depth analysis, valuation, stock performance.")
         st.write("3. Sub sector include: SOCB, Private 1, Private 2, Private 3")
     
