@@ -61,7 +61,7 @@ valuation_banking['Type'] = valuation_banking['Type'].fillna('Other')
 print("\nApplying data quality improvements...")
 
 # Remove rows where all valuation metrics are null
-valuation_cols = ['PE_RATIO', 'PX_TO_BOOK_RATIO', 'PX_TO_SALES_RATIO']
+valuation_cols = ['PE_RATIO', 'PX_TO_BOOK_RATIO']
 valuation_banking = valuation_banking.dropna(subset=valuation_cols, how='all')
 
 # Handle outliers and invalid values
@@ -72,10 +72,6 @@ valuation_banking.loc[valuation_banking['PE_RATIO'] > 100, 'PE_RATIO'] = 100
 # PB Ratio: Remove negative values and cap at 10
 valuation_banking.loc[valuation_banking['PX_TO_BOOK_RATIO'] < 0, 'PX_TO_BOOK_RATIO'] = np.nan
 valuation_banking.loc[valuation_banking['PX_TO_BOOK_RATIO'] > 10, 'PX_TO_BOOK_RATIO'] = 10
-
-# PS Ratio: Remove negative values and cap at 20
-valuation_banking.loc[valuation_banking['PX_TO_SALES_RATIO'] < 0, 'PX_TO_SALES_RATIO'] = np.nan
-valuation_banking.loc[valuation_banking['PX_TO_SALES_RATIO'] > 20, 'PX_TO_SALES_RATIO'] = 20
 
 print(f"After cleaning: {len(valuation_banking)} rows remain")
 
@@ -105,8 +101,7 @@ for date in valuation_banking['TRADE_DATE'].unique():
                 'TRADE_DATE': date,
                 'Type': bank_type,
                 'PE_RATIO': robust_median(type_data['PE_RATIO']),
-                'PX_TO_BOOK_RATIO': robust_median(type_data['PX_TO_BOOK_RATIO']),
-                'PX_TO_SALES_RATIO': robust_median(type_data['PX_TO_SALES_RATIO'])
+                'PX_TO_BOOK_RATIO': robust_median(type_data['PX_TO_BOOK_RATIO'])
             }
             sector_valuations.append(sector_row)
     
@@ -117,8 +112,7 @@ for date in valuation_banking['TRADE_DATE'].unique():
             'TRADE_DATE': date,
             'Type': 'Sector',
             'PE_RATIO': robust_median(date_data['PE_RATIO']),
-            'PX_TO_BOOK_RATIO': robust_median(date_data['PX_TO_BOOK_RATIO']),
-            'PX_TO_SALES_RATIO': robust_median(date_data['PX_TO_SALES_RATIO'])
+            'PX_TO_BOOK_RATIO': robust_median(date_data['PX_TO_BOOK_RATIO'])
         }
         sector_valuations.append(sector_row)
 
@@ -130,7 +124,7 @@ print(f"Created {len(sector_df)} sector-level valuation rows")
 print("\nCombining individual and sector data...")
 
 # Select columns for final output
-output_columns = ['TICKER', 'TRADE_DATE', 'Type', 'PE_RATIO', 'PX_TO_BOOK_RATIO', 'PX_TO_SALES_RATIO']
+output_columns = ['TICKER', 'TRADE_DATE', 'Type', 'PE_RATIO', 'PX_TO_BOOK_RATIO']
 
 # Combine individual banks and sectors
 individual_banks = valuation_banking[output_columns].copy()

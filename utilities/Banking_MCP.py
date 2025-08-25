@@ -13,6 +13,7 @@ from functools import wraps
 from scipy import stats
 import requests
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 
 class BankingToolSystem:
@@ -22,7 +23,7 @@ class BankingToolSystem:
     """
     
     def __init__(self, data_dir: Path = None):
-        """Initialize the tool system with data"""
+        """Initialize the tool system with lazy loading"""
         if data_dir is None:
             data_dir = Path(__file__).parent.parent / "Data"
         
@@ -30,41 +31,78 @@ class BankingToolSystem:
         self.tools = {}
         self.tool_schemas = []
         self.data = {}
+        self._data_loaded = {}  # Track which data files are loaded
         
-        # Load all data files
-        self._load_data()
+        # Don't load data upfront - use lazy loading instead
+        # self._load_data()  # REMOVED - now lazy loaded
         
         # Register all tools
         self._register_tools()
     
-    def _load_data(self):
-        """Load all necessary data files"""
-        try:
-            # Load main data files with descriptive column names
+    @lru_cache(maxsize=1)
+    def _load_historical_year(self):
+        """Lazy load historical year data"""
+        if 'historical_year' not in self.data:
             self.data['historical_year'] = pd.read_csv(self.data_dir / 'dfsectoryear.csv')
+            self._data_loaded['historical_year'] = True
+        return self.data['historical_year']
+    
+    @lru_cache(maxsize=1)
+    def _load_historical_quarter(self):
+        """Lazy load historical quarter data"""
+        if 'historical_quarter' not in self.data:
             self.data['historical_quarter'] = pd.read_csv(self.data_dir / 'dfsectorquarter.csv')
+            self._data_loaded['historical_quarter'] = True
+        return self.data['historical_quarter']
+    
+    @lru_cache(maxsize=1)
+    def _load_forecast(self):
+        """Lazy load forecast data"""
+        if 'forecast' not in self.data:
             self.data['forecast'] = pd.read_csv(self.data_dir / 'dfsectorforecast.csv')
-            
-            # Load reference data
+            self._data_loaded['forecast'] = True
+        return self.data['forecast']
+    
+    @lru_cache(maxsize=1)
+    def _load_bank_types(self):
+        """Lazy load bank types data"""
+        if 'bank_types' not in self.data:
             self.data['bank_types'] = pd.read_excel(self.data_dir / 'Bank_Type.xlsx')
-            self.data['key_items'] = pd.read_excel(self.data_dir / 'Key_items.xlsx')
-            
-            # Load AI-generated content
+            self._data_loaded['bank_types'] = True
+        return self.data['bank_types']
+    
+    @lru_cache(maxsize=1)
+    def _load_comments(self):
+        """Lazy load comments data"""
+        if 'comments' not in self.data:
             if (self.data_dir / 'banking_comments.xlsx').exists():
                 self.data['comments'] = pd.read_excel(self.data_dir / 'banking_comments.xlsx')
-            
+                self._data_loaded['comments'] = True
+            else:
+                return None
+        return self.data.get('comments')
+    
+    @lru_cache(maxsize=1)
+    def _load_quarterly_analysis(self):
+        """Lazy load quarterly analysis data"""
+        if 'quarterly_analysis' not in self.data:
             if (self.data_dir / 'quarterly_analysis_results.xlsx').exists():
                 self.data['quarterly_analysis'] = pd.read_excel(self.data_dir / 'quarterly_analysis_results.xlsx')
-            
-            # Load valuation data if available
+                self._data_loaded['quarterly_analysis'] = True
+            else:
+                return None
+        return self.data.get('quarterly_analysis')
+    
+    @lru_cache(maxsize=1)
+    def _load_valuation(self):
+        """Lazy load valuation data - this is a large file (52K lines)"""
+        if 'valuation' not in self.data:
             if (self.data_dir / 'Valuation_banking.csv').exists():
                 self.data['valuation'] = pd.read_csv(self.data_dir / 'Valuation_banking.csv')
-            
-            print(f"Loaded data: {list(self.data.keys())}")
-            
-        except Exception as e:
-            print(f"Error loading data: {str(e)}")
-            raise
+                self._data_loaded['valuation'] = True
+            else:
+                return None
+        return self.data.get('valuation')
     
     def tool(self, name: str, description: str, parameters: Dict = None):
         """
@@ -130,9 +168,9 @@ class BankingToolSystem:
         )
         def get_data_availability() -> Dict:
             """Get available data periods"""
-            quarterly = self.data['historical_quarter']
-            yearly = self.data['historical_year']
-            forecast = self.data['forecast']
+            quarterly = self._load_historical_quarter()
+            yearly = self._load_historical_year()
+            forecast = self._load_forecast()
             
             # Get unique periods
             q_periods = sorted(quarterly['Date_Quarter'].unique())[-8:]
@@ -158,7 +196,7 @@ class BankingToolSystem:
         )
         def list_all_banks() -> Dict:
             """List all banks by sector"""
-            bank_types = self.data['bank_types']
+            bank_types = self._load_bank_types()
             
             sectors = {}
             for sector in bank_types['Type'].unique():
@@ -174,7 +212,7 @@ class BankingToolSystem:
         # Tool 4: Query Historical Data (Universal - handles single or multiple)
         @self.tool(
             name="query_historical_data",
-            description="Query historical banking metrics for one or multiple banks",
+            description="Query simple historical banking metrics for one or multiple banks. For detailed fundamental analysis, use get_ai_commentary tool",
             parameters={
                 "tickers": {
                     "type": "array",
@@ -195,7 +233,7 @@ class BankingToolSystem:
             """Query historical data for one or multiple banks"""
             # Determine if quarterly or yearly
             is_quarterly = period and 'Q' in period
-            df = self.data['historical_quarter'] if is_quarterly else self.data['historical_year']
+            df = self._load_historical_quarter() if is_quarterly else self._load_historical_year()
             
             # Apply ticker filter if specified
             if tickers:
@@ -238,7 +276,7 @@ class BankingToolSystem:
         # Tool 5: Query Forecast Data (Universal - handles single or multiple)
         @self.tool(
             name="query_forecast_data",
-            description="Query ALL forecast years with latest historical year for comparison - accepts single or multiple tickers",
+            description="Get simple forecast metrics with historical context for one or multiple banks",
             parameters={
                 "tickers": {
                     "type": "array",
@@ -251,8 +289,8 @@ class BankingToolSystem:
         def query_forecast_data(tickers = None) -> Dict:
             """Query all forecast data with historical context for one or multiple banks"""
             # Get forecast data
-            forecast_df = self.data['forecast'].copy()
-            historical_df = self.data['historical_year'].copy()
+            forecast_df = self._load_forecast().copy()
+            historical_df = self._load_historical_year().copy()
             
             # Dynamically determine the latest historical year
             latest_historical_year = historical_df['Year'].max()
@@ -276,7 +314,7 @@ class BankingToolSystem:
             # Get latest historical data for comparison
             latest_historical = historical_df[historical_df['Year'] == latest_historical_year]
             
-            # Key metrics to include
+            # Only simple key metrics - for detailed analysis use get_ai_commentary
             key_metrics = ["Loan", "NPL", "ROA", "ROE", "NIM", "PBT"]
             available_metrics = [m for m in key_metrics if m in forecast_df.columns and m in historical_df.columns]
             
@@ -334,6 +372,7 @@ class BankingToolSystem:
                     response["comparison"] = comparison
             
             response["status"] = "success"
+            response["note"] = "For comprehensive forecast analysis and insights, use get_ai_commentary tool"
             return response
         
         
@@ -365,7 +404,7 @@ class BankingToolSystem:
             tickers = [t.upper() for t in tickers]
             
             # Get data
-            df = self.data['historical_year']
+            df = self._load_historical_year()
             
             if period:
                 df = df[df['Year'] == int(period)]
@@ -414,12 +453,12 @@ class BankingToolSystem:
         )
         def get_sector_performance(sector: str, period: str = None) -> Dict:
             """Get sector performance"""
-            df = self.data['historical_year']
+            df = self._load_historical_year()
             
             # Filter by sector
             if sector != "Sector":
                 # Get banks in this sector
-                bank_types = self.data['bank_types']
+                bank_types = self._load_bank_types()
                 sector_banks = bank_types[bank_types['Type'] == sector]['TICKER'].tolist()
                 df = df[df['TICKER'].isin(sector_banks)]
             else:
@@ -593,9 +632,12 @@ class BankingToolSystem:
             for ticker in tickers:
                 ticker = ticker.upper()
                 
-                if ticker == "SECTOR" and 'quarterly_analysis' in self.data:
+                if ticker == "SECTOR":
                     # Get sector analysis
-                    df = self.data['quarterly_analysis']
+                    df = self._load_quarterly_analysis()
+                    if df is None:
+                        errors.append(f"Quarterly analysis data not available")
+                        continue
                     analysis = df[df['QUARTER'] == quarter] if 'QUARTER' in df.columns else pd.DataFrame()
                     
                     if not analysis.empty:
@@ -606,9 +648,12 @@ class BankingToolSystem:
                         }
                     else:
                         errors.append(f"No sector analysis for {quarter}")
-                elif 'comments' in self.data:
+                else:
                     # Get bank-specific commentary
-                    df = self.data['comments']
+                    df = self._load_comments()
+                    if df is None:
+                        errors.append(f"Comments data not available")
+                        continue
                     comment = df[(df['TICKER'] == ticker) & (df['QUARTER'] == quarter)]
                     
                     if not comment.empty:
@@ -621,8 +666,6 @@ class BankingToolSystem:
                         }
                     else:
                         errors.append(f"No commentary for {ticker} in {quarter}")
-                else:
-                    errors.append(f"Comments data not available for {ticker}")
             
             # Return simplified format for single ticker
             if len(tickers) == 1:
@@ -655,27 +698,28 @@ class BankingToolSystem:
                 "metric": {
                     "type": "string", 
                     "description": "Valuation metric",
-                    "enum": ["PE", "PB", "PS"],
+                    "enum": ["PE", "PB"],
                     "required": False
                 }
             }
         )
         def get_valuation_analysis(tickers, metric: str = "PB") -> Dict:
             """Get valuation analysis for one or multiple banks"""
-            if 'valuation' not in self.data:
+            # Lazy load the large valuation file only when needed
+            df = self._load_valuation()
+            if df is None:
                 return {"error": "Valuation data not available", "status": "failed"}
             
             # Convert single ticker to list for uniform processing
             if isinstance(tickers, str):
                 tickers = [tickers]
             
-            df = self.data['valuation']
+            # df already loaded above
             
             # Map metric names
             metric_map = {
                 "PE": "PE_RATIO",
-                "PB": "PX_TO_BOOK_RATIO", 
-                "PS": "PX_TO_SALES_RATIO"
+                "PB": "PX_TO_BOOK_RATIO"
             }
             
             col_name = metric_map.get(metric, "PX_TO_BOOK_RATIO")
@@ -839,7 +883,7 @@ class BankingToolSystem:
             if isinstance(tickers, str):
                 tickers = [tickers]
             
-            bank_types = self.data['bank_types']
+            bank_types = self._load_bank_types()
             
             results = {}
             by_sector = {}
@@ -898,7 +942,7 @@ class BankingToolSystem:
             if isinstance(tickers, str):
                 tickers = [tickers]
             
-            df = self.data['historical_year']
+            df = self._load_historical_year()
             
             results = {}
             comparison = []

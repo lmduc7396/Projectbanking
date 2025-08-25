@@ -30,9 +30,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize session state
-if 'conversation_history' not in st.session_state:
-    st.session_state.conversation_history = []
+# Initialize session state (removed conversation history)
 if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
 if 'openai_client' not in st.session_state:
@@ -92,50 +90,25 @@ def chat_with_ai(user_message: str) -> str:
     if not st.session_state.openai_client:
         return "❌ OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file."
     
-    # Prepare messages
+    # Prepare messages (NO conversation history - single Q&A mode)
     messages = []
     
     # Add system message
     messages.append({
         "role": "system",
-        "content": """You are a banking analyst assistant with access to comprehensive banking data.
-
-INSTRUCTIONS:
-1. Call get_data_availability() first when asked for "latest" or "current" data
-2. All 'tickers' parameters require arrays: ["VCB"] for single, ["VCB", "ACB", "BID"] for multiple
-3. For sector queries: call list_all_banks() first, then use the returned ticker array
-4. Provide specific numbers and detailed analysis
-
-Available tools:
-- get_data_availability(): Current date and latest data periods
-- get_bank_info(tickers[]): Bank sector classification
-- list_all_banks(): All banks grouped by sector
-- query_historical_data(tickers[], period, metric_group): Historical metrics
-- query_forecast_data(tickers[]): Forecast data 
-- calculate_growth_metrics(tickers[], metric, periods): Growth rates and CAGR calculation
-- get_valuation_analysis(tickers[], metric): Valuation with Z-scores
-- compare_banks(tickers[], metrics, period): Compare multiple banks
-- get_ai_commentary(tickers[], quarter): analysis for deeper insights
-- get_sector_performance(sector, period): Pre-aggregated sector metrics
-- get_stock_performance(tickers[], start_date, end_date): Stock performance
-
-"""
+        "content": """You are a banking analyst assistant. Use tools to get data, then provide analysis.
+Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     })
     
-    # Add conversation history
-    for msg in st.session_state.conversation_history:
-        messages.append(msg)
-    
-    # Add current user message
+    # Add current user message only (no history)
     messages.append({"role": "user", "content": user_message})
     
     # Get tool schemas
-
     tools = st.session_state.tool_system.get_openai_tools()
     
     # Initialize progress tracking
-    max_rounds = 50  # Safety limit to prevent infinite loops
-    with st.spinner("DucGPT is typing ..."):
+    max_rounds = 20  # Reasonable limit to prevent infinite loops
+    with st.spinner("DucGPT is analyzing..."):
         rounds = 0
         final_response = None
         tool_call_count = 0
@@ -212,9 +185,9 @@ Available tools:
         
         if not final_response:
             if rounds >= max_rounds:
-                final_response = f"I've executed {tool_call_count} tools but may need more to fully answer your question. The analysis so far is incomplete. Please ask me to continue if you need more details."
+                final_response = f"Analysis completed with {tool_call_count} tool calls. The query may be too complex for a single response."
             else:
-                final_response = "Your question is too generic, please ask actual Duc"
+                final_response = "Please provide a more specific banking-related question."
         
         return final_response
 
@@ -242,51 +215,42 @@ def main():
         )
         os.environ["OPENAI_MODEL"] = model
         
-        
         # Show available tools
         with st.expander("📋 Available Tools", expanded=False):
             tools = st.session_state.tool_system.get_tool_list()
             for tool in tools:
                 st.write(f"• {tool}")
         
-        # Clear conversation
-        if st.button("🗑️ Clear Conversation"):
-            st.session_state.conversation_history = []
+        # Clear tool executions
+        if st.button("🗑️ Clear Tool History"):
             st.session_state.tool_executions = []
             st.rerun()
         
-        # Export conversation
-        if st.button("📥 Export Conversation"):
+        # Export tool executions
+        if st.button("📥 Export Tool History"):
             export_data = {
-                "conversation": st.session_state.conversation_history,
                 "tool_executions": st.session_state.tool_executions,
                 "timestamp": datetime.now().isoformat()
             }
             st.download_button(
                 "Download JSON",
                 json.dumps(export_data, indent=2, default=str),
-                "conversation_export.json",
+                "tool_history.json",
                 "application/json"
             )
     
     # Main chat interface
-    st.header("💬 Chat")
+    st.header("💬 Chat (Single Question Mode)")
     
-    # Display conversation history
-    for i, msg in enumerate(st.session_state.conversation_history):
-        if msg["role"] == "user":
-            with st.chat_message("user"):
-                st.write(msg["content"])
-        elif msg["role"] == "assistant" and msg.get("content"):
-            with st.chat_message("assistant"):
-                st.write(msg["content"])
-    
-    # Rules
-    if len(st.session_state.conversation_history) == 0:
-        st.info("**Rules, please read before asking:**")
-        st.write("1. Be as specific as possible, don't ask for valuation, ask for PB for example")
-        st.write("2. This DucGPT can provide historical and forecast data, in-depth analysis, valuation, stock performance.")
-        st.write("3. Sub sector include: SOCB, Private 1, Private 2, Private 3")
+    # Always show rules (no history to check)
+    st.info("**Rules - Please Read:**")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("1. Be specific (e.g., ask for PB not just 'valuation')")
+        st.write("2. Available: historical, forecast, analysis, stock data")
+    with col2:
+        st.write("3. Sectors: SOCB, Private_1, Private_2, Private_3")
+        st.write("4. Each question is independent (no context saved)")
     
     # Chat input
     user_input = st.chat_input("Ask DucGPT")
@@ -306,9 +270,7 @@ def main():
             # Display response
             response_container.write(response)
         
-        # Update conversation history
-        st.session_state.conversation_history.append({"role": "user", "content": user_input})
-        st.session_state.conversation_history.append({"role": "assistant", "content": response})
+        # NO conversation history saved - each query is independent
     
     # Tool execution history (in expander)
     if st.session_state.tool_executions:
