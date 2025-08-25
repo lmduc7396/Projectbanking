@@ -102,22 +102,42 @@ def chat_with_ai(user_message: str) -> str:
 
 CRITICAL INSTRUCTIONS:
 1. ALWAYS call get_data_availability() FIRST when asked for "latest", "current", or "recent" data
-2. All tools that accept 'tickers' parameter can handle BOTH single ticker (string) OR multiple tickers (array). Always use arrays when required multiple tickers.
-3. Continue calling tools until you have all necessary data
-4. Provide specific numbers and detailed analysis
+2. All tools that accept 'tickers' parameter can handle BOTH single ticker (string) OR multiple tickers (array)
+3. EFFICIENCY RULE: When you have multiple tickers, ALWAYS pass them as an array in a SINGLE tool call
+4. Continue calling tools until you have all necessary data
+5. Provide specific numbers and detailed analysis
 
-Available tools (all support single or multiple tickers where applicable):
+SECTOR QUERY WORKFLOW - CRITICAL:
+When asked about a sector or group of banks:
+1. First call list_all_banks() to get the ticker list for that sector
+2. Then use the ENTIRE ticker array in ONE SINGLE call to query tools
+3. NEVER make multiple calls for banks in the same sector - use arrays!
+
+EXAMPLES OF CORRECT USAGE:
+✓ For "Show SOCB banks performance":
+  Step 1: list_all_banks() → returns SOCB: ["VCB", "BID", "CTG", "VBB"]  
+  Step 2: query_historical_data(tickers=["VCB", "BID", "CTG", "VBB"], period="2024")
+
+✗ WRONG: Calling query_historical_data 4 times with "VCB", then "BID", then "CTG", then "VBB"
+✓ RIGHT: Calling query_historical_data ONCE with ["VCB", "BID", "CTG", "VBB"]
+
+✗ WRONG: Getting forecast data one by one for each bank
+✓ RIGHT: query_forecast_data(tickers=["VCB", "ACB", "TCB", "MBB", "VPB"])
+
+Available tools (all support single ticker OR array of tickers):
 - get_data_availability(): Current date and latest data periods
-- get_bank_info(tickers): Bank sector classification - accepts single ticker or array
-- list_all_banks(): All banks by sector
-- query_historical_data(ticker, period, metric_group): Historical metrics
-- query_forecast_data(ticker, year): Forecast data with automatic latest historical year for comparison
-- calculate_growth_metrics(tickers, metric, periods): Growth analysis - accepts single ticker or array
-- get_valuation_analysis(tickers, metric): Valuation with Z-scores - accepts single ticker or array
-- compare_banks(tickers, metrics, period): Compare multiple banks
-- get_ai_commentary(tickers, quarter): AI-generated analysis - accepts single ticker or array
-- get_sector_performance(sector, period): Sector aggregates
-- get_stock_performance(tickers, start_date, end_date): Stock performance - accepts single ticker or array
+- get_bank_info(tickers): Bank sector classification - string or array
+- list_all_banks(): All banks grouped by sector - use this first for sector queries!
+- query_historical_data(tickers, period, metric_group): Historical metrics - string or array
+- query_forecast_data(tickers): ALL forecast years + latest historical - string or array
+- calculate_growth_metrics(tickers, metric, periods): Growth analysis - string or array
+- get_valuation_analysis(tickers, metric): Valuation with Z-scores - string or array
+- compare_banks(tickers, metrics, period): Compare multiple banks - always array
+- get_ai_commentary(tickers, quarter): AI-generated analysis - string or array
+- get_sector_performance(sector, period): Pre-aggregated sector metrics
+- get_stock_performance(tickers, start_date, end_date): Stock performance - string or array
+
+REMEMBER: One tool call per data request - batch all tickers together using arrays!
 """
     })
     

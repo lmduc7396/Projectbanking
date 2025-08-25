@@ -171,12 +171,16 @@ class BankingToolSystem:
                 "status": "success"
             }
         
-        # Tool 4: Query Historical Data
+        # Tool 4: Query Historical Data (Universal - handles single or multiple)
         @self.tool(
             name="query_historical_data",
-            description="Query historical banking metrics",
+            description="Query historical banking metrics for one or multiple banks",
             parameters={
-                "ticker": {"type": "string", "description": "Bank ticker or sector name", "required": False},
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Bank ticker (string) or list of tickers (array)",
+                    "required": False
+                },
                 "period": {"type": "string", "description": "Period like 2024-Q3 or 2024", "required": False},
                 "metric_group": {
                     "type": "string", 
@@ -186,16 +190,18 @@ class BankingToolSystem:
                 }
             }
         )
-        def query_historical_data(ticker: str = None, period: str = None, metric_group: str = "all") -> Dict:
-            """Query historical data"""
+        def query_historical_data(tickers = None, period: str = None, metric_group: str = "all") -> Dict:
+            """Query historical data for one or multiple banks"""
             # Determine if quarterly or yearly
             is_quarterly = period and 'Q' in period
             df = self.data['historical_quarter'] if is_quarterly else self.data['historical_year']
             
-            # Apply filters
-            if ticker:
-                ticker = ticker.upper()
-                df = df[df['TICKER'] == ticker]
+            # Apply ticker filter if specified
+            if tickers:
+                if isinstance(tickers, str):
+                    tickers = [tickers]
+                tickers = [t.upper() for t in tickers]
+                df = df[df['TICKER'].isin(tickers)]
             
             if period:
                 if is_quarterly:
@@ -228,17 +234,20 @@ class BankingToolSystem:
                 "status": "success"
             }
         
-        # Tool 5: Query Forecast Data
+        # Tool 5: Query Forecast Data (Universal - handles single or multiple)
         @self.tool(
             name="query_forecast_data",
-            description="Query forecast data with automatic inclusion of latest historical year for comparison",
+            description="Query ALL forecast years with latest historical year for comparison - accepts single or multiple tickers",
             parameters={
-                "ticker": {"type": "string", "description": "Bank ticker or sector", "required": False},
-                "year": {"type": "string", "description": "Specific forecast year or 'all' for all years", "required": False}
+                "tickers": {
+                    "type": ["string", "array"],
+                    "description": "Bank ticker (string) or list of tickers (array)",
+                    "required": False
+                }
             }
         )
-        def query_forecast_data(ticker: str = None, year: str = None) -> Dict:
-            """Query forecast data with historical context"""
+        def query_forecast_data(tickers = None) -> Dict:
+            """Query all forecast data with historical context for one or multiple banks"""
             # Get forecast data
             forecast_df = self.data['forecast'].copy()
             historical_df = self.data['historical_year'].copy()
@@ -249,18 +258,15 @@ class BankingToolSystem:
             # Get available forecast years
             forecast_years = sorted(forecast_df['Year'].unique())
             
-            # Apply ticker filter if specified
-            if ticker:
-                ticker = ticker.upper()
-                forecast_df = forecast_df[forecast_df['TICKER'] == ticker]
-                historical_df = historical_df[historical_df['TICKER'] == ticker]
+            # Handle single ticker or array
+            if tickers:
+                if isinstance(tickers, str):
+                    tickers = [tickers]
+                tickers = [t.upper() for t in tickers]
+                forecast_df = forecast_df[forecast_df['TICKER'].isin(tickers)]
+                historical_df = historical_df[historical_df['TICKER'].isin(tickers)]
             
-            # Apply year filter for forecast if specified
-            if year and year != 'all':
-                try:
-                    forecast_df = forecast_df[forecast_df['Year'] == int(year)]
-                except ValueError:
-                    return {"error": f"Invalid year format: {year}", "status": "failed"}
+            # ALWAYS get ALL forecast years - no year filtering
             
             if forecast_df.empty:
                 return {"error": "No forecast data found", "status": "failed"}
@@ -276,7 +282,7 @@ class BankingToolSystem:
             response = {
                 "latest_actual_year": int(latest_historical_year),
                 "forecast_years": [int(y) for y in forecast_years],
-                "requested_ticker": ticker if ticker else "All",
+                "requested_tickers": tickers if tickers else "All",
                 "metrics_included": available_metrics
             }
             
@@ -298,7 +304,7 @@ class BankingToolSystem:
             }
             
             # Calculate growth rates if single ticker
-            if ticker and not latest_historical.empty and len(forecast_data) > 0:
+            if tickers and len(tickers) == 1 and not latest_historical.empty and len(forecast_data) > 0:
                 comparison = {}
                 historical_record = latest_historical.iloc[0] if len(latest_historical) > 0 else None
                 
