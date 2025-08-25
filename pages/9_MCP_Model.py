@@ -26,7 +26,7 @@ load_dotenv()
 
 # Page configuration
 st.set_page_config(
-    page_title="DucGPT MCP version",
+    page_title="DucGPT Chatbot",
     layout="wide"
 )
 
@@ -98,7 +98,7 @@ def chat_with_ai(user_message: str) -> str:
     # Add system message
     messages.append({
         "role": "system",
-        "content": """You are a Vietnamese banking analyst assistant with access to comprehensive banking data.
+        "content": """You are a banking analyst assistant with access to comprehensive banking data.
 
 INSTRUCTIONS:
 1. Call get_data_availability() first when asked for "latest" or "current" data
@@ -283,16 +283,10 @@ def main():
     
     # Example queries
     if len(st.session_state.conversation_history) == 0:
-        st.info("💡 **Example queries:**")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("• What is VCB's NPL ratio for the latest quarter?")
-            st.write("• Compare ROE of all SOCB banks in 2024")
-            st.write("• Which Private_1 bank has the best growth?")
-        with col2:
-            st.write("• Show me ACB's forecast for 2025-2026")
-            st.write("• What's the sector outlook for Q3 2024?")
-            st.write("• Which bank has the best valuation right now?")
+        st.info("**Rules, please read before asking:**")
+        st.write("1. Be as specific as possible, don't ask for valuation, ask for PB for example.")
+        st.write("2. This DucGPT can provide historical and forecast data, in-depth analysis, valuation, stock performance.")
+        st.write("3. Sub sector include: SOCB, Private 1, Private 2, Private 3")
     
     # Chat input
     user_input = st.chat_input("Ask DucGPT")
