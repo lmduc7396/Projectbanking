@@ -100,18 +100,6 @@ class BankingToolSystem:
                     
                     # Create clean parameter definition without 'required' field
                     clean_param = {k: v for k, v in param_def.items() if k != "required"}
-                    
-                    # Fix the type definition for parameters that accept both string and array
-                    if "type" in clean_param and clean_param["type"] == ["string", "array"]:
-                        # OpenAI expects proper JSON schema - use anyOf for multiple types
-                        clean_param = {
-                            "anyOf": [
-                                {"type": "string"},
-                                {"type": "array", "items": {"type": "string"}}
-                            ],
-                            "description": clean_param.get("description", "")
-                        }
-                    
                     clean_params[param_name] = clean_param
             
             schema = {
@@ -189,8 +177,9 @@ class BankingToolSystem:
             description="Query historical banking metrics for one or multiple banks",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Bank ticker (string) or list of tickers (array)",
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple",
                     "required": False
                 },
                 "period": {"type": "string", "description": "Period like 2024-Q3 or 2024", "required": False},
@@ -252,8 +241,9 @@ class BankingToolSystem:
             description="Query ALL forecast years with latest historical year for comparison - accepts single or multiple tickers",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Bank ticker (string) or list of tickers (array)",
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple",
                     "required": False
                 }
             }
@@ -584,8 +574,9 @@ class BankingToolSystem:
             description="Get AI-generated commentary for one or multiple banks",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Bank ticker (string) or list of tickers (array). Use 'Sector' for sector analysis"
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single or [\"Sector\"] for sector analysis"
                 },
                 "quarter": {"type": "string", "description": "Quarter like 2024-Q3"}
             }
@@ -657,8 +648,9 @@ class BankingToolSystem:
             description="Get valuation analysis with Z-score and percentiles for one or multiple banks",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Bank ticker (string) or list of tickers (array)"
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple"
                 },
                 "metric": {
                     "type": "string", 
@@ -755,8 +747,9 @@ class BankingToolSystem:
             description="Get stock price performance between two dates for one or multiple banks",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Stock ticker (string) or list of tickers (array)"
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of stock tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple"
                 },
                 "start_date": {"type": "string", "description": "Start date in YYYY-MM-DD format"},
                 "end_date": {"type": "string", "description": "End date in YYYY-MM-DD format"}
@@ -834,8 +827,9 @@ class BankingToolSystem:
             description="Get bank sector classification for one or multiple banks",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Bank ticker (string) or list of tickers (array)"
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple"
                 }
             }
         )
@@ -890,8 +884,9 @@ class BankingToolSystem:
             description="Calculate growth rates and CAGR for metrics for one or multiple banks",
             parameters={
                 "tickers": {
-                    "type": ["string", "array"],
-                    "description": "Bank ticker (string) or list of tickers (array)"
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple"
                 },
                 "metric": {"type": "string", "description": "Metric name (e.g., Loan, Deposit)"},
                 "periods": {"type": "integer", "description": "Number of periods to analyze", "required": False}
