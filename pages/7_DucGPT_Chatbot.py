@@ -97,6 +97,7 @@ def chat_with_ai(user_message: str) -> str:
     messages.append({
         "role": "system",
         "content": """You are a banking analyst assistant. Use tools to get data, then provide analysis.
+IMPORTANT: ALWAYS call get_data_availability() first when user asks for 'latest', 'recent', 'current' data or 'developments'.
 Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     })
     

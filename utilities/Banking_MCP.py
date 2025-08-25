@@ -163,7 +163,7 @@ class BankingToolSystem:
         # Tool 1: Get Data Availability
         @self.tool(
             name="get_data_availability",
-            description="Get current date and latest available data periods - ALWAYS call this first for 'latest' or 'current' queries",
+            description="MANDATORY: You MUST call this first for ANY query about 'latest', 'recent', 'current' to determine actual data periods",
             parameters={}
         )
         def get_data_availability() -> Dict:
@@ -214,6 +214,12 @@ class BankingToolSystem:
             name="query_historical_data",
             description="Query simple historical banking metrics for one or multiple banks. For detailed fundamental analysis, use get_ai_commentary tool",
             parameters={
+                "frequency": {
+                    "type": "string",
+                    "description": "Data frequency - specify 'quarterly' for quarterly data or 'yearly' for yearly data",
+                    "enum": ["quarterly", "yearly"],
+                    "required": True
+                },
                 "tickers": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -229,10 +235,10 @@ class BankingToolSystem:
                 }
             }
         )
-        def query_historical_data(tickers = None, period: str = None, metric_group: str = "all") -> Dict:
+        def query_historical_data(frequency: str, tickers = None, period: str = None, metric_group: str = "all") -> Dict:
             """Query historical data for one or multiple banks"""
-            # Determine if quarterly or yearly
-            is_quarterly = period and 'Q' in period
+            # Determine if quarterly or yearly based on frequency parameter
+            is_quarterly = (frequency == "quarterly")
             df = self._load_historical_quarter() if is_quarterly else self._load_historical_year()
             
             # Apply ticker filter if specified
