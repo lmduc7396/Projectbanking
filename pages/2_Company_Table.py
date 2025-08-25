@@ -18,10 +18,17 @@ from utilities.stock_candle import Stock_price_plot
 def load_data():
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    
+    # Load forecast data if it exists
+    forecast_path = os.path.join(project_root, 'Data/dfsectorforecast.csv')
+    df_forecast = None
+    if os.path.exists(forecast_path):
+        df_forecast = pd.read_csv(forecast_path)
+    
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
-    return df_quarter, df_year, keyitem
+    return df_quarter, df_year, df_forecast, keyitem
 
-df_quarter, df_year, keyitem = load_data()
+df_quarter, df_year, df_forecast, keyitem = load_data()
 color_sequence = px.colors.qualitative.Bold
 
 # Page configuration
@@ -52,15 +59,45 @@ def get_last_historical_year():
 # Get the last historical year
 last_historical_year = get_last_historical_year()
 
-# Sidebar: Choose database
+# Sidebar: Choose database and forecast option
 db_option = st.sidebar.radio("Choose database:", ("Quarterly", "Yearly"))
 
+# Add forecast checkbox
+include_forecast = st.sidebar.checkbox(
+    "Include Forecast Data", 
+    value=False,
+    help="Show forecast data (2025-2026) in the table"
+)
+
+# Process data based on selections
 if db_option == "Quarterly":
     df = df_quarter.copy()
+    
+    # If forecast is included and available, append yearly forecast to quarterly data
+    if include_forecast and df_forecast is not None:
+        # For quarterly view, append yearly forecast data directly
+        # Rename Year column to Date_Quarter for consistency
+        df_forecast_quarterly = df_forecast.copy()
+        df_forecast_quarterly['Date_Quarter'] = df_forecast_quarterly['Year'].astype(str)
+        
+        # Add is_forecast flag
+        df['is_forecast'] = False
+        df_forecast_quarterly['is_forecast'] = True
+        
+        # Combine the dataframes
+        df = pd.concat([df, df_forecast_quarterly], ignore_index=True)
 else:
     df = df_year.copy()
-    # Filter out forecast years (anything beyond last complete historical year)
-    df = df[df['Year'] <= last_historical_year]
+    
+    if include_forecast and df_forecast is not None:
+        # For yearly view, combine historical and forecast
+        df['is_forecast'] = False
+        df_forecast['is_forecast'] = True
+        df = pd.concat([df, df_forecast], ignore_index=True)
+    else:
+        # Filter out any forecast years if not including forecast
+        df = df[df['Year'] <= last_historical_year]
+        df['is_forecast'] = False
 
 # Conditional format function
 def conditional_format(df):
@@ -93,9 +130,15 @@ def conditional_format(df):
 st.session_state.df = df
 st.session_state.keyitem = keyitem
 st.session_state.df_quarter = df_quarter
+st.session_state.include_forecast = include_forecast
+st.session_state.last_historical_year = last_historical_year
 
 st.title("Company Table")
 st.markdown("---")
+
+# Show a note if forecast is included
+if include_forecast:
+    st.info("Forecast data (2025-2026) is included in the table")
 
 # --- Define User Selection Options ---
 bank_type = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
@@ -117,14 +160,37 @@ if db_option == "Quarterly":
 else:
     Z = st.selectbox("QoQ or YoY growth (Z):", ['YoY'], index=0)
 
-df_table1, df_table2 = Banking_table(X, Y, Z, df, keyitem)
+df_table1, df_table2, forecast_columns = Banking_table(X, Y, Z, df, keyitem)
+
+# Function to apply forecast column highlighting
+def highlight_forecast_columns(df, forecast_cols):
+    """Apply light background color to forecast columns"""
+    def style_forecast(col):
+        if str(col.name) in forecast_cols or (isinstance(col.name, (int, float)) and str(int(col.name)) in forecast_cols):
+            return ['background-color: rgba(255, 255, 0, 0.1)'] * len(col)
+        return [''] * len(col)
+    
+    return df.style.apply(style_forecast, axis=0)
 
 # Format and display first table
 st.subheader("Earnings metrics")
 formatted1 = conditional_format(df_table1)
-st.dataframe(formatted1, use_container_width=True)
+
+# Apply highlighting if there are forecast columns
+if include_forecast and forecast_columns:
+    st.write("*Highlighted columns show forecast data*")
+    styled_df1 = highlight_forecast_columns(formatted1, forecast_columns)
+    st.dataframe(styled_df1, use_container_width=True)
+else:
+    st.dataframe(formatted1, use_container_width=True)
 
 # Format and display second table
 st.subheader("Ratios")
 formatted2 = conditional_format(df_table2)
-st.dataframe(formatted2, use_container_width=True)
+
+# Apply highlighting if there are forecast columns
+if include_forecast and forecast_columns:
+    styled_df2 = highlight_forecast_columns(formatted2, forecast_columns)
+    st.dataframe(styled_df2, use_container_width=True)
+else:
+    st.dataframe(formatted2, use_container_width=True)

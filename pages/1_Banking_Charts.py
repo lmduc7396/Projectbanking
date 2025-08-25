@@ -16,10 +16,17 @@ from utilities.plot_chart import Bankplot
 def load_data():
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    
+    # Load forecast data if it exists
+    forecast_path = os.path.join(project_root, 'Data/dfsectorforecast.csv')
+    df_forecast = None
+    if os.path.exists(forecast_path):
+        df_forecast = pd.read_csv(forecast_path)
+    
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
-    return df_quarter, df_year, keyitem
+    return df_quarter, df_year, df_forecast, keyitem
 
-df_quarter, df_year, keyitem = load_data()
+df_quarter, df_year, df_forecast, keyitem = load_data()
 color_sequence = px.colors.qualitative.Bold
 
 # Page configuration
@@ -50,22 +57,59 @@ def get_last_historical_year():
 # Get the last historical year
 last_historical_year = get_last_historical_year()
 
-# Sidebar: Choose database
+# Sidebar: Choose database and forecast option
 db_option = st.sidebar.radio("Choose database:", ("Quarterly", "Yearly"))
 
+# Add forecast checkbox
+include_forecast = st.sidebar.checkbox(
+    "Include Forecast Data", 
+    value=False,
+    help="Show forecast data (2025-2026) with dotted lines"
+)
+
+# Process data based on selections
 if db_option == "Quarterly":
     df = df_quarter.copy()
+    
+    # If forecast is included and available, append yearly forecast to quarterly data
+    if include_forecast and df_forecast is not None:
+        # For quarterly view, append yearly forecast data directly
+        # The forecast data will show as years (2025, 2026) after quarters
+        # Rename Year column to Date_Quarter for consistency
+        df_forecast_quarterly = df_forecast.copy()
+        df_forecast_quarterly['Date_Quarter'] = df_forecast_quarterly['Year'].astype(str)
+        
+        # Add is_forecast flag
+        df['is_forecast'] = False
+        df_forecast_quarterly['is_forecast'] = True
+        
+        # Combine the dataframes
+        df = pd.concat([df, df_forecast_quarterly], ignore_index=True)
 else:
     df = df_year.copy()
-    # Filter out forecast years (anything beyond last complete historical year)
-    df = df[df['Year'] <= last_historical_year]
+    
+    if include_forecast and df_forecast is not None:
+        # For yearly view, combine historical and forecast
+        df['is_forecast'] = False
+        df_forecast['is_forecast'] = True
+        df = pd.concat([df, df_forecast], ignore_index=True)
+    else:
+        # Filter out any forecast years if not including forecast
+        df = df[df['Year'] <= last_historical_year]
+        df['is_forecast'] = False
 
 # Make the data available globally for the Bankplot function
 st.session_state.df = df
 st.session_state.keyitem = keyitem
+st.session_state.include_forecast = include_forecast
+st.session_state.last_historical_year = last_historical_year
 
 st.title("Banking Plot")
 st.markdown("---")
+
+# Show a note if forecast is included
+if include_forecast:
+    st.info("📊 Forecast data (2025-2026) is shown with dotted lines")
 
 # Call the banking plot function
 Bankplot(df, keyitem)

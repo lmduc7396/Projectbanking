@@ -19,10 +19,10 @@ class DataDiscoveryAgent:
                 if 'Date_Quarter' in df.columns:
                     quarters = df['Date_Quarter'].unique()
                     quarters_sorted = sorted(quarters, key=self._quarter_to_numeric)
-                    return quarters_sorted[-1] if quarters_sorted else "2Q25"
-            return "2Q25"
+                    return quarters_sorted[-1] if quarters_sorted else "2025-Q2"
+            return "2025-Q2"
         except:
-            return "2Q25"
+            return "2025-Q2"
     
     def _get_latest_4_quarters(self) -> List[str]:
         """Get the latest 4 quarters based on the latest quarter"""
@@ -43,7 +43,7 @@ class DataDiscoveryAgent:
             
             return quarters
         except:
-            return ["3Q24", "4Q24", "1Q25", "2Q25"]
+            return ["2024-Q3", "2024-Q4", "2025-Q1", "2025-Q2"]
     
     def find_relevant_data(self, query_analysis: Dict[str, Any]) -> Dict[str, Any]:
         """

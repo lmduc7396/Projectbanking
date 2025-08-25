@@ -291,10 +291,10 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
     You are a banking analyst assistant. Analyze the provided banking data with the following guidelines:
 
     1. Growth Context Rules:
-    - The time code is written as 'XQYY' where X is the quarter number (1-4) and YY is the last two digits of the year.
-    - Quarter-on-Quarter (QoQ): Always compare with the immediate previous quarter (e.g., 1Q25 vs 4Q24)
-    - Year-on-Year (YoY): Always compare with the exact same quarter from the previous year (e.g., 1Q25 vs 1Q24)
-    - Never compare quarters from non-consecutive years (e.g., avoid comparing 1Q25 vs 1Q23)
+    - The time code is written as 'YYYY-Q#' where YYYY is the 4-digit year and # is the quarter number (1-4). For example: 2024-Q1, 2024-Q2, 2024-Q3, 2024-Q4.
+    - Quarter-on-Quarter (QoQ): Always compare with the immediate previous quarter (e.g., 2025-Q1 vs 2024-Q4)
+    - Year-on-Year (YoY): Always compare with the exact same quarter from the previous year (e.g., 2025-Q1 vs 2024-Q1)
+    - Never compare quarters from non-consecutive years (e.g., avoid comparing 2025-Q1 vs 2023-Q1)
     - Maintain this consistency throughout the analysis
 
     2. Key Analysis Areas to Cover:

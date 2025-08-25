@@ -232,7 +232,7 @@ graph TD
 ## Key Features
 
 ### Smart Query Understanding
-- **Automatic Timeframe Detection**: Recognizes "current", "latest", specific quarters (1Q24), or years
+- **Automatic Timeframe Detection**: Recognizes "current", "latest", specific quarters (2024-Q1), or years
 - **Entity Recognition**: Identifies bank codes (ACB, VCB) and sector names (SOCB, Private_1)
 - **Metric Detection**: Recognizes financial metrics like ROE, NIM, NPL, CAR
 
@@ -279,7 +279,7 @@ The system maintains session state for:
 ## Example Queries
 
 ### Quantitative Examples
-- "What is ACB's ROE in 1Q24?"
+- "What is ACB's ROE in 2024-Q1?"
 - "Compare NIM across all Private_1 banks in 2023"
 - "Show me the NPL trend for SOCB sector over the last 4 quarters"
 

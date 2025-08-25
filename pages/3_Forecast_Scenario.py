@@ -50,6 +50,14 @@ st.title(' ')
 def load_data():
     """Load all required data in one optimized function"""
     df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    
+    # Load forecast data if it exists and combine with historical
+    forecast_file = os.path.join(project_root, 'Data/dfsectorforecast.csv')
+    if os.path.exists(forecast_file):
+        df_forecast = pd.read_csv(forecast_file)
+        # Combine historical and forecast data
+        df_year = pd.concat([df_year, df_forecast], ignore_index=True)
+    
     df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     
@@ -107,30 +115,30 @@ def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None)
         return pd.DataFrame()
     
     # Key metrics to sum
-    sum_metrics = ['BS.13', 'BS.14', 'IS.3', 'IS.15', 'IS.14', 'IS.17', 'IS.18', 'Nt.220']
+    sum_metrics = ['Loan', 'Provision on Balance Sheet', 'Net Interest Income', 'OPEX', 'TOI', 'Provision expense', 'PBT', 'Write-off']
     
     # Group by year and sum
     aggregated = year_data.groupby('Year')[sum_metrics].sum()
     
     # Calculate weighted average ratios
     # NIM weighted by loans
-    aggregated['CA.13'] = (year_data.groupby('Year').apply(
-        lambda x: (x['CA.13'] * x['BS.13']).sum() / x['BS.13'].sum() if x['BS.13'].sum() != 0 else 0
+    aggregated['NIM'] = (year_data.groupby('Year').apply(
+        lambda x: (x['NIM'] * x['Loan']).sum() / x['Loan'].sum() if x['Loan'].sum() != 0 else 0
     ))
     
     # NPL weighted by loans
-    aggregated['CA.3'] = (year_data.groupby('Year').apply(
-        lambda x: (x['CA.3'] * x['BS.13']).sum() / x['BS.13'].sum() if x['BS.13'].sum() != 0 else 0
+    aggregated['NPL'] = (year_data.groupby('Year').apply(
+        lambda x: (x['NPL'] * x['Loan']).sum() / x['Loan'].sum() if x['Loan'].sum() != 0 else 0
     ))
     
     # NPL Formation weighted by loans
-    aggregated['CA.23'] = (year_data.groupby('Year').apply(
-        lambda x: (x['CA.23'] * x['BS.13']).sum() / x['BS.13'].sum() if x['BS.13'].sum() != 0 else 0
+    aggregated['NPL Formation (%)'] = (year_data.groupby('Year').apply(
+        lambda x: (x['NPL Formation (%)'] * x['Loan']).sum() / x['Loan'].sum() if x['Loan'].sum() != 0 else 0
     ))
     
     # CIR = OPEX / TOI
-    aggregated['CA.6'] = aggregated['IS.15'] / aggregated['IS.14']
-    aggregated['CA.6'] = aggregated['CA.6'].fillna(0)
+    aggregated['CIR'] = aggregated['OPEX'] / aggregated['TOI']
+    aggregated['CIR'] = aggregated['CIR'].fillna(0)
     
     # Handle quarterly data if provided
     if quarters is not None and df_quarter is not None:
@@ -144,14 +152,14 @@ def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None)
             for q in quarters:
                 q_data = quarter_data[quarter_data['Date_Quarter'] == q]
                 if not q_data.empty:
-                    total_loan_q = q_data['BS.13'].sum()
+                    total_loan_q = q_data['Loan'].sum()
                     if total_loan_q > 0:
-                        quarterly_agg.loc[q, 'CA.13'] = (q_data['CA.13'] * q_data['BS.13']).sum() / total_loan_q
-                        quarterly_agg.loc[q, 'CA.3'] = (q_data['CA.3'] * q_data['BS.13']).sum() / total_loan_q
-                        quarterly_agg.loc[q, 'CA.23'] = (q_data['CA.23'] * q_data['BS.13']).sum() / total_loan_q
+                        quarterly_agg.loc[q, 'NIM'] = (q_data['NIM'] * q_data['Loan']).sum() / total_loan_q
+                        quarterly_agg.loc[q, 'NPL'] = (q_data['NPL'] * q_data['Loan']).sum() / total_loan_q
+                        quarterly_agg.loc[q, 'NPL Formation (%)'] = (q_data['NPL Formation (%)'] * q_data['Loan']).sum() / total_loan_q
                     
-                    if quarterly_agg.loc[q, 'IS.14'] != 0:
-                        quarterly_agg.loc[q, 'CA.6'] = quarterly_agg.loc[q, 'IS.15'] / quarterly_agg.loc[q, 'IS.14']
+                    if quarterly_agg.loc[q, 'TOI'] != 0:
+                        quarterly_agg.loc[q, 'CIR'] = quarterly_agg.loc[q, 'OPEX'] / quarterly_agg.loc[q, 'TOI']
             
             return aggregated, quarterly_agg
     
@@ -276,16 +284,16 @@ def extract_values(df, columns, default=0):
     return result
 
 # Extract all needed values at once
-forecast_1_vals = extract_values(forecast_1, ['IS.18', 'IS.3', 'IS.15', 'IS.14', 'IS.17', 
-                                              'CA.13', 'CA.3', 'CA.6', 'CA.23',
-                                              'BS.12', 'BS.13', 'BS.14', 'Nt.220'])
-forecast_2_vals = extract_values(forecast_2, ['IS.18', 'IS.3', 'IS.15', 'IS.14', 'IS.17',
-                                              'CA.13', 'CA.3', 'CA.6', 'CA.23',
-                                              'BS.12', 'BS.13', 'BS.14', 'Nt.220'])
+forecast_1_vals = extract_values(forecast_1, ['PBT', 'Net Interest Income', 'OPEX', 'TOI', 'Provision expense', 
+                                              'NIM', 'NPL', 'CIR', 'NPL Formation (%)',
+                                              'Loan', 'Provision on Balance Sheet', 'Write-off'])
+forecast_2_vals = extract_values(forecast_2, ['PBT', 'Net Interest Income', 'OPEX', 'TOI', 'Provision expense',
+                                              'NIM', 'NPL', 'CIR', 'NPL Formation (%)',
+                                              'Loan', 'Provision on Balance Sheet', 'Write-off'])
 
-# Get loan values with fallback
-loan_f1 = forecast_1_vals['BS.12'] if forecast_1_vals['BS.12'] != 0 else forecast_1_vals['BS.13']
-loan_f2 = forecast_2_vals['BS.12'] if forecast_2_vals['BS.12'] != 0 else forecast_2_vals['BS.13']
+# Get loan values
+loan_f1 = forecast_1_vals['Loan']
+loan_f2 = forecast_2_vals['Loan']
 
 # Initialize session state efficiently
 def init_session_state(ticker, forecast_year_1, forecast_year_2, values):
@@ -307,7 +315,7 @@ def init_session_state(ticker, forecast_year_1, forecast_year_2, values):
             st.session_state[key] = default_val
 
 init_session_state(ticker, forecast_year_1, forecast_year_2, 
-                  {'pbt_f1': forecast_1_vals['IS.18'], 'pbt_f2': forecast_2_vals['IS.18']})
+                  {'pbt_f1': forecast_1_vals['PBT'], 'pbt_f2': forecast_2_vals['PBT']})
 
 # Header placeholder
 header_placeholder = st.empty()
@@ -347,11 +355,11 @@ def prepare_table_vectorized(historical, forecast_1, forecast_2, quarterly,
 # Segment 1: Net Interest Income
 st.header("Segment 1: Net Interest Income Adjustment")
 
-# Prepare NIM table with BS.13 as primary loan source
+# Prepare NIM table with Loan as primary loan source
 nim_metrics = {
-    'Loan': 'BS.13',  # Use BS.13 as primary source
-    'NIM (%)': 'CA.13',
-    'NII': 'IS.3'
+    'Loan': 'Loan',  # Use Loan as primary source
+    'NIM (%)': 'NIM',
+    'NII': 'Net Interest Income'
 }
 
 nim_table = prepare_table_vectorized(
@@ -370,7 +378,7 @@ nim_table['Loan Growth YoY (%)'] = 0.0
 # Get previous year data for YoY calculation
 prev_year_loan = {}
 if last_complete_year-2 in historical_data.index:
-    prev_year_loan[str(last_complete_year-1)] = historical_data.loc[last_complete_year-2, 'BS.13'] / 1e12
+    prev_year_loan[str(last_complete_year-1)] = historical_data.loc[last_complete_year-2, 'Loan'] / 1e12
 
 # Historical years growth
 if str(last_complete_year-1) in nim_table.index and str(last_complete_year-1) in prev_year_loan:
@@ -385,16 +393,17 @@ if str(last_complete_year) in nim_table.index and str(last_complete_year-1) in n
 
 # Quarterly YoY growth - compare with same quarter previous year
 for period in nim_table.index:
-    if 'Q' in period:
-        # Extract quarter and year from period (e.g., '1Q25' -> quarter=1, year=25)
-        quarter_num = period[0]
-        year_suffix = period[2:]
-        prev_quarter = f'{quarter_num}Q{str(last_complete_year)[2:]}'
+    if '-Q' in period:
+        # Extract quarter and year from period (e.g., '2025-Q1' -> year=2025, quarter=1)
+        year_str, quarter_part = period.split('-Q')
+        year = int(year_str)
+        quarter_num = int(quarter_part)
+        prev_quarter = f'{last_complete_year}-Q{quarter_num}'
         
         # Get previous year same quarter data
         prev_quarter_row = quarterly_prev[quarterly_prev['Date_Quarter'] == prev_quarter]
         if not prev_quarter_row.empty:
-            prev_loan = prev_quarter_row['BS.13'].values[0] / 1e12
+            prev_loan = prev_quarter_row['Loan'].values[0] / 1e12
             curr_loan = nim_table.loc[period, 'Loan']
             if prev_loan != 0:
                 nim_table.loc[period, 'Loan Growth YoY (%)'] = ((curr_loan / prev_loan) - 1) * 100
@@ -429,9 +438,9 @@ col1, col2 = st.columns(2)
 
 # Calculate original values once
 original_values = {
-    'nim_f1': forecast_1_vals['CA.13'] * 100,
-    'nim_f2': forecast_2_vals['CA.13'] * 100,
-    'loan_growth_f1': ((loan_f1 / historical_data.loc[last_complete_year, 'BS.13']) - 1) * 100 if last_complete_year in historical_data.index else 15,
+    'nim_f1': forecast_1_vals['NIM'] * 100,
+    'nim_f2': forecast_2_vals['NIM'] * 100,
+    'loan_growth_f1': ((loan_f1 / historical_data.loc[last_complete_year, 'Loan']) - 1) * 100 if last_complete_year in historical_data.index else 15,
     'loan_growth_f2': ((loan_f2 / loan_f1) - 1) * 100 if loan_f1 != 0 else 15,
 }
 
@@ -485,8 +494,8 @@ pbt_changes = calculate_pbt_changes(
     original_values,
     {'loan_growth_f1': loan_growth_f1_new, 'loan_growth_f2': loan_growth_f2_new,
      'nim_f1': nim_f1_new, 'nim_f2': nim_f2_new},
-    {'pbt_f1': forecast_1_vals['IS.18'], 'pbt_f2': forecast_2_vals['IS.18'],
-     'nii_f1': forecast_1_vals['IS.3'], 'nii_f2': forecast_2_vals['IS.3']}
+    {'pbt_f1': forecast_1_vals['PBT'], 'pbt_f2': forecast_2_vals['PBT'],
+     'nii_f1': forecast_1_vals['Net Interest Income'], 'nii_f2': forecast_2_vals['Net Interest Income']}
 )
 
 # Store segment 1 changes
@@ -499,10 +508,10 @@ impact_details_segment1 = {
                            loan_growth_f2_new - original_values['loan_growth_f2']],
     'nim_change': [nim_f1_new - original_values['nim_f1'],
                    nim_f2_new - original_values['nim_f2']],
-    'pbt_from_loan': [(loan_growth_f1_new - original_values['loan_growth_f1']) / 2 * (forecast_1_vals['IS.18'] / 100),
-                      (loan_growth_f2_new - original_values['loan_growth_f2']) / 2 * (forecast_2_vals['IS.18'] / 100)],
-    'pbt_from_nim': [((nim_f1_new / original_values['nim_f1'] - 1) if original_values['nim_f1'] != 0 else 0) * forecast_1_vals['IS.3'],
-                     ((nim_f2_new / original_values['nim_f2'] - 1) if original_values['nim_f2'] != 0 else 0) * forecast_2_vals['IS.3']]
+    'pbt_from_loan': [(loan_growth_f1_new - original_values['loan_growth_f1']) / 2 * (forecast_1_vals['PBT'] / 100),
+                      (loan_growth_f2_new - original_values['loan_growth_f2']) / 2 * (forecast_2_vals['PBT'] / 100)],
+    'pbt_from_nim': [((nim_f1_new / original_values['nim_f1'] - 1) if original_values['nim_f1'] != 0 else 0) * forecast_1_vals['Net Interest Income'],
+                     ((nim_f2_new / original_values['nim_f2'] - 1) if original_values['nim_f2'] != 0 else 0) * forecast_2_vals['Net Interest Income']]
 }
 
 st.markdown("---")
@@ -512,9 +521,9 @@ st.header("Segment 2: Operating Expenses (OPEX) Adjustment")
 
 # Prepare OPEX historical table
 opex_metrics = {
-    'OPEX': 'IS.15',
-    'TOI': 'IS.14',  # Keep for calculation but will hide
-    'CIR (%)': 'CA.6'
+    'OPEX': 'OPEX',
+    'TOI': 'TOI',  # Keep for calculation but will hide
+    'CIR (%)': 'CIR'
 }
 
 opex_table = prepare_table_vectorized(
@@ -532,15 +541,15 @@ opex_table['OPEX Growth YoY (%)'] = 0.0
 
 # Get previous year data for YoY calculation
 if last_complete_year-2 in historical_data.index:
-    prev_opex = historical_data.loc[last_complete_year-2, 'IS.15']
-    curr_opex = historical_data.loc[last_complete_year-1, 'IS.15'] if last_complete_year-1 in historical_data.index else 0
+    prev_opex = historical_data.loc[last_complete_year-2, 'OPEX']
+    curr_opex = historical_data.loc[last_complete_year-1, 'OPEX'] if last_complete_year-1 in historical_data.index else 0
     if prev_opex != 0 and str(last_complete_year-1) in opex_table.index:
         opex_table.loc[str(last_complete_year-1), 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
 # Historical years growth
 if str(last_complete_year) in opex_table.index and last_complete_year-1 in historical_data.index:
-    prev_opex = historical_data.loc[last_complete_year-1, 'IS.15']
-    curr_opex = historical_data.loc[last_complete_year, 'IS.15'] if last_complete_year in historical_data.index else 0
+    prev_opex = historical_data.loc[last_complete_year-1, 'OPEX']
+    curr_opex = historical_data.loc[last_complete_year, 'OPEX'] if last_complete_year in historical_data.index else 0
     if prev_opex != 0:
         opex_table.loc[str(last_complete_year), 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
@@ -553,17 +562,17 @@ for period in opex_table.index:
         # Get previous year same quarter data
         prev_quarter_row = quarterly_prev[quarterly_prev['Date_Quarter'] == prev_quarter]
         if not prev_quarter_row.empty:
-            prev_opex = prev_quarter_row['IS.15'].values[0] / 1e12
+            prev_opex = prev_quarter_row['OPEX'].values[0] / 1e12
             curr_opex = opex_table.loc[period, 'OPEX']
             if prev_opex != 0:
                 opex_table.loc[period, 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
 # Forecast years growth
-opex_last = historical_data.loc[last_complete_year, 'IS.15'] if last_complete_year in historical_data.index else 0
+opex_last = historical_data.loc[last_complete_year, 'OPEX'] if last_complete_year in historical_data.index else 0
 if f'{forecast_year_1}F' in opex_table.index and opex_last != 0:
-    opex_table.loc[f'{forecast_year_1}F', 'OPEX Growth YoY (%)'] = ((forecast_1_vals['IS.15'] / opex_last) - 1) * 100
-if f'{forecast_year_2}F' in opex_table.index and forecast_1_vals['IS.15'] != 0:
-    opex_table.loc[f'{forecast_year_2}F', 'OPEX Growth YoY (%)'] = ((forecast_2_vals['IS.15'] / forecast_1_vals['IS.15']) - 1) * 100
+    opex_table.loc[f'{forecast_year_1}F', 'OPEX Growth YoY (%)'] = ((forecast_1_vals['OPEX'] / opex_last) - 1) * 100
+if f'{forecast_year_2}F' in opex_table.index and forecast_1_vals['OPEX'] != 0:
+    opex_table.loc[f'{forecast_year_2}F', 'OPEX Growth YoY (%)'] = ((forecast_2_vals['OPEX'] / forecast_1_vals['OPEX']) - 1) * 100
 
 # Reorder columns: OPEX, OPEX Growth YoY, CIR (hide TOI)
 display_table = opex_table[['OPEX', 'OPEX Growth YoY (%)', 'CIR (%)']]
@@ -578,8 +587,8 @@ st.dataframe(display_table.style.format({
 # Input section
 st.subheader("Adjust OPEX Growth")
 
-opex_growth_f1_orig = ((forecast_1_vals['IS.15'] / opex_last) - 1) * 100 if opex_last != 0 else 10
-opex_growth_f2_orig = ((forecast_2_vals['IS.15'] / forecast_1_vals['IS.15']) - 1) * 100 if forecast_1_vals['IS.15'] != 0 else 10
+opex_growth_f1_orig = ((forecast_1_vals['OPEX'] / opex_last) - 1) * 100 if opex_last != 0 else 10
+opex_growth_f2_orig = ((forecast_2_vals['OPEX'] / forecast_1_vals['OPEX']) - 1) * 100 if forecast_1_vals['OPEX'] != 0 else 10
 
 # Initialize session state for OPEX inputs
 if f"{ticker}_opex_growth_f1" not in st.session_state:
@@ -605,18 +614,18 @@ with col2:
 opex_f1_new = opex_last * (1 + opex_growth_f1_new / 100)
 opex_f2_new = opex_f1_new * (1 + opex_growth_f2_new / 100)
 
-pbt_change_segment2_f1 = opex_f1_new - forecast_1_vals['IS.15']
-pbt_change_segment2_f2 = opex_f2_new - forecast_2_vals['IS.15']
+pbt_change_segment2_f1 = opex_f1_new - forecast_1_vals['OPEX']
+pbt_change_segment2_f2 = opex_f2_new - forecast_2_vals['OPEX']
 
 st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_1}'] = pbt_change_segment2_f1
 st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_2}'] = pbt_change_segment2_f2
 
 # Calculate CIR impact
-toi_f1 = forecast_1_vals['IS.14'] + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0)
-toi_f2 = forecast_2_vals['IS.14'] + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0)
+toi_f1 = forecast_1_vals['TOI'] + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0)
+toi_f2 = forecast_2_vals['TOI'] + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0)
 
-cir_f1_orig = (forecast_1_vals['IS.15'] / forecast_1_vals['IS.14'] * 100) if forecast_1_vals['IS.14'] != 0 else 0
-cir_f2_orig = (forecast_2_vals['IS.15'] / forecast_2_vals['IS.14'] * 100) if forecast_2_vals['IS.14'] != 0 else 0
+cir_f1_orig = (forecast_1_vals['OPEX'] / forecast_1_vals['TOI'] * 100) if forecast_1_vals['TOI'] != 0 else 0
+cir_f2_orig = (forecast_2_vals['OPEX'] / forecast_2_vals['TOI'] * 100) if forecast_2_vals['TOI'] != 0 else 0
 
 cir_f1_new = (opex_f1_new / toi_f1 * 100) if toi_f1 != 0 else 0
 cir_f2_new = (opex_f2_new / toi_f2 * 100) if toi_f2 != 0 else 0
@@ -636,11 +645,11 @@ st.header("Segment 3: Asset Quality Assumptions")
 
 # Prepare Asset Quality historical table
 asset_quality_metrics = {
-    'NPL (%)': 'CA.3',
-    'NPL Formation (%)': 'CA.23',
-    'Provision (BS.14)': 'BS.14',  # Keep for calculation but won't display
-    'Provision Expense': 'IS.17',
-    'Write-off (Nt.220)': 'Nt.220'
+    'NPL (%)': 'NPL',
+    'NPL Formation (%)': 'NPL Formation (%)',
+    'Provision': 'Provision on Balance Sheet',  # Keep for calculation but won't display
+    'Provision Expense': 'Provision expense',
+    'Write-off': 'Write-off'
 }
 
 asset_quality_table = prepare_table_vectorized(
@@ -651,9 +660,9 @@ asset_quality_table = prepare_table_vectorized(
 # Convert units and calculate additional metrics
 asset_quality_table['NPL (%)'] *= 100
 asset_quality_table['NPL Formation (%)'] = asset_quality_table['NPL Formation (%)'].abs() * 100
-asset_quality_table['Provision (BS.14)'] /= 1e12  # Keep for calculation
+asset_quality_table['Provision'] /= 1e12  # Keep for calculation
 asset_quality_table['Provision Expense'] /= 1e12
-asset_quality_table['Write-off (Nt.220)'] /= 1e12
+asset_quality_table['Write-off'] /= 1e12
 
 # Calculate NPL Coverage for all periods including quarters
 asset_quality_table['NPL Coverage (%)'] = 0.0
@@ -667,33 +676,33 @@ for period in asset_quality_table.index:
         # For quarterly data
         quarter_row = quarterly_forecast[quarterly_forecast['Date_Quarter'] == period]
         if not quarter_row.empty:
-            loan_val = quarter_row['BS.13'].values[0] if 'BS.13' in quarter_row.columns else 0
-            npl_val = quarter_row['CA.3'].values[0] if 'CA.3' in quarter_row.columns else 0
-            bs14_val = quarter_row['BS.14'].values[0] if 'BS.14' in quarter_row.columns else 0
+            loan_val = quarter_row['Loan'].values[0] if 'Loan' in quarter_row.columns else 0
+            npl_val = quarter_row['NPL'].values[0] if 'NPL' in quarter_row.columns else 0
+            bs14_val = quarter_row['Provision on Balance Sheet'].values[0] if 'Provision on Balance Sheet' in quarter_row.columns else 0
     elif 'F' in period:
         # For forecast years
         year = int(period[:-1])
         if year == forecast_year_1:
             loan_val = loan_f1
-            npl_val = forecast_1_vals['CA.3']
-            bs14_val = forecast_1_vals['BS.14']
+            npl_val = forecast_1_vals['NPL']
+            bs14_val = forecast_1_vals['Provision on Balance Sheet']
         else:
             loan_val = loan_f2
-            npl_val = forecast_2_vals['CA.3']
-            bs14_val = forecast_2_vals['BS.14']
+            npl_val = forecast_2_vals['NPL']
+            bs14_val = forecast_2_vals['Provision on Balance Sheet']
     else:
         # For historical years
         year = int(period) if period.isdigit() else None
         if year and year in historical_data.index:
-            loan_val = historical_data.loc[year, 'BS.13']
-            npl_val = historical_data.loc[year, 'CA.3']
-            bs14_val = historical_data.loc[year, 'BS.14']
+            loan_val = historical_data.loc[year, 'Loan']
+            npl_val = historical_data.loc[year, 'NPL']
+            bs14_val = historical_data.loc[year, 'Provision on Balance Sheet']
     
     if npl_val != 0 and loan_val != 0:
         asset_quality_table.loc[period, 'NPL Coverage (%)'] = (-bs14_val / (npl_val * loan_val) * 100)
 
-# Reorder columns: NPL, NPL Formation, NPL Coverage, Provision Expense, Write-off (hide Provision BS.14)
-display_table = asset_quality_table[['NPL (%)', 'NPL Formation (%)', 'NPL Coverage (%)', 'Provision Expense', 'Write-off (Nt.220)']]
+# Reorder columns: NPL, NPL Formation, NPL Coverage, Provision Expense, Write-off (hide Provision)
+display_table = asset_quality_table[['NPL (%)', 'NPL Formation (%)', 'NPL Coverage (%)', 'Provision Expense', 'Write-off']]
 
 st.subheader("Historical and Forecast Asset Quality Metrics")
 st.dataframe(display_table.style.format({
@@ -701,7 +710,7 @@ st.dataframe(display_table.style.format({
     'NPL Formation (%)': '{:.2f}%',
     'NPL Coverage (%)': '{:.1f}%',
     'Provision Expense': '{:.2f}T',
-    'Write-off (Nt.220)': '{:.2f}T'
+    'Write-off': '{:.2f}T'
 }, na_rep=''), use_container_width=True)
 
 # Input section with all three inputs
@@ -709,15 +718,15 @@ st.subheader("Adjust Asset Quality Assumptions")
 col1, col2 = st.columns(2)
 
 # Get original values
-npl_f1_orig = forecast_1_vals['CA.3'] * 100
-npl_f2_orig = forecast_2_vals['CA.3'] * 100
+npl_f1_orig = forecast_1_vals['NPL'] * 100
+npl_f2_orig = forecast_2_vals['NPL'] * 100
 
-npl_formation_f1_orig = abs(forecast_1_vals['CA.23'] * 100) if forecast_1_vals['CA.23'] != 0 else 0.5
-npl_formation_f2_orig = abs(forecast_2_vals['CA.23'] * 100) if forecast_2_vals['CA.23'] != 0 else 0.5
+npl_formation_f1_orig = abs(forecast_1_vals['NPL Formation (%)'] * 100) if forecast_1_vals['NPL Formation (%)'] != 0 else 0.5
+npl_formation_f2_orig = abs(forecast_2_vals['NPL Formation (%)'] * 100) if forecast_2_vals['NPL Formation (%)'] != 0 else 0.5
 
 # Calculate original NPL coverage
-bs14_f1 = forecast_1_vals['BS.14']
-bs14_f2 = forecast_2_vals['BS.14']
+bs14_f1 = forecast_1_vals['Provision on Balance Sheet']
+bs14_f2 = forecast_2_vals['Provision on Balance Sheet']
 npl_coverage_f1_orig = (-bs14_f1 / (npl_f1_orig/100 * loan_f1) * 100) if (npl_f1_orig * loan_f1) != 0 else 100
 npl_coverage_f2_orig = (-bs14_f2 / (npl_f2_orig/100 * loan_f2) * 100) if (npl_f2_orig * loan_f2) != 0 else 100
 
@@ -763,14 +772,14 @@ with col2:
                                           key=f"{ticker}_npl_coverage_f2", step=1.0)
 
 # Get loan values from Segment 1
-loan_last = historical_data.loc[last_complete_year, 'BS.13'] if last_complete_year in historical_data.index else 1e15
+loan_last = historical_data.loc[last_complete_year, 'Loan'] if last_complete_year in historical_data.index else 1e15
 loan_f1_new = loan_last * (1 + loan_growth_f1_new / 100)
 loan_f2_new = loan_f1_new * (1 + loan_growth_f2_new / 100)
 
 # Calculate provision expense using proper formula
 # Get previous year values
-bs14_last = historical_data.loc[last_complete_year, 'BS.14'] if last_complete_year in historical_data.index else 0
-npl_last = historical_data.loc[last_complete_year, 'CA.3'] if last_complete_year in historical_data.index else 0.015
+bs14_last = historical_data.loc[last_complete_year, 'Provision on Balance Sheet'] if last_complete_year in historical_data.index else 0
+npl_last = historical_data.loc[last_complete_year, 'NPL'] if last_complete_year in historical_data.index else 0.015
 
 # Calculate absolute NPL
 npl_abs_last = npl_last * loan_last
@@ -793,15 +802,15 @@ provision_f1_orig = (npl_coverage_f1_orig / 100) * npl_abs_f1_orig
 provision_f2_orig = (npl_coverage_f2_orig / 100) * npl_abs_f2_orig
 
 # Get write-off values
-write_off_f1 = forecast_1_vals.get('Nt.220', 0)
-write_off_f2 = forecast_2_vals.get('Nt.220', 0)
+write_off_f1 = forecast_1_vals.get('Write-off', 0)
+write_off_f2 = forecast_2_vals.get('Write-off', 0)
 
 # Calculate provision expense
 provision_expense_f1_new = -(-(npl_abs_f1_new - npl_abs_last) + npl_formation_abs_f1_new + (provision_f1_new - provision_last))
 provision_expense_f2_new = -(-(npl_abs_f2_new - npl_abs_f1_new) + npl_formation_abs_f2_new + (provision_f2_new - provision_f1_new))
 
-provision_expense_f1_orig = forecast_1_vals['IS.17']
-provision_expense_f2_orig = forecast_2_vals['IS.17']
+provision_expense_f1_orig = forecast_1_vals['Provision expense']
+provision_expense_f2_orig = forecast_2_vals['Provision expense']
 
 # Calculate PBT changes
 provision_change_f1 = provision_expense_f1_new - provision_expense_f1_orig
@@ -978,15 +987,15 @@ st.dataframe(
 )
 
 # Calculate adjusted PBT
-adjusted_pbt_f1 = forecast_1_vals['IS.18'] + total_change_f1
-adjusted_pbt_f2 = forecast_2_vals['IS.18'] + total_change_f2
+adjusted_pbt_f1 = forecast_1_vals['PBT'] + total_change_f1
+adjusted_pbt_f2 = forecast_2_vals['PBT'] + total_change_f2
 
 # Update session state
 st.session_state[f'{ticker}_pbt_{forecast_year_1}_adjusted'] = adjusted_pbt_f1
 st.session_state[f'{ticker}_pbt_{forecast_year_2}_adjusted'] = adjusted_pbt_f2
 
 # Update header with final values
-pbt_last = historical_data.loc[last_complete_year, 'IS.18'] if last_complete_year in historical_data.index else 1
+pbt_last = historical_data.loc[last_complete_year, 'PBT'] if last_complete_year in historical_data.index else 1
 pbt_yoy_f1 = ((adjusted_pbt_f1 / pbt_last) - 1) * 100 if pbt_last != 0 else 0
 pbt_yoy_f2 = ((adjusted_pbt_f2 / adjusted_pbt_f1) - 1) * 100 if adjusted_pbt_f1 != 0 else 0
 

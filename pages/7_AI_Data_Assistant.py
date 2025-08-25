@@ -76,7 +76,7 @@ st.header("Ask Your Question")
 #%% Rules section
 with st.expander("Rules for questions"):
     st.markdown("""
-    1. Always include a timeframe (e.g: 1Q25, current, latest, 2024)
+    1. Always include a timeframe (e.g: 2025-Q1, current, latest, 2024)
     2. For quantitative questions, specify the metrics (e.g: ROE, NIM, NPL)
     3. For qualitative questions, provide context (e.g: "What is the outlook for SOCB in 2024?")
     4. Use clear bank codes (e.g: ACB, VCB, SOCB) or sector names (e.g: "Private_1", "SOCB")

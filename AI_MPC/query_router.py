@@ -6,6 +6,7 @@ import sys
 from typing import Dict, List, Any, Optional
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utilities.openai_utils import get_openai_client
+from utilities.quarter_utils import quarter_to_numeric
 
 class QueryRouter:
     
@@ -57,32 +58,26 @@ class QueryRouter:
             
             df = pd.read_csv(quarter_file)
             if 'Date_Quarter' in df.columns:
-                # Convert quarters to numeric for sorting
-                def quarter_to_numeric(q):
-                    try:
-                        quarter = int(q[0])
-                        year = 2000 + int(q[2:4])
-                        return year + (quarter - 1) / 4
-                    except:
-                        return 0
+                # Use the quarter_to_numeric from utilities for consistent sorting
                 
                 quarters = df['Date_Quarter'].unique()
                 quarters_sorted = sorted(quarters, key=quarter_to_numeric)
-                latest = quarters_sorted[-1] if quarters_sorted else "2Q25"
+                latest = quarters_sorted[-1] if quarters_sorted else "2025-Q2"
                 print(f"Latest quarter detected: {latest}")
                 return latest
             else:
-                return "2Q25"  # Fallback
+                return "2025-Q2"  # Fallback
         except Exception as e:
             print(f"Error getting latest quarter: {e}")
-            return "2Q25"  # Fallback
+            return "2025-Q2"  # Fallback
     
     def _get_latest_4_quarters(self) -> List[str]:
         """Get the latest 4 quarters based on the latest quarter"""
         try:
-            # Parse the latest quarter
-            q = int(self.latest_quarter[0])
-            year = int(self.latest_quarter[2:4])
+            # Parse the latest quarter (format: YYYY-Q#)
+            parts = self.latest_quarter.split('-Q')
+            year = int(parts[0])
+            q = int(parts[1])
             
             quarters = []
             for i in range(3, -1, -1):  # Go back 3 quarters from latest
@@ -93,18 +88,18 @@ class QueryRouter:
                     calc_q += 4
                     calc_year -= 1
                 
-                quarters.append(f"{calc_q}Q{calc_year:02d}")
+                quarters.append(f"{calc_year}-Q{calc_q}")
             
             return quarters
         except:
-            return ["3Q24", "4Q24", "1Q25", "2Q25"]  # Fallback
+            return []
     
     def analyze_query(self, query: str) -> Dict[str, Any]:
         """
         Use OpenAI to analyze the query and extract:
         1. Tickers (bank codes like ACB, VCB)
         2. Items (metrics like NIM, ROA)
-        3. Timeframe (quarters like 2Q25 or years like 2025)
+        3. Timeframe (quarters like 2025-Q2 or years like 2025)
         """
         
         # Get latest 4 quarters for the prompt
@@ -133,8 +128,8 @@ class QueryRouter:
         3. TIMEFRAME: The time period(s) mentioned
            - CRITICAL: If user says "current", "latest", or "recent" - return ["{self.latest_quarter}"]
            - IMPORTANT: Even if QoQ or YoY is mentioned, just return the specific quarter(s) mentioned
-           - Examples: "QoQ change in 2Q25" -> return ["2Q25"], "YoY growth in 1Q25" -> return ["1Q25"]
-           - For single quarter, return one quarter like ["2Q25"]
+           - Examples: "QoQ change in 2025-Q2" -> return ["2025-Q2"], "YoY growth in 2025-Q1" -> return ["2025-Q1"]
+           - For single quarter, return one quarter like ["2025-Q2"]
            - For quarter ranges (from X to Y), return ALL quarters in between
            - For year data, return just the year(s): "2024" -> ["2024"]
            - If no timeframe mentioned, return the latest 4 quarters: {latest_4_quarters}
@@ -208,10 +203,11 @@ class QueryRouter:
                 quarters_to_add = []
                 for target_quarter in timeframe:
                     # Only process quarters (not years)
-                    if 'Q' in str(target_quarter):
-                        # Parse the target quarter
-                        q = int(str(target_quarter)[0])
-                        year = int(str(target_quarter)[2:4])
+                    if '-Q' in str(target_quarter):
+                        # Parse the target quarter (format: YYYY-Q#)
+                        parts = str(target_quarter).split('-Q')
+                        year = int(parts[0])
+                        q = int(parts[1])
                         
                         if has_qoq:
                             # Add previous quarter for QoQ
@@ -220,12 +216,12 @@ class QueryRouter:
                             if prev_q <= 0:
                                 prev_q = 4
                                 prev_year -= 1
-                            prev_quarter = f"{prev_q}Q{prev_year:02d}"
+                            prev_quarter = f"{prev_year}-Q{prev_q}"
                             quarters_to_add.append(prev_quarter)
                         
                         if has_yoy:
                             # Add same quarter from previous year for YoY
-                            prev_year_quarter = f"{q}Q{(year-1):02d}"
+                            prev_year_quarter = f"{year-1}-Q{q}"
                             quarters_to_add.append(prev_year_quarter)
                 
                 # Add all identified quarters to timeframe
@@ -237,9 +233,9 @@ class QueryRouter:
                 timeframe = sorted(timeframe, key=quarter_to_numeric)
             
             # Determine data source based on timeframe
-            # If any quarter format detected (e.g., "1Q24"), use quarterly data
+            # If any quarter format detected (e.g., "2024-Q1"), use quarterly data
             # If only year format (e.g., "2024"), use yearly data
-            has_quarters = any('Q' in str(t) for t in timeframe)
+            has_quarters = any('-Q' in str(t) for t in timeframe)
             has_only_years = all(str(t).isdigit() and len(str(t)) == 4 for t in timeframe)
             
             if has_quarters:
@@ -294,7 +290,7 @@ class QueryRouter:
         
         # Extract timeframe
         timeframe = self._get_latest_4_quarters()  # Default to latest 4 quarters
-        quarter_pattern = r'[1-4]Q\d{2}'
+        quarter_pattern = r'\d{4}-Q[1-4]'
         quarter_matches = re.findall(quarter_pattern, query_upper)
         
         if quarter_matches:
@@ -309,8 +305,7 @@ class QueryRouter:
                     # Convert years to quarters
                     timeframe = []
                     for year in year_matches:
-                        year_suffix = year[-2:]
-                        timeframe.extend([f"1Q{year_suffix}", f"2Q{year_suffix}", f"3Q{year_suffix}", f"4Q{year_suffix}"])
+                        timeframe.extend([f"{year}-Q1", f"{year}-Q2", f"{year}-Q3", f"{year}-Q4"])
                     data_source = 'dfsectorquarter.csv'
                 else:
                     # Use yearly data

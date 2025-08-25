@@ -2,7 +2,7 @@
 #!/usr/bin/env python3
 """
 Bulk Quarterly Analysis Generator
-Generates AI analysis for all quarters from 1Q24 to current and saves to Excel file
+Generates AI analysis for all quarters from 2024-Q1 to current and saves to Excel file
 """
 
 import pandas as pd
@@ -45,19 +45,19 @@ class BulkQuarterlyAnalysisGenerator:
         return pd.read_excel(self.comments_file)
     
     def get_quarters_to_analyze(self, comments_df):
-        """Get all quarters from 1Q24 onwards"""
+        """Get all quarters from 2024-Q1 onwards"""
         all_quarters = comments_df['QUARTER'].unique().tolist()
         sorted_quarters = sort_quarters(all_quarters)
         
-        # Filter quarters from 1Q24 onwards
+        # Filter quarters from 2024-Q1 onwards
         quarters_to_analyze = []
         for quarter in sorted_quarters:
-            # Extract year from quarter (e.g., "1Q24" -> 24)
-            if 'Q' in quarter:
-                year_part = quarter.split('Q')[1]
+            # Extract year from quarter (e.g., "2024-Q1" -> 2024)
+            if '-Q' in quarter:
+                year_part = quarter.split('-Q')[0]
                 try:
                     year = int(year_part)
-                    if year >= 24:  # 2024 onwards
+                    if year >= 2024:  # 2024 onwards
                         quarters_to_analyze.append(quarter)
                 except ValueError:
                     continue
@@ -304,7 +304,7 @@ class BulkQuarterlyAnalysisGenerator:
             
             # Get quarters to analyze
             quarters_to_analyze = self.get_quarters_to_analyze(comments_df)
-            print(f"   Found {len(quarters_to_analyze)} quarters from 1Q24 onwards")
+            print(f"   Found {len(quarters_to_analyze)} quarters from 2024-Q1 onwards")
             print(f"   Quarters: {', '.join(quarters_to_analyze)}")
             
             # Load existing analysis if available
@@ -394,7 +394,7 @@ def main():
         generator = BulkQuarterlyAnalysisGenerator()
         
         print("🏦 Banking Quarterly Analysis - Bulk Generator")
-        print("This tool will generate AI analysis for all quarters from 1Q24 onwards")
+        print("This tool will generate AI analysis for all quarters from 2024-Q1 onwards")
         print()
         
         # Check if analysis file already exists

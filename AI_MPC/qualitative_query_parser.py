@@ -30,7 +30,7 @@ Analyze this qualitative banking question and extract:
    - Return ALL tickers mentioned in the question as a list
    - Preserve the exact format with underscore for Private sectors (e.g., "Private_1" not "Private 1")
    
-2. TIMEFRAME: List of quarters mentioned (e.g., ["1Q24", "2Q24"])
+2. TIMEFRAME: List of quarters mentioned (e.g., ["2024-Q1", "2024-Q2"])
    - If "current" or "latest", return ["{latest_quarter}"]
    - If no timeframe, return latest 4 quarters: {latest_4_quarters}
 

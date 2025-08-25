@@ -73,10 +73,10 @@ dfall = dfall.sort_values(by=['TICKER','ENDDATE_x'])
 bank_type = ['SOCB','Private_1','Private_2','Private_3','Sector']
 
 # Add in date columns
-# For yearly data (LENGTHREPORT=5), use full year; for quarterly, use XQyy format
+# For yearly data (LENGTHREPORT=5), use full year; for quarterly, use YYYY-Q# format
 dfall['Date_Quarter'] = dfall.apply(
     lambda row: str(int(row['YEARREPORT'])) if row['LENGTHREPORT'] == 5 
-    else str(int(row['LENGTHREPORT'])) + 'Q' + str(int(row['YEARREPORT']))[-2:], 
+    else str(int(row['YEARREPORT'])) + '-Q' + str(int(row['LENGTHREPORT'])), 
     axis=1
 )
 dfall = dfall.dropna(subset='ENDDATE_x')
@@ -580,6 +580,9 @@ def Calculate(df):
     # CA.25: Group 2 Formation (%):
     df['CA.25'] = df['CA.24'] / df['BS.13'].shift(1)
     
+    #CA.26: Overdue loan (%)
+    df['CA.26'] = df['CA.3'] + df['CA.5']
+    
     # Reset Index
     df = df.reset_index(drop=True)
     return df
@@ -624,23 +627,125 @@ dfsectoryear = dfsectoryear.rename(columns={'Date_Quarter': 'Year'})
 dfsectoryear = dfsectoryear.sort_values(by=['TICKER', 'Year'])
 dfsectorquarter = dfsectorquarter.sort_values(by=['TICKER', 'ENDDATE_x'])
 
-#%% Save files
-print("\nSaving final datasets...")
+#%% Filter columns to keep only Key_items columns + metadata
+print("\nFiltering columns to keep only essential data...")
 
-# Save files - dfsectoryear now includes forecast data if available
-dfsectoryear.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
+# Load Key_items to know which columns to keep
+key_items_df = pd.read_excel(os.path.join(data_dir, 'Key_items.xlsx'))
+key_columns = key_items_df['KeyCode'].tolist()
+
+# Define metadata columns to keep
+metadata_columns = ['TICKER', 'Type', 'YEARREPORT', 'LENGTHREPORT', 'ENDDATE_x']
+
+# For yearly data, also keep 'Year' column; for quarterly, keep 'Date_Quarter'
+yearly_columns_to_keep = metadata_columns + ['Year'] + key_columns
+quarterly_columns_to_keep = metadata_columns + ['Date_Quarter'] + key_columns
+
+# Filter columns - keep only those that exist in the dataframe
+dfsectoryear_filtered = dfsectoryear[[col for col in yearly_columns_to_keep if col in dfsectoryear.columns]].copy()
+dfsectorquarter_filtered = dfsectorquarter[[col for col in quarterly_columns_to_keep if col in dfsectorquarter.columns]].copy()
+
+print(f"Reduced columns from {len(dfsectoryear.columns)} to {len(dfsectoryear_filtered.columns)} for yearly data")
+print(f"Reduced columns from {len(dfsectorquarter.columns)} to {len(dfsectorquarter_filtered.columns)} for quarterly data")
+
+# Use filtered dataframes for saving
+dfsectoryear = dfsectoryear_filtered
+dfsectorquarter = dfsectorquarter_filtered
+
+#%% Split historical and forecast data BEFORE renaming
+print("\nSplitting historical and forecast data...")
+
+# Separate historical and forecast data for yearly data
+if has_forecast:
+    # Split historical and forecast data BEFORE renaming
+    dfsectoryear_historical = dfsectoryear[~dfsectoryear['Year'].astype(int).isin([forecast_year_1, forecast_year_2])].copy()
+    dfsectorforecast = dfsectoryear[dfsectoryear['Year'].astype(int).isin([forecast_year_1, forecast_year_2])].copy()
+    print(f"Split data: {len(dfsectoryear_historical)} historical rows, {len(dfsectorforecast)} forecast rows")
+else:
+    dfsectoryear_historical = dfsectoryear.copy()
+    dfsectorforecast = pd.DataFrame()  # Empty if no forecast
+
+#%% Rename columns to descriptive names
+print("\nRenaming columns to descriptive names...")
+
+def load_keycode_to_name_mapping():
+    """Load the keycode to descriptive name mapping from Key_items.xlsx"""
+    keyitems_df = pd.read_excel(os.path.join(data_dir, 'Key_items.xlsx'))
+    mapping = dict(zip(keyitems_df['KeyCode'], keyitems_df['Name']))
+    return mapping
+
+def rename_dataframe_columns(df, mapping):
+    """Rename DataFrame columns based on keycode to name mapping"""
+    # Create rename dictionary for columns that exist in the dataframe
+    rename_dict = {}
+    for col in df.columns:
+        if col in mapping:
+            rename_dict[col] = mapping[col]
+    
+    if rename_dict:
+        print(f"  Renaming {len(rename_dict)} columns")
+        df = df.rename(columns=rename_dict)
+    
+    return df
+
+# Load the keycode to name mapping
+keycode_to_name = load_keycode_to_name_mapping()
+print(f"Loaded {len(keycode_to_name)} keycode to name mappings")
+
+# Apply renaming to all dataframes
+if has_forecast:
+    print("\nApplying column renaming to historical yearly data...")
+    dfsectoryear_historical = rename_dataframe_columns(dfsectoryear_historical, keycode_to_name)
+    
+    print("Applying column renaming to forecast data...")
+    dfsectorforecast = rename_dataframe_columns(dfsectorforecast, keycode_to_name)
+else:
+    print("\nApplying column renaming to yearly data...")
+    dfsectoryear_historical = rename_dataframe_columns(dfsectoryear_historical, keycode_to_name)
+
+print("Applying column renaming to quarterly data...")
+dfsectorquarter = rename_dataframe_columns(dfsectorquarter, keycode_to_name)
+
+#%% Save files
+print("\nSaving final datasets with descriptive column names...")
+
+# Debug: Check column names before saving
+print("\nDEBUG - Columns before saving:")
+print(f"  dfsectoryear_historical columns (first 10): {dfsectoryear_historical.columns.tolist()[:10]}")
+print(f"  dfsectorquarter columns (first 10): {dfsectorquarter.columns.tolist()[:10]}")
+if has_forecast:
+    print(f"  dfsectorforecast columns (first 10): {dfsectorforecast.columns.tolist()[:10]}")
+
+if has_forecast:
+    # Save historical data
+    dfsectoryear_historical.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
+    # Save forecast data separately
+    dfsectorforecast.to_csv(os.path.join(data_dir, 'dfsectorforecast.csv'), index=False)
+    
+    print(f"Files saved:")
+    print(f"  - dfsectoryear.csv (historical): {len(dfsectoryear_historical)} rows")
+    print(f"  - dfsectorforecast.csv (forecast): {len(dfsectorforecast)} rows")
+else:
+    # No forecast data, save only historical
+    dfsectoryear_historical.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
+    print(f"Files saved:")
+    print(f"  - dfsectoryear.csv: {len(dfsectoryear)} rows")
+
+# Save quarterly data (always historical only)
 dfsectorquarter.to_csv(os.path.join(data_dir, 'dfsectorquarter.csv'), index=False)
 
-print(f"Files saved:")
-print(f"  - dfsectoryear.csv: {len(dfsectoryear)} rows")
-print(f"  - dfsectorquarter.csv: {len(dfsectorquarter)} rows")
+# Debug: Verify saved files
+print("\nDEBUG - Verifying saved files:")
+test_yearly = pd.read_csv(os.path.join(data_dir, 'dfsectoryear.csv'))
+test_quarterly = pd.read_csv(os.path.join(data_dir, 'dfsectorquarter.csv'))
+print(f"  dfsectoryear.csv columns (first 10): {test_yearly.columns.tolist()[:10]}")
+print(f"  dfsectorquarter.csv columns (first 10): {test_quarterly.columns.tolist()[:10]}")
 
 # Summary statistics
 if has_forecast:
-    # Convert Year to int for comparison
-    dfsectoryear['Year'] = dfsectoryear['Year'].astype(int)
-    historical_rows = len(dfsectoryear[~dfsectoryear['Year'].isin([forecast_year_1, forecast_year_2])])
-    forecast_rows_count = len(dfsectoryear[dfsectoryear['Year'].isin([forecast_year_1, forecast_year_2])])
+    # Use the already split data for statistics
+    historical_rows = len(dfsectoryear_historical)
+    forecast_rows_count = len(dfsectorforecast)
     
     print(f"\nSummary:")
     print(f"  Historical rows (2018-{most_recent_full_year}): {historical_rows}")
@@ -649,8 +754,20 @@ if has_forecast:
     
     # Generate simple coverage report for forecast years
     print("\nForecast coverage summary:")
-    forecast_years_data = dfsectoryear[dfsectoryear['Year'].isin([forecast_year_1, forecast_year_2])]
-    key_metrics = ['BS.13', 'BS.56', 'IS.22', 'IS.24', 'CA.3', 'CA.5', 'CA.16', 'CA.17']
+    # Use the already split and renamed forecast data
+    forecast_years_data = dfsectorforecast
+    # Update key metrics to use descriptive names
+    key_metrics_mapping = {
+        'BS.13': 'Loan',
+        'BS.56': 'Deposit', 
+        'IS.22': 'IS.22',  # Keep as is if not in mapping
+        'IS.24': 'NPATMI',
+        'CA.3': 'NPL',
+        'CA.5': 'GROUP 2',
+        'CA.16': 'ROA',
+        'CA.17': 'ROE'
+    }
+    key_metrics = [keycode_to_name.get(m, m) for m in ['BS.13', 'BS.56', 'IS.22', 'IS.24', 'CA.3', 'CA.5', 'CA.16', 'CA.17']]
     for metric in key_metrics:
         if metric in forecast_years_data.columns:
             coverage = forecast_years_data[metric].notna().sum()
@@ -661,3 +778,4 @@ else:
     print(f"\nTotal rows (historical only): {len(dfsectoryear)}")
 
 print("\nProcessing complete!")
+print("All CSV files now use descriptive column names instead of keycodes.")
