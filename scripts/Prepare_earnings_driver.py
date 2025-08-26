@@ -200,6 +200,9 @@ def calculate_score_drivers_quarterly(df):
     for col in score_columns:
         df[col] = df[col].round(1)
     
+    # Calculate weighted impacts (no suffix for T12M as it's the default)
+    df = calculate_weighted_impacts(df, '')
+    
     return df
 
 def calculate_score_drivers_qoq(df):
@@ -388,6 +391,108 @@ def calculate_score_drivers_yoy(df):
     
     return df
 
+def calculate_weighted_impacts(df, suffix=''):
+    """
+    Calculate weighted impact scores from raw scores
+    Formula: Impact = (Score * |PBT_Growth_%|) / 100
+    Special case for Loan and NIM: Not weighted, just divided by 2
+    """
+    # Get the appropriate column names based on suffix
+    if suffix:
+        pbt_col = f'PBT_{suffix}'
+        pbt_change_col = f'PBT_Change_{suffix}'
+        score_suffix = f'_{suffix}'
+    else:
+        pbt_col = 'PBT'
+        pbt_change_col = 'PBT_Change'
+        score_suffix = ''
+    
+    # Calculate PBT Growth % for the appropriate period
+    if suffix == 'T12M':
+        df['PBT_Growth_%'] = np.where(
+            df['PBT_T12M'].notna() & (df['PBT_T12M'] != 0),
+            (df[pbt_change_col] / df['PBT_T12M'].abs()) * 100,
+            0
+        )
+    elif suffix == 'QoQ':
+        df['PBT_Growth_%'] = np.where(
+            df['PBT_QoQ'].notna() & (df['PBT_QoQ'] != 0),
+            (df[pbt_change_col] / df['PBT_QoQ'].abs()) * 100,
+            0
+        )
+    elif suffix == 'YoY':
+        df['PBT_Growth_%'] = np.where(
+            df['PBT_YoY'].notna() & (df['PBT_YoY'] != 0),
+            (df[pbt_change_col] / df['PBT_YoY'].abs()) * 100,
+            0
+        )
+    elif 'PBT_Prior_Year' in df.columns:
+        # For yearly data
+        df['PBT_Growth_%'] = np.where(
+            df['PBT_Prior_Year'].notna() & (df['PBT_Prior_Year'] != 0),
+            (df['PBT_Change'] / df['PBT_Prior_Year'].abs()) * 100,
+            0
+        )
+    else:
+        # For T12M without suffix (quarterly default)
+        df['PBT_Growth_%'] = np.where(
+            df['PBT_T12M'].notna() & (df['PBT_T12M'] != 0),
+            (df['PBT_Change'] / df['PBT_T12M'].abs()) * 100,
+            0
+        )
+    
+    # Store PBT Growth % with suffix
+    df[f'PBT_Growth_%{score_suffix}'] = df['PBT_Growth_%']
+    
+    # Calculate weighted impacts for main scores
+    main_scores = ['Top_Line_Score', 'Cost_Cutting_Score', 'Non_Recurring_Score']
+    for score in main_scores:
+        score_col = f'{score}{score_suffix}'
+        impact_col = score_col.replace('_Score', '_Impact')
+        if score_col in df.columns:
+            df[impact_col] = (df[score_col] * df['PBT_Growth_%'].abs()) / 100
+            df[impact_col] = df[impact_col].round(1)
+    
+    # Calculate weighted impacts for sub-scores (except Loan and NIM)
+    sub_scores = ['NII_Sub_Score', 'Fee_Sub_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score']
+    for score in sub_scores:
+        score_col = f'{score}{score_suffix}'
+        impact_col = score_col.replace('_Sub_Score', '_Impact')
+        if score_col in df.columns:
+            df[impact_col] = (df[score_col] * df['PBT_Growth_%'].abs()) / 100
+            df[impact_col] = df[impact_col].round(1)
+    
+    # Special calculation for Loan and NIM impacts
+    # Loan_Impact = Loan_Growth_% / 2 (not weighted)
+    # NIM_Impact = NII_Impact - Loan_Impact
+    loan_growth_col = f'Loan_Growth_%{score_suffix}'
+    if loan_growth_col in df.columns:
+        df[f'Loan_Impact{score_suffix}'] = df[loan_growth_col] / 2
+        df[f'Loan_Impact{score_suffix}'] = df[f'Loan_Impact{score_suffix}'].round(1)
+        
+        # NIM Impact = NII_Impact - Loan_Impact
+        nii_impact_col = f'NII_Impact{score_suffix}'
+        if nii_impact_col in df.columns:
+            df[f'NIM_Impact{score_suffix}'] = df[nii_impact_col] - df[f'Loan_Impact{score_suffix}']
+            df[f'NIM_Impact{score_suffix}'] = df[f'NIM_Impact{score_suffix}'].round(1)
+    
+    # Calculate Total Impact (sum of main impacts)
+    revenue_impact_col = f'Top_Line_Impact{score_suffix}'
+    cost_impact_col = f'Cost_Cutting_Impact{score_suffix}'
+    non_recurring_impact_col = f'Non_Recurring_Impact{score_suffix}'
+    
+    if all(col in df.columns for col in [revenue_impact_col, cost_impact_col, non_recurring_impact_col]):
+        df[f'Total_Impact{score_suffix}'] = (
+            df[revenue_impact_col] + df[cost_impact_col] + df[non_recurring_impact_col]
+        )
+        df[f'Total_Impact{score_suffix}'] = df[f'Total_Impact{score_suffix}'].round(1)
+    
+    # Clean up temporary PBT_Growth_% column
+    if 'PBT_Growth_%' in df.columns and f'PBT_Growth_%{score_suffix}' in df.columns:
+        df = df.drop('PBT_Growth_%', axis=1)
+    
+    return df
+
 def add_suffix_to_scores(df, suffix):
     """Add suffix to score columns for different comparison types"""
     score_cols = ['Top_Line_Score', 'Cost_Cutting_Score', 'Non_Recurring_Score', 'Total_Score',
@@ -443,29 +548,42 @@ def merge_all_scores(df_base, df_t12m, df_qoq, df_yoy):
         if col not in df_merged.columns:
             df_merged[col] = df_t12m[col]
     
-    # For backward compatibility, also add unsuffixed versions from T12M
+    # For backward compatibility, also add unsuffixed versions from T12M for both scores and impacts
     score_cols = ['Top_Line_Score', 'Cost_Cutting_Score', 'Non_Recurring_Score', 'Total_Score',
                   'NII_Sub_Score', 'Fee_Sub_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score',
                   'Loan_Growth_Score', 'NIM_Change_Score']
     
+    impact_cols = ['Top_Line_Impact', 'Cost_Cutting_Impact', 'Non_Recurring_Impact', 'Total_Impact',
+                   'NII_Impact', 'Fee_Impact', 'OPEX_Impact', 'Provision_Impact',
+                   'Loan_Impact', 'NIM_Impact']
+    
+    # Add unsuffixed versions from T12M (default comparison)
     for col in score_cols:
         if f'{col}_T12M' in df_merged.columns:
             df_merged[col] = df_merged[f'{col}_T12M']
+    
+    for col in impact_cols:
+        if col in df_merged.columns:
+            # Already added from T12M without suffix
+            pass
     
     # Also keep base T12M columns without suffix for backward compatibility
     if 'PBT_Change_T12M' in df_merged.columns:
         df_merged['PBT_Change'] = df_merged['PBT_Change_T12M']
     if 'Loan_Growth_%_T12M' in df_merged.columns:
         df_merged['Loan_Growth_%'] = df_merged['Loan_Growth_%_T12M']
+    if 'PBT_Growth_%' in df_merged.columns:
+        # Already added from T12M without suffix
+        pass
     
     # Add QoQ columns
     for col in df_qoq.columns:
-        if col not in df_merged.columns and '_QoQ' in col:
+        if col not in df_merged.columns and ('_QoQ' in col or 'Impact_QoQ' in col):
             df_merged[col] = df_qoq[col]
     
     # Add YoY columns
     for col in df_yoy.columns:
-        if col not in df_merged.columns and '_YoY' in col:
+        if col not in df_merged.columns and ('_YoY' in col or 'Impact_YoY' in col):
             df_merged[col] = df_yoy[col]
     
     # Keep flag columns
@@ -619,6 +737,9 @@ def calculate_score_drivers_yearly(df):
     for col in score_columns:
         df[col] = df[col].round(1)
     
+    # Calculate weighted impacts (no suffix for yearly as it's standalone)
+    df = calculate_weighted_impacts(df, '')
+    
     return df
 
 def main():
@@ -638,16 +759,19 @@ def main():
         # Calculate score drivers for quarterly data - T12M (existing)
         df_t12m = calculate_score_drivers_quarterly(df_quarter_processed.copy())
         df_t12m = add_suffix_to_scores(df_t12m, 'T12M')
+        df_t12m = calculate_weighted_impacts(df_t12m, 'T12M')
         
         print("  Calculating QoQ scores...")
         # Calculate QoQ scores
         df_qoq = calculate_score_drivers_qoq(df_quarter_processed.copy())
         df_qoq = add_suffix_to_scores(df_qoq, 'QoQ')
+        df_qoq = calculate_weighted_impacts(df_qoq, 'QoQ')
         
         print("  Calculating YoY scores...")
         # Calculate YoY scores  
         df_yoy = calculate_score_drivers_yoy(df_quarter_processed.copy())
         df_yoy = add_suffix_to_scores(df_yoy, 'YoY')
+        df_yoy = calculate_weighted_impacts(df_yoy, 'YoY')
         
         print("  Merging all comparison types...")
         # Merge all three

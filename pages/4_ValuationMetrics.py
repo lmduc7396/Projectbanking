@@ -25,7 +25,11 @@ sys.path.append(project_root)
 
 # Import and apply Google Fonts
 from utilities.style_utils import apply_google_font
+from utilities.sidebar_style import apply_sidebar_style
 apply_google_font()
+
+# Apply consistent sidebar styling
+apply_sidebar_style()
 
 # Import utilities
 from utilities.valuation_analysis import (

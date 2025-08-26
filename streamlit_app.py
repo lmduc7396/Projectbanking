@@ -23,6 +23,10 @@ st.set_page_config(
 # Apply Google Fonts
 apply_google_font()
 
+# Apply consistent sidebar styling
+from utilities.sidebar_style import apply_sidebar_style
+apply_sidebar_style()
+
 # Load environment variables
 load_dotenv()
 

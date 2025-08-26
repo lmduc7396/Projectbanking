@@ -19,9 +19,13 @@ sys.path.append(project_root)
 
 # Import from utilities
 from utilities.style_utils import apply_google_font
+from utilities.sidebar_style import apply_sidebar_style
 
 # Apply Google Fonts
 apply_google_font()
+
+# Apply consistent sidebar styling
+apply_sidebar_style()
 
 # Import from utilities
 from utilities.banking_table import Banking_table

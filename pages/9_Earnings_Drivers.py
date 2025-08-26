@@ -23,36 +23,13 @@ sys.path.append(project_root)
 from utilities.quarter_utils import format_quarter_for_display
 try:
     from utilities.style_utils import apply_google_font
+    from utilities.sidebar_style import apply_sidebar_style
     # Apply Google Fonts
     apply_google_font()
+    # Apply consistent sidebar styling
+    apply_sidebar_style()
 except ImportError:
     pass  # Continue without custom font if style_utils not available
-
-# Custom CSS to make sidebar smaller
-st.markdown("""
-    <style>
-        /* Reduce sidebar width */
-        section[data-testid="stSidebar"] {
-            width: 200px !important;
-            min-width: 200px !important;
-        }
-        
-        /* Adjust main content to use more space */
-        .main > div {
-            padding-left: 1rem;
-            padding-right: 1rem;
-        }
-        
-        /* Make sidebar content more compact */
-        section[data-testid="stSidebar"] .stRadio > div {
-            gap: 0.5rem;
-        }
-        
-        section[data-testid="stSidebar"] h2 {
-            font-size: 1.2rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
 
 # Title and description
 st.title("Bank Earnings Quality Analysis Dashboard")
@@ -235,61 +212,44 @@ if quarterly_df is not None and yearly_df is not None:
             if total_score_col in display_df.columns:
                 display_df = display_df.sort_values(total_score_col, ascending=False)
             
-            # Calculate PBT percentage change for weighted scores
-            if data_type == "Yearly":
-                # For yearly: PBT % = (PBT_Change / PBT_Prior_Year) * 100
-                if 'PBT_Prior_Year' in df.columns:
-                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, 'PBT_Change'] / df.loc[filtered_df.index, 'PBT_Prior_Year'].abs()) * 100
-                else:
-                    # Fallback: approximate from PBT and PBT_Change
-                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, 'PBT_Change'] / (df.loc[filtered_df.index, 'PBT'] - df.loc[filtered_df.index, 'PBT_Change']).abs()) * 100
-            else:
-                # For quarterly: PBT % = (PBT_Change / PBT_base) * 100
-                pbt_change_col = f'PBT_Change{comparison_suffix}' if comparison_suffix else 'PBT_Change'
-                pbt_base_col = f'PBT{comparison_suffix}' if comparison_suffix else 'PBT_T12M'
-                
-                if pbt_base_col in df.columns:
-                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, pbt_change_col] / df.loc[filtered_df.index, pbt_base_col].abs()) * 100
-                else:
-                    # Fallback
-                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, pbt_change_col] / (df.loc[filtered_df.index, 'PBT'] - df.loc[filtered_df.index, pbt_change_col]).abs()) * 100
-            
-            # Calculate weighted impacts (score * PBT_growth% / 100)
-            # Use appropriate column names based on comparison type
+            # Use pre-calculated PBT Growth % and weighted impacts from the data
+            # Get appropriate column names based on comparison type
             if data_type == "Quarterly" and comparison_suffix:
-                top_line_col = f'Top_Line_Score{comparison_suffix}'
-                cost_col = f'Cost_Cutting_Score{comparison_suffix}'
-                nonrec_col = f'Non_Recurring_Score{comparison_suffix}'
-                nii_col = f'NII_Sub_Score{comparison_suffix}'
-                fee_col = f'Fee_Sub_Score{comparison_suffix}'
-                opex_col = f'OPEX_Sub_Score{comparison_suffix}'
-                prov_col = f'Provision_Sub_Score{comparison_suffix}'
-                loan_growth_col = f'Loan_Growth_%{comparison_suffix}'
+                pbt_growth_col = f'PBT_Growth_%{comparison_suffix}'
+                revenue_impact_col = f'Top_Line_Impact{comparison_suffix}'
+                cost_impact_col = f'Cost_Cutting_Impact{comparison_suffix}'
+                nonrec_impact_col = f'Non_Recurring_Impact{comparison_suffix}'
+                nii_impact_col = f'NII_Impact{comparison_suffix}'
+                fee_impact_col = f'Fee_Impact{comparison_suffix}'
+                opex_impact_col = f'OPEX_Impact{comparison_suffix}'
+                prov_impact_col = f'Provision_Impact{comparison_suffix}'
+                loan_impact_col = f'Loan_Impact{comparison_suffix}'
+                nim_impact_col = f'NIM_Impact{comparison_suffix}'
             else:
-                top_line_col = 'Top_Line_Score'
-                cost_col = 'Cost_Cutting_Score'
-                nonrec_col = 'Non_Recurring_Score'
-                nii_col = 'NII_Sub_Score'
-                fee_col = 'Fee_Sub_Score'
-                opex_col = 'OPEX_Sub_Score'
-                prov_col = 'Provision_Sub_Score'
-                loan_growth_col = 'Loan_Growth_%'
+                pbt_growth_col = 'PBT_Growth_%'
+                revenue_impact_col = 'Top_Line_Impact'
+                cost_impact_col = 'Cost_Cutting_Impact'
+                nonrec_impact_col = 'Non_Recurring_Impact'
+                nii_impact_col = 'NII_Impact'
+                fee_impact_col = 'Fee_Impact'
+                opex_impact_col = 'OPEX_Impact'
+                prov_impact_col = 'Provision_Impact'
+                loan_impact_col = 'Loan_Impact'
+                nim_impact_col = 'NIM_Impact'
             
-            filtered_df['Revenue_Impact'] = (filtered_df[top_line_col] * abs(filtered_df['PBT_Growth_%'])) / 100
-            filtered_df['Cost_Impact'] = (filtered_df[cost_col] * abs(filtered_df['PBT_Growth_%'])) / 100
-            filtered_df['NonRec_Impact'] = (filtered_df[nonrec_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            # Copy pre-calculated impacts from data
+            filtered_df['PBT_Growth_%'] = df.loc[filtered_df.index, pbt_growth_col] if pbt_growth_col in df.columns else 0
+            filtered_df['Revenue_Impact'] = df.loc[filtered_df.index, revenue_impact_col] if revenue_impact_col in df.columns else 0
+            filtered_df['Cost_Impact'] = df.loc[filtered_df.index, cost_impact_col] if cost_impact_col in df.columns else 0
+            filtered_df['NonRec_Impact'] = df.loc[filtered_df.index, nonrec_impact_col] if nonrec_impact_col in df.columns else 0
             
-            # Add sub-component weighted impacts
-            filtered_df['NII_Impact'] = (filtered_df[nii_col] * abs(filtered_df['PBT_Growth_%'])) / 100
-            filtered_df['Fee_Impact'] = (filtered_df[fee_col] * abs(filtered_df['PBT_Growth_%'])) / 100
-            filtered_df['OPEX_Impact'] = (filtered_df[opex_col] * abs(filtered_df['PBT_Growth_%'])) / 100
-            filtered_df['Provision_Impact'] = (filtered_df[prov_col] * abs(filtered_df['PBT_Growth_%'])) / 100
-            
-            # Calculate Loan and NIM sub-components based on weighted NII_Impact
-            # Loan Growth Score = Loan_Growth_% / 2
-            # NIM Change Score = NII_Impact - Loan_Growth_Score
-            filtered_df['Loan_Impact'] = filtered_df[loan_growth_col] / 2
-            filtered_df['NIM_Impact'] = filtered_df['NII_Impact'] - filtered_df['Loan_Impact']
+            # Copy sub-component weighted impacts
+            filtered_df['NII_Impact'] = df.loc[filtered_df.index, nii_impact_col] if nii_impact_col in df.columns else 0
+            filtered_df['Fee_Impact'] = df.loc[filtered_df.index, fee_impact_col] if fee_impact_col in df.columns else 0
+            filtered_df['OPEX_Impact'] = df.loc[filtered_df.index, opex_impact_col] if opex_impact_col in df.columns else 0
+            filtered_df['Provision_Impact'] = df.loc[filtered_df.index, prov_impact_col] if prov_impact_col in df.columns else 0
+            filtered_df['Loan_Impact'] = df.loc[filtered_df.index, loan_impact_col] if loan_impact_col in df.columns else 0
+            filtered_df['NIM_Impact'] = df.loc[filtered_df.index, nim_impact_col] if nim_impact_col in df.columns else 0
             
             # Display metrics
             st.subheader(f"Weighted Impact Analysis for {selected_period}")
@@ -512,27 +472,7 @@ if quarterly_df is not None and yearly_df is not None:
                 trend_df_limited = pd.concat([trend_df_limited, ticker_data])
             trend_df = trend_df_limited
             
-            # Calculate PBT Growth % for all periods (same logic as Score Overview)
-            if data_type == "Yearly":
-                # For yearly: PBT % = (PBT_Change / PBT_Prior_Year) * 100
-                if 'PBT_Prior_Year' in trend_df.columns:
-                    trend_df['PBT_Growth_%'] = (trend_df['PBT_Change'] / trend_df['PBT_Prior_Year'].abs()) * 100
-                else:
-                    # Fallback: approximate from PBT and PBT_Change
-                    trend_df['PBT_Growth_%'] = (trend_df['PBT_Change'] / (trend_df['PBT'] - trend_df['PBT_Change']).abs()) * 100
-            else:
-                # For quarterly: PBT % = (PBT_Change / PBT_base) * 100
-                pbt_change_col = f'PBT_Change{comparison_suffix}' if comparison_suffix else 'PBT_Change'
-                pbt_base_col = f'PBT{comparison_suffix}' if comparison_suffix else 'PBT_T12M'
-                
-                if pbt_base_col in trend_df.columns:
-                    trend_df['PBT_Growth_%'] = (trend_df[pbt_change_col] / trend_df[pbt_base_col].abs()) * 100
-                else:
-                    # Fallback
-                    trend_df['PBT_Growth_%'] = (trend_df[pbt_change_col] / (trend_df['PBT'] - trend_df[pbt_change_col]).abs()) * 100
-            
-            # Handle infinite values
-            trend_df['PBT_Growth_%'] = trend_df['PBT_Growth_%'].replace([np.inf, -np.inf], np.nan)
+            # PBT Growth % is already calculated in the data file, no need to recalculate
             
             # Determine score column names based on comparison type
             if data_type == "Quarterly":
@@ -556,23 +496,41 @@ if quarterly_df is not None and yearly_df is not None:
                 prov_col = 'Provision_Sub_Score'
                 loan_growth_pct_col = 'Loan_Growth_%'
             
-            # Calculate weighted impact scores (same as Score Overview page)
-            # Impact = (Score * abs(PBT_Growth_%)) / 100
-            trend_df['Revenue_Impact'] = (trend_df[top_line_col] * trend_df['PBT_Growth_%'].abs()) / 100
-            trend_df['Cost_Impact'] = (trend_df[cost_col] * trend_df['PBT_Growth_%'].abs()) / 100
-            trend_df['NonRec_Impact'] = (trend_df[nonrec_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            # Use pre-calculated weighted impact scores from data
+            if data_type == "Quarterly" and comparison_suffix:
+                pbt_growth_col = f'PBT_Growth_%{comparison_suffix}'
+                revenue_impact_col = f'Top_Line_Impact{comparison_suffix}'
+                cost_impact_col = f'Cost_Cutting_Impact{comparison_suffix}'
+                nonrec_impact_col = f'Non_Recurring_Impact{comparison_suffix}'
+                nii_impact_col = f'NII_Impact{comparison_suffix}'
+                fee_impact_col = f'Fee_Impact{comparison_suffix}'
+                opex_impact_col = f'OPEX_Impact{comparison_suffix}'
+                prov_impact_col = f'Provision_Impact{comparison_suffix}'
+                loan_impact_col = f'Loan_Impact{comparison_suffix}'
+                nim_impact_col = f'NIM_Impact{comparison_suffix}'
+            else:
+                pbt_growth_col = 'PBT_Growth_%'
+                revenue_impact_col = 'Top_Line_Impact'
+                cost_impact_col = 'Cost_Cutting_Impact'
+                nonrec_impact_col = 'Non_Recurring_Impact'
+                nii_impact_col = 'NII_Impact'
+                fee_impact_col = 'Fee_Impact'
+                opex_impact_col = 'OPEX_Impact'
+                prov_impact_col = 'Provision_Impact'
+                loan_impact_col = 'Loan_Impact'
+                nim_impact_col = 'NIM_Impact'
             
-            # Sub-component weighted impacts
-            trend_df['NII_Impact'] = (trend_df[nii_col] * trend_df['PBT_Growth_%'].abs()) / 100
-            trend_df['Fee_Impact'] = (trend_df[fee_col] * trend_df['PBT_Growth_%'].abs()) / 100
-            trend_df['OPEX_Impact'] = (trend_df[opex_col] * trend_df['PBT_Growth_%'].abs()) / 100
-            trend_df['Provision_Impact'] = (trend_df[prov_col] * trend_df['PBT_Growth_%'].abs()) / 100
-            
-            # IMPORTANT: Loan and NIM impacts are calculated differently (same as Score Overview table)
-            # Loan_Impact = Loan_Growth_% / 2 (NOT weighted by PBT_Growth_%)
-            # NIM_Impact = NII_Impact - Loan_Impact
-            trend_df['Loan_Impact'] = trend_df[loan_growth_pct_col] / 2
-            trend_df['NIM_Impact'] = trend_df['NII_Impact'] - trend_df['Loan_Impact']
+            # Copy pre-calculated impacts from source data
+            trend_df['PBT_Growth_%'] = trend_df[pbt_growth_col] if pbt_growth_col in trend_df.columns else 0
+            trend_df['Revenue_Impact'] = trend_df[revenue_impact_col] if revenue_impact_col in trend_df.columns else 0
+            trend_df['Cost_Impact'] = trend_df[cost_impact_col] if cost_impact_col in trend_df.columns else 0
+            trend_df['NonRec_Impact'] = trend_df[nonrec_impact_col] if nonrec_impact_col in trend_df.columns else 0
+            trend_df['NII_Impact'] = trend_df[nii_impact_col] if nii_impact_col in trend_df.columns else 0
+            trend_df['Fee_Impact'] = trend_df[fee_impact_col] if fee_impact_col in trend_df.columns else 0
+            trend_df['OPEX_Impact'] = trend_df[opex_impact_col] if opex_impact_col in trend_df.columns else 0
+            trend_df['Provision_Impact'] = trend_df[prov_impact_col] if prov_impact_col in trend_df.columns else 0
+            trend_df['Loan_Impact'] = trend_df[loan_impact_col] if loan_impact_col in trend_df.columns else 0
+            trend_df['NIM_Impact'] = trend_df[nim_impact_col] if nim_impact_col in trend_df.columns else 0
             
             # Format quarters for display if quarterly data
             if period_col == 'Date_Quarter':

@@ -18,9 +18,13 @@ sys.path.append(project_root)
 # Import from utilities
 from utilities.plot_chart import Bankplot
 from utilities.style_utils import apply_google_font
+from utilities.sidebar_style import apply_sidebar_style
 
 # Apply Google Fonts
 apply_google_font()
+
+# Apply consistent sidebar styling
+apply_sidebar_style()
 
 # Load your data (same as main file)
 @st.cache_data(ttl=3600)  # Refresh cache every hour
