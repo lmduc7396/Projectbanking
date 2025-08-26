@@ -498,7 +498,7 @@ if quarterly_df is not None and yearly_df is not None:
         
         # Ticker selection
         tickers = sorted(df_with_scores['TICKER'].unique())
-        selected_tickers = st.multiselect("Select Banks (max 5)", tickers, default=tickers[:3], max_selections=5)
+        selected_tickers = st.multiselect("Select Banks (max 5)", tickers, default=["Sector"], max_selections=5)
         
         if selected_tickers:
             # Filter data for selected tickers
@@ -534,6 +534,46 @@ if quarterly_df is not None and yearly_df is not None:
             # Handle infinite values
             trend_df['PBT_Growth_%'] = trend_df['PBT_Growth_%'].replace([np.inf, -np.inf], np.nan)
             
+            # Determine score column names based on comparison type
+            if data_type == "Quarterly":
+                # Use the actual suffix that was determined when loading data
+                top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
+                nonrec_col = f'Non_Recurring_Score{comparison_suffix}' if comparison_suffix else 'Non_Recurring_Score'
+                nii_col = f'NII_Sub_Score{comparison_suffix}' if comparison_suffix else 'NII_Sub_Score'
+                fee_col = f'Fee_Sub_Score{comparison_suffix}' if comparison_suffix else 'Fee_Sub_Score'
+                opex_col = f'OPEX_Sub_Score{comparison_suffix}' if comparison_suffix else 'OPEX_Sub_Score'
+                prov_col = f'Provision_Sub_Score{comparison_suffix}' if comparison_suffix else 'Provision_Sub_Score'
+                # For Loan, we need the Loan_Growth_% column, not the score
+                loan_growth_pct_col = f'Loan_Growth_%{comparison_suffix}' if comparison_suffix else 'Loan_Growth_%'
+            else:
+                top_line_col = 'Top_Line_Score'
+                cost_col = 'Cost_Cutting_Score'
+                nonrec_col = 'Non_Recurring_Score'
+                nii_col = 'NII_Sub_Score'
+                fee_col = 'Fee_Sub_Score'
+                opex_col = 'OPEX_Sub_Score'
+                prov_col = 'Provision_Sub_Score'
+                loan_growth_pct_col = 'Loan_Growth_%'
+            
+            # Calculate weighted impact scores (same as Score Overview page)
+            # Impact = (Score * abs(PBT_Growth_%)) / 100
+            trend_df['Revenue_Impact'] = (trend_df[top_line_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            trend_df['Cost_Impact'] = (trend_df[cost_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            trend_df['NonRec_Impact'] = (trend_df[nonrec_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            
+            # Sub-component weighted impacts
+            trend_df['NII_Impact'] = (trend_df[nii_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            trend_df['Fee_Impact'] = (trend_df[fee_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            trend_df['OPEX_Impact'] = (trend_df[opex_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            trend_df['Provision_Impact'] = (trend_df[prov_col] * trend_df['PBT_Growth_%'].abs()) / 100
+            
+            # IMPORTANT: Loan and NIM impacts are calculated differently (same as Score Overview table)
+            # Loan_Impact = Loan_Growth_% / 2 (NOT weighted by PBT_Growth_%)
+            # NIM_Impact = NII_Impact - Loan_Impact
+            trend_df['Loan_Impact'] = trend_df[loan_growth_pct_col] / 2
+            trend_df['NIM_Impact'] = trend_df['NII_Impact'] - trend_df['Loan_Impact']
+            
             # Format quarters for display if quarterly data
             if period_col == 'Date_Quarter':
                 trend_df['Date_Quarter_Display'] = trend_df['Date_Quarter'].apply(format_quarter_for_display)
@@ -544,62 +584,51 @@ if quarterly_df is not None and yearly_df is not None:
             # Create subplots
             fig = make_subplots(
                 rows=2, cols=2,
-                subplot_titles=("Top Line Score Trend", "Cost Cutting Score Trend",
-                              "Non-Recurring Score Trend", "PBT Growth Trend (%)")
+                subplot_titles=("Revenue Impact Trend", "Cost Impact Trend",
+                              "Non-Recurring Impact Trend", "PBT Growth Trend (%)")
             )
             
-            # Use the exact same columns that were determined earlier for consistency
-            # The comparison_suffix was already adjusted based on what columns actually exist
-            if data_type == "Quarterly":
-                # Use the actual suffix that was determined when loading data
-                top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
-                cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
-                nonrec_col = f'Non_Recurring_Score{comparison_suffix}' if comparison_suffix else 'Non_Recurring_Score'
-            else:
-                top_line_col = 'Top_Line_Score'
-                cost_col = 'Cost_Cutting_Score'
-                nonrec_col = 'Non_Recurring_Score'
-            
-            # PBT Growth % is calculated above and stored in the same column name for both yearly and quarterly
-            pbt_growth_col = 'PBT_Growth_%'
-            
-            # Plot each score type
+            # Plot each weighted impact score
             for ticker in selected_tickers:
                 ticker_data = trend_df[trend_df['TICKER'] == ticker]
                 
-                # Top Line Score
-                if top_line_col in ticker_data.columns:
+                # Revenue Impact (previously Top Line Score)
+                if 'Revenue_Impact' in ticker_data.columns:
                     x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=x_data, y=ticker_data[top_line_col],
-                                 name=ticker, mode='lines+markers', legendgroup=ticker),
+                        go.Scatter(x=x_data, y=ticker_data['Revenue_Impact'],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker,
+                                 hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'),
                         row=1, col=1
                     )
                 
-                # Cost Cutting Score
-                if cost_col in ticker_data.columns:
+                # Cost Impact (previously Cost Cutting Score)
+                if 'Cost_Impact' in ticker_data.columns:
                     x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=x_data, y=ticker_data[cost_col],
-                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
+                        go.Scatter(x=x_data, y=ticker_data['Cost_Impact'],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False,
+                                 hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'),
                         row=1, col=2
                     )
                 
-                # Non-Recurring Score
-                if nonrec_col in ticker_data.columns:
+                # Non-Recurring Impact (previously Non-Recurring Score)
+                if 'NonRec_Impact' in ticker_data.columns:
                     x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=x_data, y=ticker_data[nonrec_col],
-                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
+                        go.Scatter(x=x_data, y=ticker_data['NonRec_Impact'],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False,
+                                 hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'),
                         row=2, col=1
                     )
                 
-                # PBT Growth % instead of Total Score
-                if pbt_growth_col in ticker_data.columns:
+                # PBT Growth %
+                if 'PBT_Growth_%' in ticker_data.columns:
                     x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=x_data, y=ticker_data[pbt_growth_col],
-                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
+                        go.Scatter(x=x_data, y=ticker_data['PBT_Growth_%'],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False,
+                                 hovertemplate='%{x}<br>%{y:.1f}%<extra></extra>'),
                         row=2, col=2
                     )
             
@@ -619,7 +648,8 @@ if quarterly_df is not None and yearly_df is not None:
                 )
             )
             fig.update_xaxes(title_text=period_col, showgrid=True, gridcolor='rgba(0,0,0,0.1)')
-            fig.update_yaxes(title_text="Score (%)", showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+            fig.update_yaxes(title_text="Impact / Growth (%)", showgrid=True, gridcolor='rgba(0,0,0,0.1)', 
+                           tickformat='.1f')
             
             st.plotly_chart(fig, use_container_width=True)
             
@@ -630,41 +660,36 @@ if quarterly_df is not None and yearly_df is not None:
             tab1, tab2, tab3 = st.tabs(["Revenue Sub-Scores", "Cost Sub-Scores", "NII Breakdown (Loan vs NIM)"])
             
             with tab1:
-                # NII vs Fee Income scores
+                # NII vs Fee Income impacts
                 fig_revenue = go.Figure()
                 
                 for ticker in selected_tickers:
                     ticker_data = trend_df[trend_df['TICKER'] == ticker]
                     
-                    # Use the exact same suffix that was determined earlier
-                    if data_type == "Quarterly":
-                        nii_col = f'NII_Sub_Score{comparison_suffix}' if comparison_suffix else 'NII_Sub_Score'
-                        fee_col = f'Fee_Sub_Score{comparison_suffix}' if comparison_suffix else 'Fee_Sub_Score'
-                    else:
-                        nii_col = 'NII_Sub_Score'
-                        fee_col = 'Fee_Sub_Score'
-                    
-                    if nii_col in ticker_data.columns:
+                    # Use weighted impact columns
+                    if 'NII_Impact' in ticker_data.columns:
                         x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_revenue.add_trace(go.Scatter(
                             x=x_data, 
-                            y=ticker_data[nii_col],
+                            y=ticker_data['NII_Impact'],
                             name=f"{ticker} - NII",
-                            mode='lines+markers'
+                            mode='lines+markers',
+                            hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'
                         ))
                     
-                    if fee_col in ticker_data.columns:
+                    if 'Fee_Impact' in ticker_data.columns:
                         x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_revenue.add_trace(go.Scatter(
                             x=x_data, 
-                            y=ticker_data[fee_col],
+                            y=ticker_data['Fee_Impact'],
                             name=f"{ticker} - Fees",
                             mode='lines+markers',
-                            line=dict(dash='dash')
+                            line=dict(dash='dash'),
+                            hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'
                         ))
                 
                 fig_revenue.update_layout(
-                    title="Revenue Component Scores (NII vs Fees)",
+                    title="Revenue Component Impacts (NII vs Fees)",
                     xaxis_title=period_col,
                     yaxis_title="Score (%)",
                     height=400,
@@ -673,46 +698,41 @@ if quarterly_df is not None and yearly_df is not None:
                     showlegend=True
                 )
                 fig_revenue.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
-                fig_revenue.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                fig_revenue.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)', tickformat='.1f')
                 
                 st.plotly_chart(fig_revenue, use_container_width=True)
             
             with tab2:
-                # OPEX vs Provision scores
+                # OPEX vs Provision impacts
                 fig_cost = go.Figure()
                 
                 for ticker in selected_tickers:
                     ticker_data = trend_df[trend_df['TICKER'] == ticker]
                     
-                    # Use the exact same suffix that was determined earlier
-                    if data_type == "Quarterly":
-                        opex_col = f'OPEX_Sub_Score{comparison_suffix}' if comparison_suffix else 'OPEX_Sub_Score'
-                        prov_col = f'Provision_Sub_Score{comparison_suffix}' if comparison_suffix else 'Provision_Sub_Score'
-                    else:
-                        opex_col = 'OPEX_Sub_Score'
-                        prov_col = 'Provision_Sub_Score'
-                    
-                    if opex_col in ticker_data.columns:
+                    # Use weighted impact columns
+                    if 'OPEX_Impact' in ticker_data.columns:
                         x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_cost.add_trace(go.Scatter(
                             x=x_data, 
-                            y=ticker_data[opex_col],
+                            y=ticker_data['OPEX_Impact'],
                             name=f"{ticker} - OPEX",
-                            mode='lines+markers'
+                            mode='lines+markers',
+                            hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'
                         ))
                     
-                    if prov_col in ticker_data.columns:
+                    if 'Provision_Impact' in ticker_data.columns:
                         x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_cost.add_trace(go.Scatter(
                             x=x_data, 
-                            y=ticker_data[prov_col],
+                            y=ticker_data['Provision_Impact'],
                             name=f"{ticker} - Provision",
                             mode='lines+markers',
-                            line=dict(dash='dash')
+                            line=dict(dash='dash'),
+                            hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'
                         ))
                 
                 fig_cost.update_layout(
-                    title="Cost Component Scores (OPEX vs Provisions)",
+                    title="Cost Component Impacts (OPEX vs Provisions)",
                     xaxis_title=period_col,
                     yaxis_title="Score (%)",
                     height=400,
@@ -721,46 +741,41 @@ if quarterly_df is not None and yearly_df is not None:
                     showlegend=True
                 )
                 fig_cost.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
-                fig_cost.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                fig_cost.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)', tickformat='.1f')
                 
                 st.plotly_chart(fig_cost, use_container_width=True)
             
             with tab3:
-                # NII Breakdown: Loan Growth vs NIM Change scores
+                # NII Breakdown: Loan Growth vs NIM Change impacts
                 fig_nii = go.Figure()
                 
                 for ticker in selected_tickers:
                     ticker_data = trend_df[trend_df['TICKER'] == ticker]
                     
-                    # Use the exact same suffix that was determined earlier
-                    if data_type == "Quarterly":
-                        loan_col = f'Loan_Growth_Score{comparison_suffix}' if comparison_suffix else 'Loan_Growth_Score'
-                        nim_col = f'NIM_Change_Score{comparison_suffix}' if comparison_suffix else 'NIM_Change_Score'
-                    else:
-                        loan_col = 'Loan_Growth_Score'
-                        nim_col = 'NIM_Change_Score'
-                    
-                    if loan_col in ticker_data.columns:
+                    # Use weighted impact columns
+                    if 'Loan_Impact' in ticker_data.columns:
                         x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_nii.add_trace(go.Scatter(
                             x=x_data, 
-                            y=ticker_data[loan_col],
+                            y=ticker_data['Loan_Impact'],
                             name=f"{ticker} - Loan Growth",
-                            mode='lines+markers'
+                            mode='lines+markers',
+                            hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'
                         ))
                     
-                    if nim_col in ticker_data.columns:
+                    if 'NIM_Impact' in ticker_data.columns:
                         x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_nii.add_trace(go.Scatter(
                             x=x_data, 
-                            y=ticker_data[nim_col],
+                            y=ticker_data['NIM_Impact'],
                             name=f"{ticker} - NIM Change",
                             mode='lines+markers',
-                            line=dict(dash='dash')
+                            line=dict(dash='dash'),
+                            hovertemplate='%{x}<br>%{y:.1f}<extra></extra>'
                         ))
                 
                 fig_nii.update_layout(
-                    title="NII Breakdown: Loan Growth vs NIM Change Contribution",
+                    title="NII Breakdown: Loan Growth vs NIM Change Impact",
                     xaxis_title=period_col,
                     yaxis_title="Score (%)",
                     height=400,
@@ -769,7 +784,7 @@ if quarterly_df is not None and yearly_df is not None:
                     showlegend=True
                 )
                 fig_nii.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
-                fig_nii.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                fig_nii.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)', tickformat='.1f')
                 
                 st.plotly_chart(fig_nii, use_container_width=True)
                 
