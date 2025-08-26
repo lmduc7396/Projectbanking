@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="Company Table",
+    page_icon="Table",
+    layout="wide"
+)
+
 import pandas as pd
 import plotly.express as px
 import numpy as np
@@ -8,6 +16,12 @@ import os
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
+
+# Import from utilities
+from utilities.style_utils import apply_google_font
+
+# Apply Google Fonts
+apply_google_font()
 
 # Import from utilities
 from utilities.banking_table import Banking_table
@@ -30,13 +44,6 @@ def load_data():
 
 df_quarter, df_year, df_forecast, keyitem = load_data()
 color_sequence = px.colors.qualitative.Bold
-
-# Page configuration
-st.set_page_config(
-    page_title="Company Table",
-    page_icon="Table",
-    layout="wide"
-)
 
 # Function to detect the last complete year from historical data
 @st.cache_data(ttl=3600)  # Refresh cache every hour

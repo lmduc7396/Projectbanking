@@ -12,9 +12,20 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Page configuration - MUST BE FIRST STREAMLIT COMMAND
+st.set_page_config(
+    page_title="Comment Management",
+    page_icon="Management",
+    layout="wide"
+)
+
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
+
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+apply_google_font()
 
 # Import utilities
 from utilities.quarter_utils import quarter_to_numeric

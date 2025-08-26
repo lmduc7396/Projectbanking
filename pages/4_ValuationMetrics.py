@@ -4,6 +4,14 @@ Provides comprehensive valuation metrics analysis for Vietnamese banking sector
 """
 
 import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="Valuation Analysis",
+    page_icon="",
+    layout="wide"
+)
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -15,6 +23,10 @@ from datetime import timedelta
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+apply_google_font()
+
 # Import utilities
 from utilities.valuation_analysis import (
     get_metric_column,
@@ -23,13 +35,6 @@ from utilities.valuation_analysis import (
     get_sector_and_components,
     get_valuation_status,
     generate_valuation_histogram
-)
-
-# Page configuration
-st.set_page_config(
-    page_title="Valuation Analysis",
-    page_icon="",
-    layout="wide"
 )
 
 # Load data

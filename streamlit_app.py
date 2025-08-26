@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 import requests
 from datetime import datetime
+from utilities.style_utils import apply_google_font
 
 # Page configuration
 st.set_page_config(
@@ -18,6 +19,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Apply Google Fonts
+apply_google_font()
 
 # Load environment variables
 load_dotenv()

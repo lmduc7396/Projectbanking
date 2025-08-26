@@ -4,6 +4,13 @@ Streamlit interface for OpenAI-powered banking analysis with tool execution
 """
 
 import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="DucGPT Chatbot",
+    layout="wide"
+)
+
 import pandas as pd
 import json
 import os
@@ -18,17 +25,15 @@ from dotenv import load_dotenv
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+apply_google_font()
+
 # Import the banking tool system
 from utilities.Banking_MCP import get_tool_system
 
 # Load environment variables
 load_dotenv()
-
-# Page configuration
-st.set_page_config(
-    page_title="DucGPT Chatbot",
-    layout="wide"
-)
 
 # Initialize session state (removed conversation history)
 if 'tool_executions' not in st.session_state:

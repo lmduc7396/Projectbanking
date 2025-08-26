@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="OpenAI Comment",
+    page_icon="AI",
+    layout="wide"
+)
+
 import pandas as pd
 import plotly.express as px
 import sys
@@ -8,6 +16,10 @@ from dotenv import load_dotenv
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
+
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+apply_google_font()
 
 # Import utilities
 from utilities.quarter_utils import quarter_sort_key, sort_quarters
@@ -48,13 +60,6 @@ def get_ticker_sector(ticker, df_quarter, bank_type_mapping):
         return ticker
     
     return "Unknown"
-
-# Page configuration
-st.set_page_config(
-    page_title="OpenAI Comment",
-    page_icon="AI",
-    layout="wide"
-)
 
 # Set session state variables for the imported function
 st.session_state.df_quarter = df_quarter

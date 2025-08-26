@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="Quarterly Banking Analysis",
+    page_icon="Analysis",
+    layout="wide"
+)
+
 import pandas as pd
 import os
 from datetime import datetime
@@ -13,6 +21,10 @@ load_dotenv()
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+apply_google_font()
+
 # Import utilities
 from utilities.quarter_utils import quarter_sort_key, sort_quarters
 
@@ -22,13 +34,6 @@ def get_data_path():
 
 def get_comments_file_path():
     return os.path.join(get_data_path(), 'banking_comments.xlsx')
-
-# Page configuration
-st.set_page_config(
-    page_title="Quarterly Banking Analysis",
-    page_icon="Analysis",
-    layout="wide"
-)
 
 def quarterly_analysis_page():
     st.title("Quarterly Banking Analysis")

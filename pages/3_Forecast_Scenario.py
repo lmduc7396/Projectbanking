@@ -1,4 +1,11 @@
 import streamlit as st
+
+# Page configuration
+st.set_page_config(
+    page_title="Forecast Scenario Analysis",
+    layout="wide"
+)
+
 import pandas as pd
 import numpy as np
 import sys
@@ -8,18 +15,16 @@ import os
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
-# Page configuration
-st.set_page_config(
-    page_title="Forecast Scenario Analysis",
-    layout="wide"
-)
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+apply_google_font()
 
 # CSS styling (kept minimal for performance)
 st.markdown("""
 <style>
     .fixed-header {
         position: fixed; top: 50px; left: 0; right: 0;
-        background: white; border-bottom: 2px solid #f0f2f6;
+        background: #FDFDF8; border-bottom: 2px solid #f0f2f6;
         z-index: 9999; padding: 10px 15px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }

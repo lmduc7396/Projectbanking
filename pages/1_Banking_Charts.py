@@ -4,12 +4,23 @@ import plotly.express as px
 import sys
 import os
 
+# Page configuration - MUST BE FIRST STREAMLIT COMMAND
+st.set_page_config(
+    page_title="Banking Charts",
+    page_icon="Chart",
+    layout="wide"
+)
+
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 # Import from utilities
 from utilities.plot_chart import Bankplot
+from utilities.style_utils import apply_google_font
+
+# Apply Google Fonts
+apply_google_font()
 
 # Load your data (same as main file)
 @st.cache_data(ttl=3600)  # Refresh cache every hour
@@ -28,13 +39,6 @@ def load_data():
 
 df_quarter, df_year, df_forecast, keyitem = load_data()
 color_sequence = px.colors.qualitative.Bold
-
-# Page configuration
-st.set_page_config(
-    page_title="Banking Charts",
-    page_icon="Chart",
-    layout="wide"
-)
 
 # Function to detect the last complete year from historical data
 @st.cache_data(ttl=3600)  # Refresh cache every hour
