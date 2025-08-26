@@ -1,0 +1,941 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+import sys
+import os
+
+# Page configuration
+st.set_page_config(
+    page_title="Bank Earnings Quality Dashboard",
+    page_icon="Chart",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Add the project root directory to Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
+# Import from utilities
+try:
+    from utilities.style_utils import apply_google_font
+    # Apply Google Fonts
+    apply_google_font()
+except ImportError:
+    pass  # Continue without custom font if style_utils not available
+
+# Custom CSS to make sidebar smaller
+st.markdown("""
+    <style>
+        /* Reduce sidebar width */
+        section[data-testid="stSidebar"] {
+            width: 200px !important;
+            min-width: 200px !important;
+        }
+        
+        /* Adjust main content to use more space */
+        .main > div {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        
+        /* Make sidebar content more compact */
+        section[data-testid="stSidebar"] .stRadio > div {
+            gap: 0.5rem;
+        }
+        
+        section[data-testid="stSidebar"] h2 {
+            font-size: 1.2rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Title and description
+st.title("Bank Earnings Quality Analysis Dashboard")
+st.markdown("### Analyze earnings drivers through revenue growth, cost efficiency, and non-recurring items")
+
+# Load data
+@st.cache_data
+def load_data():
+    """Load quarterly and yearly data"""
+    try:
+        quarterly_df = pd.read_csv(os.path.join(project_root, 'Data/earnings_quality_quarterly.csv'))
+        yearly_df = pd.read_csv(os.path.join(project_root, 'Data/earnings_quality_yearly.csv'))
+        return quarterly_df, yearly_df
+    except FileNotFoundError:
+        st.error("Data files not found. Please run scripts/Prepare_earnings_driver.py first.")
+        return None, None
+
+# Load the data
+quarterly_df, yearly_df = load_data()
+
+# Color scheme consistent with other pages
+color_sequence = px.colors.qualitative.Bold
+
+if quarterly_df is not None and yearly_df is not None:
+    
+    # Sidebar for navigation
+    st.sidebar.header("Navigation")
+    page = st.sidebar.radio("Select View", 
+                            ["Score Overview", 
+                             "Trend Analysis", 
+                             "Statistical Summary"])
+    
+    # Data type selection
+    st.sidebar.header("Data Selection")
+    data_type = st.sidebar.radio("Select Data Type", ["Yearly", "Quarterly"])
+    
+    # Comparison period selection for quarterly data
+    comparison_suffix = ""
+    if data_type == "Quarterly":
+        comparison_period = st.sidebar.selectbox(
+            "Comparison Period",
+            ["T12M (4Q Average)", "QoQ (Previous Quarter)", "YoY (Same Quarter Last Year)"],
+            index=0,
+            help="Select how to compare quarterly data"
+        )
+        
+        # Map to column suffixes
+        if "QoQ" in comparison_period:
+            comparison_suffix = "_QoQ"
+        elif "YoY" in comparison_period:
+            comparison_suffix = "_YoY"
+        else:  # T12M
+            comparison_suffix = "_T12M"
+    
+    # Select appropriate dataframe
+    if data_type == "Yearly":
+        df = yearly_df.copy()
+        period_col = 'Year'
+    else:
+        df = quarterly_df.copy()
+        period_col = 'Date_Quarter'
+    
+    # Filter out rows without scores - use appropriate column based on comparison
+    if data_type == "Quarterly" and comparison_suffix:
+        score_col = f'Top_Line_Score{comparison_suffix}'
+        # Check if comparison columns exist, fallback to unsuffixed if not
+        if score_col not in df.columns:
+            score_col = 'Top_Line_Score'
+            comparison_suffix = ""
+    else:
+        score_col = 'Top_Line_Score'
+    
+    df_with_scores = df[df[score_col].notna()].copy()
+    
+    # Page 1: Score Overview
+    if page == "Score Overview":
+        st.header("Score Overview Table")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Period selection
+            periods = sorted(df_with_scores[period_col].unique(), reverse=True)
+            if periods:
+                selected_period = st.selectbox(f"Select {period_col}", periods)
+            else:
+                st.error("No data with scores available")
+                selected_period = None
+        
+        with col2:
+            # Bank type filter
+            bank_types = ['All'] + list(df_with_scores['Type'].unique())
+            selected_type = st.selectbox("Filter by Bank Type", bank_types)
+        
+        with col3:
+            # Ticker search
+            search_ticker = st.text_input("Search Ticker", "")
+        
+        if selected_period:
+            # Filter data
+            filtered_df = df_with_scores[df_with_scores[period_col] == selected_period].copy()
+            
+            if selected_type != 'All':
+                filtered_df = filtered_df[filtered_df['Type'] == selected_type]
+            
+            if search_ticker:
+                filtered_df = filtered_df[filtered_df['TICKER'].str.contains(search_ticker.upper())]
+            
+            # Display columns - include flags if they exist
+            # Use appropriate column names based on comparison type
+            if data_type == "Quarterly" and comparison_suffix:
+                display_cols = ['TICKER', 'Type', f'PBT_Change{comparison_suffix}', 
+                              f'Top_Line_Score{comparison_suffix}', 
+                              f'NII_Sub_Score{comparison_suffix}', f'Loan_Growth_Score{comparison_suffix}', 
+                              f'NIM_Change_Score{comparison_suffix}', f'Fee_Sub_Score{comparison_suffix}', 
+                              f'Cost_Cutting_Score{comparison_suffix}',
+                              f'OPEX_Sub_Score{comparison_suffix}', f'Provision_Sub_Score{comparison_suffix}', 
+                              f'Non_Recurring_Score{comparison_suffix}', f'Total_Score{comparison_suffix}']
+            else:
+                display_cols = ['TICKER', 'Type', 'PBT_Change', 'Top_Line_Score', 
+                              'NII_Sub_Score', 'Loan_Growth_Score', 'NIM_Change_Score', 'Fee_Sub_Score', 'Cost_Cutting_Score',
+                              'OPEX_Sub_Score', 'Provision_Sub_Score', 'Non_Recurring_Score', 'Total_Score']
+            
+            # Add flag columns if they exist
+            if 'Small_PBT_Flag' in filtered_df.columns:
+                display_cols.append('Small_PBT_Flag')
+            if 'Scores_Capped' in filtered_df.columns:
+                display_cols.append('Scores_Capped')
+            
+            # Filter columns that exist
+            display_cols = [col for col in display_cols if col in filtered_df.columns]
+            
+            # Create display dataframe
+            display_df = filtered_df[display_cols].copy()
+            
+            # Format numbers
+            for col in display_cols:
+                if col not in ['TICKER', 'Type', 'Small_PBT_Flag', 'Scores_Capped']:
+                    display_df[col] = pd.to_numeric(display_df[col], errors='coerce')
+            
+            # Convert PBT_Change to billions
+            pbt_change_col = f'PBT_Change{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'PBT_Change'
+            if pbt_change_col in display_df.columns:
+                display_df['PBT_Change_Bn'] = display_df[pbt_change_col] / 1_000_000_000
+                # Remove original and rename
+                display_df = display_df.drop(pbt_change_col, axis=1)
+                # Reorder columns to put PBT_Change_Bn in the right position
+                cols = display_df.columns.tolist()
+                cols.remove('PBT_Change_Bn')
+                cols.insert(2, 'PBT_Change_Bn')  # After TICKER and Type
+                display_df = display_df[cols]
+            
+            # Sort by Total Score
+            total_score_col = f'Total_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Total_Score'
+            if total_score_col in display_df.columns:
+                display_df = display_df.sort_values(total_score_col, ascending=False)
+            
+            # Calculate PBT percentage change for weighted scores
+            if data_type == "Yearly":
+                # For yearly: PBT % = (PBT_Change / PBT_Prior_Year) * 100
+                if 'PBT_Prior_Year' in df.columns:
+                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, 'PBT_Change'] / df.loc[filtered_df.index, 'PBT_Prior_Year'].abs()) * 100
+                else:
+                    # Fallback: approximate from PBT and PBT_Change
+                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, 'PBT_Change'] / (df.loc[filtered_df.index, 'PBT'] - df.loc[filtered_df.index, 'PBT_Change']).abs()) * 100
+            else:
+                # For quarterly: PBT % = (PBT_Change / PBT_base) * 100
+                pbt_change_col = f'PBT_Change{comparison_suffix}' if comparison_suffix else 'PBT_Change'
+                pbt_base_col = f'PBT{comparison_suffix}' if comparison_suffix else 'PBT_T12M'
+                
+                if pbt_base_col in df.columns:
+                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, pbt_change_col] / df.loc[filtered_df.index, pbt_base_col].abs()) * 100
+                else:
+                    # Fallback
+                    filtered_df['PBT_Growth_%'] = (df.loc[filtered_df.index, pbt_change_col] / (df.loc[filtered_df.index, 'PBT'] - df.loc[filtered_df.index, pbt_change_col]).abs()) * 100
+            
+            # Calculate weighted impacts (score * PBT_growth% / 100)
+            # Use appropriate column names based on comparison type
+            if data_type == "Quarterly" and comparison_suffix:
+                top_line_col = f'Top_Line_Score{comparison_suffix}'
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}'
+                nonrec_col = f'Non_Recurring_Score{comparison_suffix}'
+                nii_col = f'NII_Sub_Score{comparison_suffix}'
+                fee_col = f'Fee_Sub_Score{comparison_suffix}'
+                opex_col = f'OPEX_Sub_Score{comparison_suffix}'
+                prov_col = f'Provision_Sub_Score{comparison_suffix}'
+                loan_growth_col = f'Loan_Growth_%{comparison_suffix}'
+            else:
+                top_line_col = 'Top_Line_Score'
+                cost_col = 'Cost_Cutting_Score'
+                nonrec_col = 'Non_Recurring_Score'
+                nii_col = 'NII_Sub_Score'
+                fee_col = 'Fee_Sub_Score'
+                opex_col = 'OPEX_Sub_Score'
+                prov_col = 'Provision_Sub_Score'
+                loan_growth_col = 'Loan_Growth_%'
+            
+            filtered_df['Revenue_Impact'] = (filtered_df[top_line_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            filtered_df['Cost_Impact'] = (filtered_df[cost_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            filtered_df['NonRec_Impact'] = (filtered_df[nonrec_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            
+            # Add sub-component weighted impacts
+            filtered_df['NII_Impact'] = (filtered_df[nii_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            filtered_df['Fee_Impact'] = (filtered_df[fee_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            filtered_df['OPEX_Impact'] = (filtered_df[opex_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            filtered_df['Provision_Impact'] = (filtered_df[prov_col] * abs(filtered_df['PBT_Growth_%'])) / 100
+            
+            # Calculate Loan and NIM sub-components based on weighted NII_Impact
+            # Loan Growth Score = Loan_Growth_% / 2
+            # NIM Change Score = NII_Impact - Loan_Growth_Score
+            filtered_df['Loan_Impact'] = filtered_df[loan_growth_col] / 2
+            filtered_df['NIM_Impact'] = filtered_df['NII_Impact'] - filtered_df['Loan_Impact']
+            
+            # Display metrics
+            st.subheader(f"Weighted Impact Analysis for {selected_period}")
+            st.caption("Shows how much each component contributes to the PBT growth rate")
+            
+            # Summary cards
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                avg_revenue_impact = filtered_df['Revenue_Impact'].mean()
+                st.metric("Avg Revenue Impact", f"{avg_revenue_impact:.1f}")
+            
+            with col2:
+                avg_cost_impact = filtered_df['Cost_Impact'].mean()
+                st.metric("Avg Cost Impact", f"{avg_cost_impact:.1f}")
+            
+            with col3:
+                avg_nonrec_impact = filtered_df['NonRec_Impact'].mean()
+                st.metric("Avg Non-Rec Impact", f"{avg_nonrec_impact:.1f}")
+            
+            with col4:
+                num_banks = len(filtered_df)
+                st.metric("Banks Analyzed", num_banks)
+            
+            # Prepare display columns for weighted table (removed warning flags)
+            weighted_display_cols = ['TICKER', 'Type', 'PBT_Growth_%', 'Revenue_Impact',
+                                    'NII_Impact', 'Loan_Impact', 'NIM_Impact', 'Fee_Impact', 'Cost_Impact',
+                                    'OPEX_Impact', 'Provision_Impact', 'NonRec_Impact']
+            
+            weighted_display_df = filtered_df[weighted_display_cols].copy()
+            
+            # Sort by absolute revenue impact as proxy for importance
+            weighted_display_df['abs_impact'] = weighted_display_df['Revenue_Impact'].abs()
+            weighted_display_df = weighted_display_df.sort_values('abs_impact', ascending=False)
+            weighted_display_df = weighted_display_df.drop('abs_impact', axis=1)
+            
+            # Configure weighted table columns with improved visibility
+            weighted_column_config = {
+                "TICKER": st.column_config.TextColumn(
+                    "Ticker", 
+                    width=80
+                ),
+                "Type": st.column_config.TextColumn(
+                    "Type", 
+                    width=90
+                ),
+                "PBT_Growth_%": st.column_config.NumberColumn(
+                    "PBT Growth",
+                    format="%.1f%%",
+                    width=110,
+                    help="Year-over-year or T12M PBT growth rate"
+                ),
+                "Revenue_Impact": st.column_config.NumberColumn(
+                    "**Revenue**",
+                    format="%.1f",
+                    width=100,
+                    help="Total weighted revenue contribution"
+                ),
+                "NII_Impact": st.column_config.NumberColumn(
+                    "- NII",
+                    format="%.1f",
+                    width=75,
+                    help="Net Interest Income weighted impact"
+                ),
+                "Loan_Impact": st.column_config.NumberColumn(
+                    "  > Loan",
+                    format="%.1f",
+                    width=70,
+                    help="Loan volume growth contribution (Growth%/2)"
+                ),
+                "NIM_Impact": st.column_config.NumberColumn(
+                    "  > NIM",
+                    format="%.1f",
+                    width=70,
+                    help="Net Interest Margin change contribution"
+                ),
+                "Fee_Impact": st.column_config.NumberColumn(
+                    "- Fees",
+                    format="%.1f",
+                    width=75,
+                    help="Fee income weighted impact"
+                ),
+                "Cost_Impact": st.column_config.NumberColumn(
+                    "**Cost**",
+                    format="%.1f",
+                    width=95,
+                    help="Total weighted cost contribution"
+                ),
+                "OPEX_Impact": st.column_config.NumberColumn(
+                    "- OPEX",
+                    format="%.1f",
+                    width=75,
+                    help="Operating expense weighted impact"
+                ),
+                "Provision_Impact": st.column_config.NumberColumn(
+                    "- Prov",
+                    format="%.1f",
+                    width=75,
+                    help="Provision expense weighted impact"
+                ),
+                "NonRec_Impact": st.column_config.NumberColumn(
+                    "**Non-Rec**",
+                    format="%.1f",
+                    width=100,
+                    help="Non-recurring items weighted impact"
+                )
+            }
+            
+            # Apply color styling to the weighted dataframe
+            def color_main_scores(val):
+                """Color main scores with strong colors and bold text"""
+                if pd.isna(val):
+                    return ''
+                try:
+                    num_val = float(val)
+                    if num_val > 0:
+                        # Strong green for positive with bold
+                        intensity = min(abs(num_val) / 200, 1) * 0.7 + 0.2  # Stronger base intensity
+                        return f'background-color: rgba(40, 167, 69, {intensity}); font-weight: bold; color: white'
+                    elif num_val < 0:
+                        # Strong red for negative with bold
+                        intensity = min(abs(num_val) / 200, 1) * 0.7 + 0.2  # Stronger base intensity
+                        return f'background-color: rgba(220, 53, 69, {intensity}); font-weight: bold; color: white'
+                except:
+                    return ''
+                return ''
+            
+            def color_sub_scores(val):
+                """Color sub-component scores with lighter colors"""
+                if pd.isna(val):
+                    return ''
+                try:
+                    num_val = float(val)
+                    if num_val > 0:
+                        # Light green for positive
+                        intensity = min(abs(num_val) / 300, 1) * 0.25 + 0.05  # Much lighter
+                        return f'background-color: rgba(40, 167, 69, {intensity})'
+                    elif num_val < 0:
+                        # Light red for negative
+                        intensity = min(abs(num_val) / 300, 1) * 0.25 + 0.05  # Much lighter
+                        return f'background-color: rgba(220, 53, 69, {intensity})'
+                except:
+                    return ''
+                return ''
+            
+            # Style the dataframe
+            weighted_styled = weighted_display_df.style
+            
+            # Apply strong colors to main score columns
+            main_score_cols = ['Revenue_Impact', 'Cost_Impact', 'NonRec_Impact']
+            for col in main_score_cols:
+                if col in weighted_display_df.columns:
+                    weighted_styled = weighted_styled.map(color_main_scores, subset=[col])
+            
+            # Apply lighter colors to sub-component columns
+            sub_score_cols = ['NII_Impact', 'Loan_Impact', 'NIM_Impact', 'Fee_Impact', 
+                            'OPEX_Impact', 'Provision_Impact']
+            for col in sub_score_cols:
+                if col in weighted_display_df.columns:
+                    weighted_styled = weighted_styled.map(color_sub_scores, subset=[col])
+            
+            # Color PBT growth
+            if 'PBT_Growth_%' in weighted_display_df.columns:
+                weighted_styled = weighted_styled.map(
+                    lambda x: 'color: #28a745; font-weight: bold' if x > 0 else 'color: #dc3545; font-weight: bold' if x < 0 else '',
+                    subset=['PBT_Growth_%']
+                )
+            
+            # Display weighted table with improved height
+            st.dataframe(
+                weighted_styled,
+                column_config=weighted_column_config,
+                use_container_width=True,
+                height=700,
+                hide_index=True
+            )
+            
+            # Add explanation and legend
+            st.info(
+                "**Weighted Impact Scores**: \n"
+                "- Impact Score = Component Score × PBT Growth % / 100\n"
+                "- **Loan Impact** = Loan_Growth_% / 2 (direct measure of volume growth)\n"
+                "- **NIM Impact** = NII_Impact - Loan_Impact (margin contribution)\n"
+                "- Click column headers to sort | Drag borders to resize"
+            )
+            
+            # Download button
+            csv = weighted_display_df.to_csv(index=False)
+            st.download_button(
+                label="Download Impact Analysis as CSV",
+                data=csv,
+                file_name=f'earnings_impact_{selected_period}.csv',
+                mime='text/csv',
+                key='download_impact'
+            )
+    
+    # Page 2: Trend Analysis
+    elif page == "Trend Analysis":
+        st.header("Score Trend Analysis")
+        
+        # Show comparison period if quarterly
+        if data_type == "Quarterly" and comparison_suffix:
+            st.info(f"Using comparison period: {comparison_period}")
+        
+        # Ticker selection
+        tickers = sorted(df_with_scores['TICKER'].unique())
+        selected_tickers = st.multiselect("Select Banks (max 5)", tickers, default=tickers[:3], max_selections=5)
+        
+        if selected_tickers:
+            # Filter data for selected tickers
+            trend_df = df_with_scores[df_with_scores['TICKER'].isin(selected_tickers)].copy()
+            trend_df = trend_df.sort_values([period_col])
+            
+            # Create subplots
+            fig = make_subplots(
+                rows=2, cols=2,
+                subplot_titles=("Top Line Score Trend", "Cost Cutting Score Trend",
+                              "Non-Recurring Score Trend", "Total Score Trend")
+            )
+            
+            # Determine score column names based on comparison type
+            if data_type == "Quarterly" and comparison_suffix:
+                top_line_col = f'Top_Line_Score{comparison_suffix}'
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}'
+                nonrec_col = f'Non_Recurring_Score{comparison_suffix}'
+                total_col = f'Total_Score{comparison_suffix}'
+            else:
+                top_line_col = 'Top_Line_Score'
+                cost_col = 'Cost_Cutting_Score'
+                nonrec_col = 'Non_Recurring_Score'
+                total_col = 'Total_Score'
+            
+            # Plot each score type
+            for ticker in selected_tickers:
+                ticker_data = trend_df[trend_df['TICKER'] == ticker]
+                
+                # Top Line Score
+                if top_line_col in ticker_data.columns:
+                    fig.add_trace(
+                        go.Scatter(x=ticker_data[period_col], y=ticker_data[top_line_col],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker),
+                        row=1, col=1
+                    )
+                
+                # Cost Cutting Score
+                if cost_col in ticker_data.columns:
+                    fig.add_trace(
+                        go.Scatter(x=ticker_data[period_col], y=ticker_data[cost_col],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
+                        row=1, col=2
+                    )
+                
+                # Non-Recurring Score
+                if nonrec_col in ticker_data.columns:
+                    fig.add_trace(
+                        go.Scatter(x=ticker_data[period_col], y=ticker_data[nonrec_col],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
+                        row=2, col=1
+                    )
+                
+                # Total Score
+                if total_col in ticker_data.columns:
+                    fig.add_trace(
+                        go.Scatter(x=ticker_data[period_col], y=ticker_data[total_col],
+                                 name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
+                        row=2, col=2
+                    )
+            
+            # Update layout with consistent styling
+            fig.update_layout(
+                height=700, 
+                title_text="Score Trends Over Time",
+                font=dict(family="Inter, sans-serif", size=12),
+                hovermode='x unified',
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                )
+            )
+            fig.update_xaxes(title_text=period_col, showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+            fig.update_yaxes(title_text="Score (%)", showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Sub-score breakdown chart
+            st.subheader("Sub-Score Breakdown")
+            
+            # Create tabs for different sub-scores
+            tab1, tab2 = st.tabs(["Revenue Sub-Scores", "Cost Sub-Scores"])
+            
+            with tab1:
+                # NII vs Fee Income scores
+                fig_revenue = go.Figure()
+                
+                for ticker in selected_tickers:
+                    ticker_data = trend_df[trend_df['TICKER'] == ticker]
+                    
+                    # Use appropriate columns based on comparison type
+                    if data_type == "Quarterly" and comparison_suffix:
+                        nii_col = f'NII_Sub_Score{comparison_suffix}'
+                        fee_col = f'Fee_Sub_Score{comparison_suffix}'
+                    else:
+                        nii_col = 'NII_Sub_Score'
+                        fee_col = 'Fee_Sub_Score'
+                    
+                    if nii_col in ticker_data.columns:
+                        fig_revenue.add_trace(go.Scatter(
+                            x=ticker_data[period_col], 
+                            y=ticker_data[nii_col],
+                            name=f"{ticker} - NII",
+                            mode='lines+markers'
+                        ))
+                    
+                    if fee_col in ticker_data.columns:
+                        fig_revenue.add_trace(go.Scatter(
+                            x=ticker_data[period_col], 
+                            y=ticker_data[fee_col],
+                            name=f"{ticker} - Fees",
+                            mode='lines+markers',
+                            line=dict(dash='dash')
+                        ))
+                
+                fig_revenue.update_layout(
+                    title="Revenue Component Scores (NII vs Fees)",
+                    xaxis_title=period_col,
+                    yaxis_title="Score (%)",
+                    height=400,
+                    font=dict(family="Inter, sans-serif", size=12),
+                    hovermode='x unified',
+                    showlegend=True
+                )
+                fig_revenue.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                fig_revenue.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                
+                st.plotly_chart(fig_revenue, use_container_width=True)
+            
+            with tab2:
+                # OPEX vs Provision scores
+                fig_cost = go.Figure()
+                
+                for ticker in selected_tickers:
+                    ticker_data = trend_df[trend_df['TICKER'] == ticker]
+                    
+                    # Use appropriate columns based on comparison type
+                    if data_type == "Quarterly" and comparison_suffix:
+                        opex_col = f'OPEX_Sub_Score{comparison_suffix}'
+                        prov_col = f'Provision_Sub_Score{comparison_suffix}'
+                    else:
+                        opex_col = 'OPEX_Sub_Score'
+                        prov_col = 'Provision_Sub_Score'
+                    
+                    if opex_col in ticker_data.columns:
+                        fig_cost.add_trace(go.Scatter(
+                            x=ticker_data[period_col], 
+                            y=ticker_data[opex_col],
+                            name=f"{ticker} - OPEX",
+                            mode='lines+markers'
+                        ))
+                    
+                    if prov_col in ticker_data.columns:
+                        fig_cost.add_trace(go.Scatter(
+                            x=ticker_data[period_col], 
+                            y=ticker_data[prov_col],
+                            name=f"{ticker} - Provision",
+                            mode='lines+markers',
+                            line=dict(dash='dash')
+                        ))
+                
+                fig_cost.update_layout(
+                    title="Cost Component Scores (OPEX vs Provisions)",
+                    xaxis_title=period_col,
+                    yaxis_title="Score (%)",
+                    height=400,
+                    font=dict(family="Inter, sans-serif", size=12),
+                    hovermode='x unified',
+                    showlegend=True
+                )
+                fig_cost.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                fig_cost.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                
+                st.plotly_chart(fig_cost, use_container_width=True)
+    
+    # Page 3: Statistical Summary
+    elif page == "Statistical Summary":
+        st.header("Statistical Summary")
+        
+        # Get latest period
+        latest_period = df_with_scores[period_col].max()
+        latest_df = df_with_scores[df_with_scores[period_col] == latest_period].copy()
+        
+        # Summary by bank type
+        st.subheader(f"Average Scores by Bank Type ({latest_period})")
+        
+        # Determine score column names based on comparison type
+        if data_type == "Quarterly" and comparison_suffix:
+            agg_dict = {
+                f'Top_Line_Score{comparison_suffix}': 'mean',
+                f'NII_Sub_Score{comparison_suffix}': 'mean',
+                f'Fee_Sub_Score{comparison_suffix}': 'mean',
+                f'Cost_Cutting_Score{comparison_suffix}': 'mean',
+                f'OPEX_Sub_Score{comparison_suffix}': 'mean',
+                f'Provision_Sub_Score{comparison_suffix}': 'mean',
+                f'Non_Recurring_Score{comparison_suffix}': 'mean',
+                f'Total_Score{comparison_suffix}': 'mean'
+            }
+            # Filter to only include columns that exist
+            agg_dict = {k: v for k, v in agg_dict.items() if k in latest_df.columns}
+        else:
+            agg_dict = {
+                'Top_Line_Score': 'mean',
+                'NII_Sub_Score': 'mean',
+                'Fee_Sub_Score': 'mean',
+                'Cost_Cutting_Score': 'mean',
+                'OPEX_Sub_Score': 'mean',
+                'Provision_Sub_Score': 'mean',
+                'Non_Recurring_Score': 'mean',
+                'Total_Score': 'mean'
+            }
+            # Filter to only include columns that exist
+            agg_dict = {k: v for k, v in agg_dict.items() if k in latest_df.columns}
+        
+        if agg_dict:
+            summary_by_type = latest_df.groupby('Type').agg(agg_dict).round(1)
+        else:
+            summary_by_type = pd.DataFrame()
+        
+        st.dataframe(summary_by_type.style.background_gradient(cmap='RdYlGn', axis=0))
+        
+        # Distribution plots with dynamic bins
+        st.subheader("Score Distributions")
+        
+        # Create custom bins - smaller near 0, larger at extremes
+        def create_dynamic_bins(min_val, max_val):
+            """Create bins that are smaller near 0 and larger at extremes"""
+            bins = []
+            
+            # Negative side bins (from min to 0)
+            if min_val < -200:
+                bins.extend([min_val, -500, -300, -200])
+            elif min_val < -100:
+                bins.extend([min_val, -200])
+            
+            # Core negative bins (smaller intervals)
+            bins.extend([-150, -100, -75, -50, -30, -20, -10, -5])
+            
+            # Zero and positive core bins
+            bins.extend([0, 5, 10, 20, 30, 50, 75, 100, 150])
+            
+            # Positive extreme bins
+            if max_val > 200:
+                bins.extend([200, 300, 500, max_val])
+            elif max_val > 100:
+                bins.extend([200, max_val])
+            
+            # Filter bins to be within actual data range
+            bins = [b for b in bins if b >= min_val and b <= max_val]
+            
+            # Ensure we have min and max
+            if min_val not in bins:
+                bins.insert(0, min_val)
+            if max_val not in bins:
+                bins.append(max_val)
+            
+            return sorted(list(set(bins)))  # Remove duplicates and sort
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Top Line Score distribution with custom bins
+            top_line_col = f'Top_Line_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Top_Line_Score'
+            if top_line_col in latest_df.columns:
+                top_line_data = latest_df[top_line_col].dropna()
+            else:
+                top_line_data = pd.Series([])
+            bins1 = create_dynamic_bins(top_line_data.min(), top_line_data.max())
+            
+            # Calculate histogram with custom bins
+            counts1, _ = np.histogram(top_line_data, bins=bins1)
+            
+            fig_dist1 = go.Figure()
+            
+            # Create bars for each bin
+            for i in range(len(bins1)-1):
+                bin_center = (bins1[i] + bins1[i+1]) / 2
+                bin_width = bins1[i+1] - bins1[i]
+                
+                fig_dist1.add_trace(go.Bar(
+                    x=[bin_center],
+                    y=[counts1[i]],
+                    width=bin_width * 0.9,  # Small gap between bars
+                    marker=dict(
+                        color='rgba(40, 167, 69, 0.6)' if bin_center >= 0 else 'rgba(220, 53, 69, 0.6)',
+                        line=dict(color='rgba(40, 167, 69, 1)' if bin_center >= 0 else 'rgba(220, 53, 69, 1)', width=1)
+                    ),
+                    showlegend=False,
+                    hovertemplate=f'Range: {bins1[i]:.0f} to {bins1[i+1]:.0f}<br>Count: {counts1[i]}<extra></extra>'
+                ))
+            
+            fig_dist1.update_layout(
+                title="Top Line Score Distribution",
+                xaxis_title="Score (%)",
+                yaxis_title="Number of Banks",
+                bargap=0.02,
+                showlegend=False,
+                font=dict(family="Inter, sans-serif", size=12),
+                xaxis=dict(
+                    range=[bins1[0], bins1[-1]],
+                    tickmode='linear',
+                    tick0=-500,
+                    dtick=50,
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.1)'
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.1)'
+                )
+            )
+            st.plotly_chart(fig_dist1, use_container_width=True)
+        
+        with col2:
+            # Cost Cutting Score distribution with custom bins
+            cost_col = f'Cost_Cutting_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Cost_Cutting_Score'
+            if cost_col in latest_df.columns:
+                cost_data = latest_df[cost_col].dropna()
+            else:
+                cost_data = pd.Series([])
+            bins2 = create_dynamic_bins(cost_data.min(), cost_data.max())
+            
+            # Calculate histogram with custom bins
+            counts2, _ = np.histogram(cost_data, bins=bins2)
+            
+            fig_dist2 = go.Figure()
+            
+            # Create bars for each bin
+            for i in range(len(bins2)-1):
+                bin_center = (bins2[i] + bins2[i+1]) / 2
+                bin_width = bins2[i+1] - bins2[i]
+                
+                fig_dist2.add_trace(go.Bar(
+                    x=[bin_center],
+                    y=[counts2[i]],
+                    width=bin_width * 0.9,  # Small gap between bars
+                    marker=dict(
+                        color='rgba(0, 123, 255, 0.6)' if bin_center >= 0 else 'rgba(255, 193, 7, 0.6)',
+                        line=dict(color='rgba(0, 123, 255, 1)' if bin_center >= 0 else 'rgba(255, 193, 7, 1)', width=1)
+                    ),
+                    showlegend=False,
+                    hovertemplate=f'Range: {bins2[i]:.0f} to {bins2[i+1]:.0f}<br>Count: {counts2[i]}<extra></extra>'
+                ))
+            
+            fig_dist2.update_layout(
+                title="Cost Cutting Score Distribution",
+                xaxis_title="Score (%)",
+                yaxis_title="Number of Banks",
+                bargap=0.02,
+                showlegend=False,
+                font=dict(family="Inter, sans-serif", size=12),
+                xaxis=dict(
+                    range=[bins2[0], bins2[-1]],
+                    tickmode='linear',
+                    tick0=-500,
+                    dtick=50,
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.1)'
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.1)'
+                )
+            )
+            st.plotly_chart(fig_dist2, use_container_width=True)
+        
+        # Top and bottom performers
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader(f"Top 10 Performers - Total Score ({latest_period})")
+            total_col = f'Total_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Total_Score'
+            top_line_col = f'Top_Line_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Top_Line_Score'
+            cost_col = f'Cost_Cutting_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Cost_Cutting_Score'
+            
+            if total_col in latest_df.columns:
+                display_cols = ['TICKER', 'Type'] + [c for c in [total_col, top_line_col, cost_col] if c in latest_df.columns]
+                top_performers = latest_df.nlargest(10, total_col)[display_cols]
+                # Format columns that exist
+                format_dict = {}
+                for col in display_cols:
+                    if 'Score' in col:
+                        format_dict[col] = '{:.1f}%'
+                if format_dict:
+                    st.dataframe(top_performers.style.format(format_dict))
+                else:
+                    st.dataframe(top_performers)
+            else:
+                st.info("No data available for selected comparison period")
+        
+        with col2:
+            st.subheader(f"Bottom 10 Performers - Total Score ({latest_period})")
+            total_col = f'Total_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Total_Score'
+            top_line_col = f'Top_Line_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Top_Line_Score'
+            cost_col = f'Cost_Cutting_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Cost_Cutting_Score'
+            
+            if total_col in latest_df.columns:
+                display_cols = ['TICKER', 'Type'] + [c for c in [total_col, top_line_col, cost_col] if c in latest_df.columns]
+                bottom_performers = latest_df.nsmallest(10, total_col)[display_cols]
+                # Format columns that exist
+                format_dict = {}
+                for col in display_cols:
+                    if 'Score' in col:
+                        format_dict[col] = '{:.1f}%'
+                if format_dict:
+                    st.dataframe(bottom_performers.style.format(format_dict))
+                else:
+                    st.dataframe(bottom_performers)
+            else:
+                st.info("No data available for selected comparison period")
+        
+        # Correlation heatmap
+        st.subheader("Score Correlations")
+        
+        # Determine score columns for correlation matrix
+        if data_type == "Quarterly" and comparison_suffix:
+            score_cols = [f'Top_Line_Score{comparison_suffix}', f'NII_Sub_Score{comparison_suffix}', 
+                         f'Fee_Sub_Score{comparison_suffix}', f'Cost_Cutting_Score{comparison_suffix}', 
+                         f'OPEX_Sub_Score{comparison_suffix}', f'Provision_Sub_Score{comparison_suffix}', 
+                         f'Non_Recurring_Score{comparison_suffix}']
+        else:
+            score_cols = ['Top_Line_Score', 'NII_Sub_Score', 'Fee_Sub_Score', 
+                         'Cost_Cutting_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score', 
+                         'Non_Recurring_Score']
+        
+        # Filter to only include columns that exist
+        score_cols = [col for col in score_cols if col in latest_df.columns]
+        
+        if score_cols:
+            corr_matrix = latest_df[score_cols].corr()
+            
+            if not corr_matrix.empty:
+                fig_corr = px.imshow(corr_matrix, 
+                                   labels=dict(color="Correlation"),
+                                   x=score_cols,
+                                   y=score_cols,
+                                   color_continuous_scale='RdBu',
+                                   aspect="auto")
+                
+                fig_corr.update_layout(
+                    title="Score Correlation Matrix",
+                    font=dict(family="Inter, sans-serif", size=12)
+                )
+                st.plotly_chart(fig_corr, use_container_width=True)
+            else:
+                st.info("Insufficient data for correlation matrix")
+        else:
+            st.info("No score columns available for correlation analysis")
+
+else:
+    st.error("Unable to load data files. Please ensure earnings_quality_quarterly.csv and earnings_quality_yearly.csv exist in the Data folder.")
+    st.info("Run the scripts/Prepare_earnings_driver.py script first to generate the required data files.")
+
+# Footer
+st.markdown("---")
+st.markdown("### About this Dashboard")
+st.markdown("""
+This dashboard analyzes bank earnings quality by breaking down profit changes into three main components:
+- **Top Line Growth**: Revenue-driven changes (NII and Fee income)
+- **Cost Cutting**: Efficiency improvements (OPEX and Provision expense reductions)
+- **Non-Recurring Items**: One-time or unusual income
+
+Scores show each component's contribution as a percentage of the absolute PBT change.
+""")

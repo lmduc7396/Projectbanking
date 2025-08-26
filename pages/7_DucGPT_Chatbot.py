@@ -114,7 +114,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     
     # Initialize progress tracking
     max_rounds = 20  # Reasonable limit to prevent infinite loops
-    with st.spinner("DucGPT is analyzing..."):
+    with st.spinner("Duc is typing..."):
         rounds = 0
         final_response = None
         tool_call_count = 0
