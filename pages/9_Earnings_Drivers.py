@@ -512,6 +512,28 @@ if quarterly_df is not None and yearly_df is not None:
                 trend_df_limited = pd.concat([trend_df_limited, ticker_data])
             trend_df = trend_df_limited
             
+            # Calculate PBT Growth % for all periods (same logic as Score Overview)
+            if data_type == "Yearly":
+                # For yearly: PBT % = (PBT_Change / PBT_Prior_Year) * 100
+                if 'PBT_Prior_Year' in trend_df.columns:
+                    trend_df['PBT_Growth_%'] = (trend_df['PBT_Change'] / trend_df['PBT_Prior_Year'].abs()) * 100
+                else:
+                    # Fallback: approximate from PBT and PBT_Change
+                    trend_df['PBT_Growth_%'] = (trend_df['PBT_Change'] / (trend_df['PBT'] - trend_df['PBT_Change']).abs()) * 100
+            else:
+                # For quarterly: PBT % = (PBT_Change / PBT_base) * 100
+                pbt_change_col = f'PBT_Change{comparison_suffix}' if comparison_suffix else 'PBT_Change'
+                pbt_base_col = f'PBT{comparison_suffix}' if comparison_suffix else 'PBT_T12M'
+                
+                if pbt_base_col in trend_df.columns:
+                    trend_df['PBT_Growth_%'] = (trend_df[pbt_change_col] / trend_df[pbt_base_col].abs()) * 100
+                else:
+                    # Fallback
+                    trend_df['PBT_Growth_%'] = (trend_df[pbt_change_col] / (trend_df['PBT'] - trend_df[pbt_change_col]).abs()) * 100
+            
+            # Handle infinite values
+            trend_df['PBT_Growth_%'] = trend_df['PBT_Growth_%'].replace([np.inf, -np.inf], np.nan)
+            
             # Format quarters for display if quarterly data
             if period_col == 'Date_Quarter':
                 trend_df['Date_Quarter_Display'] = trend_df['Date_Quarter'].apply(format_quarter_for_display)
@@ -523,7 +545,7 @@ if quarterly_df is not None and yearly_df is not None:
             fig = make_subplots(
                 rows=2, cols=2,
                 subplot_titles=("Top Line Score Trend", "Cost Cutting Score Trend",
-                              "Non-Recurring Score Trend", "Total Score Trend")
+                              "Non-Recurring Score Trend", "PBT Growth Trend (%)")
             )
             
             # Use the exact same columns that were determined earlier for consistency
@@ -533,12 +555,13 @@ if quarterly_df is not None and yearly_df is not None:
                 top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
                 cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
                 nonrec_col = f'Non_Recurring_Score{comparison_suffix}' if comparison_suffix else 'Non_Recurring_Score'
-                total_col = f'Total_Score{comparison_suffix}' if comparison_suffix else 'Total_Score'
             else:
                 top_line_col = 'Top_Line_Score'
                 cost_col = 'Cost_Cutting_Score'
                 nonrec_col = 'Non_Recurring_Score'
-                total_col = 'Total_Score'
+            
+            # PBT Growth % is calculated above and stored in the same column name for both yearly and quarterly
+            pbt_growth_col = 'PBT_Growth_%'
             
             # Plot each score type
             for ticker in selected_tickers:
@@ -571,11 +594,11 @@ if quarterly_df is not None and yearly_df is not None:
                         row=2, col=1
                     )
                 
-                # Total Score
-                if total_col in ticker_data.columns:
+                # PBT Growth % instead of Total Score
+                if pbt_growth_col in ticker_data.columns:
                     x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=x_data, y=ticker_data[total_col],
+                        go.Scatter(x=x_data, y=ticker_data[pbt_growth_col],
                                  name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
                         row=2, col=2
                     )
