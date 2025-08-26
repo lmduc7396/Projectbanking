@@ -20,6 +20,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
 
 # Import from utilities
+from utilities.quarter_utils import format_quarter_for_display
 try:
     from utilities.style_utils import apply_google_font
     # Apply Google Fonts
@@ -115,12 +116,37 @@ if quarterly_df is not None and yearly_df is not None:
         period_col = 'Date_Quarter'
     
     # Filter out rows without scores - use appropriate column based on comparison
-    if data_type == "Quarterly" and comparison_suffix:
-        score_col = f'Top_Line_Score{comparison_suffix}'
-        # Check if comparison columns exist, fallback to unsuffixed if not
-        if score_col not in df.columns:
-            score_col = 'Top_Line_Score'
-            comparison_suffix = ""
+    # For quarterly data, check which columns actually exist
+    if data_type == "Quarterly":
+        # Default to T12M for quarterly as that's the primary comparison
+        if comparison_suffix == "_T12M" or comparison_suffix == "":
+            # Check if T12M columns exist
+            if 'Top_Line_Score_T12M' in df.columns:
+                actual_suffix = "_T12M"
+                score_col = 'Top_Line_Score_T12M'
+            elif 'Top_Line_Score' in df.columns:
+                actual_suffix = ""
+                score_col = 'Top_Line_Score'
+            else:
+                st.error("No score columns found in the data")
+                actual_suffix = ""
+                score_col = 'Top_Line_Score'
+        else:
+            # For QoQ or YoY
+            score_col = f'Top_Line_Score{comparison_suffix}'
+            if score_col not in df.columns:
+                # Fallback to T12M if specific comparison not available
+                if 'Top_Line_Score_T12M' in df.columns:
+                    actual_suffix = "_T12M"
+                    score_col = 'Top_Line_Score_T12M'
+                else:
+                    actual_suffix = ""
+                    score_col = 'Top_Line_Score'
+            else:
+                actual_suffix = comparison_suffix
+        
+        # Store the actual suffix being used
+        comparison_suffix = actual_suffix
     else:
         score_col = 'Top_Line_Score'
     
@@ -464,9 +490,11 @@ if quarterly_df is not None and yearly_df is not None:
     elif page == "Trend Analysis":
         st.header("Score Trend Analysis")
         
-        # Show comparison period if quarterly
-        if data_type == "Quarterly" and comparison_suffix:
+        # Show comparison period and actual columns being used
+        if data_type == "Quarterly":
             st.info(f"Using comparison period: {comparison_period}")
+            # Debug info - show which columns are actually being used
+            st.caption(f"Data columns suffix: '{comparison_suffix}' (empty means using backward compatibility columns)")
         
         # Ticker selection
         tickers = sorted(df_with_scores['TICKER'].unique())
@@ -477,6 +505,20 @@ if quarterly_df is not None and yearly_df is not None:
             trend_df = df_with_scores[df_with_scores['TICKER'].isin(selected_tickers)].copy()
             trend_df = trend_df.sort_values([period_col])
             
+            # Limit to last 10 data points per ticker
+            trend_df_limited = pd.DataFrame()
+            for ticker in selected_tickers:
+                ticker_data = trend_df[trend_df['TICKER'] == ticker].tail(10)
+                trend_df_limited = pd.concat([trend_df_limited, ticker_data])
+            trend_df = trend_df_limited
+            
+            # Format quarters for display if quarterly data
+            if period_col == 'Date_Quarter':
+                trend_df['Date_Quarter_Display'] = trend_df['Date_Quarter'].apply(format_quarter_for_display)
+                display_col = 'Date_Quarter_Display'
+            else:
+                display_col = period_col
+            
             # Create subplots
             fig = make_subplots(
                 rows=2, cols=2,
@@ -484,12 +526,14 @@ if quarterly_df is not None and yearly_df is not None:
                               "Non-Recurring Score Trend", "Total Score Trend")
             )
             
-            # Determine score column names based on comparison type
-            if data_type == "Quarterly" and comparison_suffix:
-                top_line_col = f'Top_Line_Score{comparison_suffix}'
-                cost_col = f'Cost_Cutting_Score{comparison_suffix}'
-                nonrec_col = f'Non_Recurring_Score{comparison_suffix}'
-                total_col = f'Total_Score{comparison_suffix}'
+            # Use the exact same columns that were determined earlier for consistency
+            # The comparison_suffix was already adjusted based on what columns actually exist
+            if data_type == "Quarterly":
+                # Use the actual suffix that was determined when loading data
+                top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
+                nonrec_col = f'Non_Recurring_Score{comparison_suffix}' if comparison_suffix else 'Non_Recurring_Score'
+                total_col = f'Total_Score{comparison_suffix}' if comparison_suffix else 'Total_Score'
             else:
                 top_line_col = 'Top_Line_Score'
                 cost_col = 'Cost_Cutting_Score'
@@ -502,32 +546,36 @@ if quarterly_df is not None and yearly_df is not None:
                 
                 # Top Line Score
                 if top_line_col in ticker_data.columns:
+                    x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=ticker_data[period_col], y=ticker_data[top_line_col],
+                        go.Scatter(x=x_data, y=ticker_data[top_line_col],
                                  name=ticker, mode='lines+markers', legendgroup=ticker),
                         row=1, col=1
                     )
                 
                 # Cost Cutting Score
                 if cost_col in ticker_data.columns:
+                    x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=ticker_data[period_col], y=ticker_data[cost_col],
+                        go.Scatter(x=x_data, y=ticker_data[cost_col],
                                  name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
                         row=1, col=2
                     )
                 
                 # Non-Recurring Score
                 if nonrec_col in ticker_data.columns:
+                    x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=ticker_data[period_col], y=ticker_data[nonrec_col],
+                        go.Scatter(x=x_data, y=ticker_data[nonrec_col],
                                  name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
                         row=2, col=1
                     )
                 
                 # Total Score
                 if total_col in ticker_data.columns:
+                    x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                     fig.add_trace(
-                        go.Scatter(x=ticker_data[period_col], y=ticker_data[total_col],
+                        go.Scatter(x=x_data, y=ticker_data[total_col],
                                  name=ticker, mode='lines+markers', legendgroup=ticker, showlegend=False),
                         row=2, col=2
                     )
@@ -556,7 +604,7 @@ if quarterly_df is not None and yearly_df is not None:
             st.subheader("Sub-Score Breakdown")
             
             # Create tabs for different sub-scores
-            tab1, tab2 = st.tabs(["Revenue Sub-Scores", "Cost Sub-Scores"])
+            tab1, tab2, tab3 = st.tabs(["Revenue Sub-Scores", "Cost Sub-Scores", "NII Breakdown (Loan vs NIM)"])
             
             with tab1:
                 # NII vs Fee Income scores
@@ -565,25 +613,27 @@ if quarterly_df is not None and yearly_df is not None:
                 for ticker in selected_tickers:
                     ticker_data = trend_df[trend_df['TICKER'] == ticker]
                     
-                    # Use appropriate columns based on comparison type
-                    if data_type == "Quarterly" and comparison_suffix:
-                        nii_col = f'NII_Sub_Score{comparison_suffix}'
-                        fee_col = f'Fee_Sub_Score{comparison_suffix}'
+                    # Use the exact same suffix that was determined earlier
+                    if data_type == "Quarterly":
+                        nii_col = f'NII_Sub_Score{comparison_suffix}' if comparison_suffix else 'NII_Sub_Score'
+                        fee_col = f'Fee_Sub_Score{comparison_suffix}' if comparison_suffix else 'Fee_Sub_Score'
                     else:
                         nii_col = 'NII_Sub_Score'
                         fee_col = 'Fee_Sub_Score'
                     
                     if nii_col in ticker_data.columns:
+                        x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_revenue.add_trace(go.Scatter(
-                            x=ticker_data[period_col], 
+                            x=x_data, 
                             y=ticker_data[nii_col],
                             name=f"{ticker} - NII",
                             mode='lines+markers'
                         ))
                     
                     if fee_col in ticker_data.columns:
+                        x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_revenue.add_trace(go.Scatter(
-                            x=ticker_data[period_col], 
+                            x=x_data, 
                             y=ticker_data[fee_col],
                             name=f"{ticker} - Fees",
                             mode='lines+markers',
@@ -611,25 +661,27 @@ if quarterly_df is not None and yearly_df is not None:
                 for ticker in selected_tickers:
                     ticker_data = trend_df[trend_df['TICKER'] == ticker]
                     
-                    # Use appropriate columns based on comparison type
-                    if data_type == "Quarterly" and comparison_suffix:
-                        opex_col = f'OPEX_Sub_Score{comparison_suffix}'
-                        prov_col = f'Provision_Sub_Score{comparison_suffix}'
+                    # Use the exact same suffix that was determined earlier
+                    if data_type == "Quarterly":
+                        opex_col = f'OPEX_Sub_Score{comparison_suffix}' if comparison_suffix else 'OPEX_Sub_Score'
+                        prov_col = f'Provision_Sub_Score{comparison_suffix}' if comparison_suffix else 'Provision_Sub_Score'
                     else:
                         opex_col = 'OPEX_Sub_Score'
                         prov_col = 'Provision_Sub_Score'
                     
                     if opex_col in ticker_data.columns:
+                        x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_cost.add_trace(go.Scatter(
-                            x=ticker_data[period_col], 
+                            x=x_data, 
                             y=ticker_data[opex_col],
                             name=f"{ticker} - OPEX",
                             mode='lines+markers'
                         ))
                     
                     if prov_col in ticker_data.columns:
+                        x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
                         fig_cost.add_trace(go.Scatter(
-                            x=ticker_data[period_col], 
+                            x=x_data, 
                             y=ticker_data[prov_col],
                             name=f"{ticker} - Provision",
                             mode='lines+markers',
@@ -649,6 +701,62 @@ if quarterly_df is not None and yearly_df is not None:
                 fig_cost.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
                 
                 st.plotly_chart(fig_cost, use_container_width=True)
+            
+            with tab3:
+                # NII Breakdown: Loan Growth vs NIM Change scores
+                fig_nii = go.Figure()
+                
+                for ticker in selected_tickers:
+                    ticker_data = trend_df[trend_df['TICKER'] == ticker]
+                    
+                    # Use the exact same suffix that was determined earlier
+                    if data_type == "Quarterly":
+                        loan_col = f'Loan_Growth_Score{comparison_suffix}' if comparison_suffix else 'Loan_Growth_Score'
+                        nim_col = f'NIM_Change_Score{comparison_suffix}' if comparison_suffix else 'NIM_Change_Score'
+                    else:
+                        loan_col = 'Loan_Growth_Score'
+                        nim_col = 'NIM_Change_Score'
+                    
+                    if loan_col in ticker_data.columns:
+                        x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
+                        fig_nii.add_trace(go.Scatter(
+                            x=x_data, 
+                            y=ticker_data[loan_col],
+                            name=f"{ticker} - Loan Growth",
+                            mode='lines+markers'
+                        ))
+                    
+                    if nim_col in ticker_data.columns:
+                        x_data = ticker_data[display_col] if period_col == 'Date_Quarter' else ticker_data[period_col]
+                        fig_nii.add_trace(go.Scatter(
+                            x=x_data, 
+                            y=ticker_data[nim_col],
+                            name=f"{ticker} - NIM Change",
+                            mode='lines+markers',
+                            line=dict(dash='dash')
+                        ))
+                
+                fig_nii.update_layout(
+                    title="NII Breakdown: Loan Growth vs NIM Change Contribution",
+                    xaxis_title=period_col,
+                    yaxis_title="Score (%)",
+                    height=400,
+                    font=dict(family="Inter, sans-serif", size=12),
+                    hovermode='x unified',
+                    showlegend=True
+                )
+                fig_nii.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                fig_nii.update_yaxes(showgrid=True, gridcolor='rgba(0,0,0,0.1)')
+                
+                st.plotly_chart(fig_nii, use_container_width=True)
+                
+                # Add explanation
+                st.caption(
+                    "**NII Breakdown Interpretation:**\n"
+                    "- **Loan Growth Score** = Loan_Growth_% / 2 (volume-driven NII growth)\n"
+                    "- **NIM Change Score** = NII_Sub_Score - Loan_Growth_Score (margin-driven NII growth)\n"
+                    "- Positive values indicate contribution to profit growth"
+                )
     
     # Page 3: Statistical Summary
     elif page == "Statistical Summary":
@@ -661,17 +769,19 @@ if quarterly_df is not None and yearly_df is not None:
         # Summary by bank type
         st.subheader(f"Average Scores by Bank Type ({latest_period})")
         
-        # Determine score column names based on comparison type
-        if data_type == "Quarterly" and comparison_suffix:
+        # Use the same suffix that was determined earlier for consistency
+        if data_type == "Quarterly":
+            # Build column names with the actual suffix being used
+            suffix = comparison_suffix if comparison_suffix else ''
             agg_dict = {
-                f'Top_Line_Score{comparison_suffix}': 'mean',
-                f'NII_Sub_Score{comparison_suffix}': 'mean',
-                f'Fee_Sub_Score{comparison_suffix}': 'mean',
-                f'Cost_Cutting_Score{comparison_suffix}': 'mean',
-                f'OPEX_Sub_Score{comparison_suffix}': 'mean',
-                f'Provision_Sub_Score{comparison_suffix}': 'mean',
-                f'Non_Recurring_Score{comparison_suffix}': 'mean',
-                f'Total_Score{comparison_suffix}': 'mean'
+                f'Top_Line_Score{suffix}': 'mean',
+                f'NII_Sub_Score{suffix}': 'mean',
+                f'Fee_Sub_Score{suffix}': 'mean',
+                f'Cost_Cutting_Score{suffix}': 'mean',
+                f'OPEX_Sub_Score{suffix}': 'mean',
+                f'Provision_Sub_Score{suffix}': 'mean',
+                f'Non_Recurring_Score{suffix}': 'mean',
+                f'Total_Score{suffix}': 'mean'
             }
             # Filter to only include columns that exist
             agg_dict = {k: v for k, v in agg_dict.items() if k in latest_df.columns}
@@ -694,7 +804,33 @@ if quarterly_df is not None and yearly_df is not None:
         else:
             summary_by_type = pd.DataFrame()
         
-        st.dataframe(summary_by_type.style.background_gradient(cmap='RdYlGn', axis=0))
+        # Display with formatting and color coding
+        def color_scores(val):
+            """Color scores based on value"""
+            if pd.isna(val):
+                return ''
+            try:
+                num_val = float(val)
+                if num_val > 50:
+                    return 'color: green'
+                elif num_val < -50:
+                    return 'color: red'
+                elif num_val > 0:
+                    return 'color: darkgreen'
+                elif num_val < 0:
+                    return 'color: darkred'
+            except:
+                pass
+            return ''
+        
+        styled_summary = summary_by_type.style.format("{:.1f}")
+        for col in summary_by_type.columns:
+            styled_summary = styled_summary.map(color_scores, subset=[col])
+        
+        st.dataframe(
+            styled_summary,
+            use_container_width=True
+        )
         
         # Distribution plots with dynamic bins
         st.subheader("Score Distributions")
@@ -737,7 +873,11 @@ if quarterly_df is not None and yearly_df is not None:
         
         with col1:
             # Top Line Score distribution with custom bins
-            top_line_col = f'Top_Line_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Top_Line_Score'
+            # Use the same suffix that was determined earlier
+            if data_type == "Quarterly":
+                top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
+            else:
+                top_line_col = 'Top_Line_Score'
             if top_line_col in latest_df.columns:
                 top_line_data = latest_df[top_line_col].dropna()
             else:
@@ -790,7 +930,11 @@ if quarterly_df is not None and yearly_df is not None:
         
         with col2:
             # Cost Cutting Score distribution with custom bins
-            cost_col = f'Cost_Cutting_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Cost_Cutting_Score'
+            # Use the same suffix that was determined earlier
+            if data_type == "Quarterly":
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
+            else:
+                cost_col = 'Cost_Cutting_Score'
             if cost_col in latest_df.columns:
                 cost_data = latest_df[cost_col].dropna()
             else:
@@ -846,9 +990,15 @@ if quarterly_df is not None and yearly_df is not None:
         
         with col1:
             st.subheader(f"Top 10 Performers - Total Score ({latest_period})")
-            total_col = f'Total_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Total_Score'
-            top_line_col = f'Top_Line_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Top_Line_Score'
-            cost_col = f'Cost_Cutting_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Cost_Cutting_Score'
+            # Use the same suffix that was determined earlier
+            if data_type == "Quarterly":
+                total_col = f'Total_Score{comparison_suffix}' if comparison_suffix else 'Total_Score'
+                top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
+            else:
+                total_col = 'Total_Score'
+                top_line_col = 'Top_Line_Score'
+                cost_col = 'Cost_Cutting_Score'
             
             if total_col in latest_df.columns:
                 display_cols = ['TICKER', 'Type'] + [c for c in [total_col, top_line_col, cost_col] if c in latest_df.columns]
@@ -867,9 +1017,15 @@ if quarterly_df is not None and yearly_df is not None:
         
         with col2:
             st.subheader(f"Bottom 10 Performers - Total Score ({latest_period})")
-            total_col = f'Total_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Total_Score'
-            top_line_col = f'Top_Line_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Top_Line_Score'
-            cost_col = f'Cost_Cutting_Score{comparison_suffix}' if data_type == "Quarterly" and comparison_suffix else 'Cost_Cutting_Score'
+            # Use the same suffix that was determined earlier
+            if data_type == "Quarterly":
+                total_col = f'Total_Score{comparison_suffix}' if comparison_suffix else 'Total_Score'
+                top_line_col = f'Top_Line_Score{comparison_suffix}' if comparison_suffix else 'Top_Line_Score'
+                cost_col = f'Cost_Cutting_Score{comparison_suffix}' if comparison_suffix else 'Cost_Cutting_Score'
+            else:
+                total_col = 'Total_Score'
+                top_line_col = 'Top_Line_Score'
+                cost_col = 'Cost_Cutting_Score'
             
             if total_col in latest_df.columns:
                 display_cols = ['TICKER', 'Type'] + [c for c in [total_col, top_line_col, cost_col] if c in latest_df.columns]
@@ -890,11 +1046,13 @@ if quarterly_df is not None and yearly_df is not None:
         st.subheader("Score Correlations")
         
         # Determine score columns for correlation matrix
-        if data_type == "Quarterly" and comparison_suffix:
-            score_cols = [f'Top_Line_Score{comparison_suffix}', f'NII_Sub_Score{comparison_suffix}', 
-                         f'Fee_Sub_Score{comparison_suffix}', f'Cost_Cutting_Score{comparison_suffix}', 
-                         f'OPEX_Sub_Score{comparison_suffix}', f'Provision_Sub_Score{comparison_suffix}', 
-                         f'Non_Recurring_Score{comparison_suffix}']
+        # Use the same suffix that was determined earlier
+        if data_type == "Quarterly":
+            suffix = comparison_suffix if comparison_suffix else ''
+            score_cols = [f'Top_Line_Score{suffix}', f'NII_Sub_Score{suffix}', 
+                         f'Fee_Sub_Score{suffix}', f'Cost_Cutting_Score{suffix}', 
+                         f'OPEX_Sub_Score{suffix}', f'Provision_Sub_Score{suffix}', 
+                         f'Non_Recurring_Score{suffix}']
         else:
             score_cols = ['Top_Line_Score', 'NII_Sub_Score', 'Fee_Sub_Score', 
                          'Cost_Cutting_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score', 
