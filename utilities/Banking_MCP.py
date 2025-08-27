@@ -1044,7 +1044,7 @@ class BankingToolSystem:
         # Tool 11: Get Earnings Drivers
         @self.tool(
             name="get_earnings_drivers",
-            description="Get detailed earnings drivers analysis showing what's driving profit changes for one or multiple banks",
+            description="Get detailed earnings drivers impact analysis showing what's driving profit changes for one or multiple banks. For cost items, positive score means less cost (good), negative means more cost (bad).",
             parameters={
                 "tickers": {
                     "type": "array",

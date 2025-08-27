@@ -217,13 +217,6 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
         
-        # Model selection
-        model = st.selectbox(
-            "Model",
-            ["gpt-4-turbo-preview", "gpt-3.5-turbo"],
-            index=0
-        )
-        os.environ["OPENAI_MODEL"] = model
         
         # Show available tools
         with st.expander("📋 Available Tools", expanded=False):
