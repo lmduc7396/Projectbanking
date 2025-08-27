@@ -335,7 +335,7 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
     # 4. Send to OpenAI
     try:
         response = client.chat.completions.create(
-            model="gpt-4",   # or "gpt-4-turbo"
+            model="gpt-5",   # or "gpt-5-mini"
             messages=[
                 {"role": "system", "content": "You are a financial analyst."},
                 {"role": "user", "content": prompt}

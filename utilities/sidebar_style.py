@@ -31,6 +31,42 @@ def apply_sidebar_style():
             font-size: 0.9rem !important;
         }
         
+        /* Page navigation links - make them smaller */
+        section[data-testid="stSidebar"] a[href] {
+            font-size: 0.85rem !important;
+        }
+        
+        /* Streamlit's page navigation list items */
+        section[data-testid="stSidebar"] ul[data-testid="stSidebarNavItems"] li {
+            margin-bottom: 0.2rem !important;
+        }
+        
+        section[data-testid="stSidebar"] ul[data-testid="stSidebarNavItems"] span {
+            font-size: 0.85rem !important;
+        }
+        
+        /* Target the page navigation specifically */
+        section[data-testid="stSidebarNav"] a,
+        section[data-testid="stSidebarNav"] span {
+            font-size: 0.85rem !important;
+        }
+        
+        /* Make page link container more compact */
+        section[data-testid="stSidebarNav"] > ul {
+            gap: 0.2rem !important;
+        }
+        
+        section[data-testid="stSidebarNav"] li {
+            margin: 0.1rem 0 !important;
+            padding: 0.3rem 0.25rem !important;
+        }
+        
+        /* Reduce left padding for navigation items */
+        section[data-testid="stSidebarNav"] {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        
         /* Sidebar headers - slightly larger but still reduced */
         section[data-testid="stSidebar"] h1 {
             font-size: 1.3rem !important;
@@ -74,9 +110,21 @@ def apply_sidebar_style():
             margin-bottom: 0.25rem !important;
         }
         
-        /* Reduce padding in sidebar */
+        /* Reduce padding in sidebar - half of original */
         section[data-testid="stSidebar"] > div:first-child {
-            padding: 1rem 1rem 2rem !important;
+            padding: 1rem 0.5rem 2rem 0.5rem !important;
+        }
+        
+        /* Also reduce padding for inner containers */
+        section[data-testid="stSidebar"] .block-container {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
+        
+        /* Reduce indent for all sidebar content */
+        section[data-testid="stSidebar"] .element-container {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
         }
         
         /* Make date input more compact */

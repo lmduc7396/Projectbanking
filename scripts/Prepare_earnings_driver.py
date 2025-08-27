@@ -487,9 +487,11 @@ def calculate_weighted_impacts(df, suffix=''):
         )
         df[f'Total_Impact{score_suffix}'] = df[f'Total_Impact{score_suffix}'].round(1)
     
-    # Clean up temporary PBT_Growth_% column
+    # Clean up temporary PBT_Growth_% column only if it's different from the suffixed version
     if 'PBT_Growth_%' in df.columns and f'PBT_Growth_%{score_suffix}' in df.columns:
-        df = df.drop('PBT_Growth_%', axis=1)
+        # Only drop if they are different columns (i.e., suffix is not empty)
+        if f'PBT_Growth_%{score_suffix}' != 'PBT_Growth_%':
+            df = df.drop('PBT_Growth_%', axis=1)
     
     return df
 

@@ -306,7 +306,7 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
     # Send to OpenAI
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": "You are a financial analyst."},
                 {"role": "user", "content": prompt}

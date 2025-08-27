@@ -115,9 +115,9 @@ with col2:
 with col3:
     model_choice = st.selectbox(
         "Model:",
-        ["gpt-4o", "gpt-4o-mini"],
+        ["gpt-5", "gpt-5-mini"],
         index=0,
-        help="gpt-4o: Most capable (recommended)\ngpt-4o-mini: Faster & cheaper"
+        help="gpt-5: Most capable (recommended)\ngpt-5-mini: Faster & cheaper"
     )
 
 with col4:

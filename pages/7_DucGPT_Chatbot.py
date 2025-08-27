@@ -129,7 +129,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             # Call OpenAI
             try:
                 response = st.session_state.openai_client.chat.completions.create(
-                    model=os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview"),
+                    model=os.getenv("OPENAI_MODEL", "gpt-5"),
                     messages=messages,
                     tools=tools,
                     tool_choice="auto",

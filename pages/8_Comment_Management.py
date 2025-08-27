@@ -382,7 +382,7 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
 
         # Send to OpenAI
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": "You are a senior banking analyst with expertise in financial analysis and market trends."},
                 {"role": "user", "content": prompt}
