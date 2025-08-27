@@ -24,6 +24,10 @@ df_quarter = pd.read_csv(os.path.join(data_dir, 'dfsectorquarter.csv'))
 keyitem = pd.read_excel(os.path.join(data_dir, 'Key_items.xlsx'))
 bank_type_mapping = pd.read_excel(os.path.join(data_dir, 'Bank_Type.xlsx'))
 
+# Load earnings quality data for QoQ earnings drivers
+df_earnings_quality = pd.read_csv(os.path.join(data_dir, 'earnings_quality_quarterly.csv'))
+print(f"Loaded earnings quality data with {len(df_earnings_quality)} records")
+
 print(f"Bank Type mapping structure:")
 print(bank_type_mapping.head())
 print(f"Columns: {bank_type_mapping.columns.tolist()}")
@@ -69,26 +73,30 @@ def get_quarters_from_2023():
     quarters_2023_plus.sort(key=quarter_sort_key)
     return quarters_2023_plus
 
-def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
+def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data, df_earnings_data):
     """Modified version of openai_comment for bulk processing"""
     
-    def get_data(ticker, sector, target_quarter):
-        cols_keep = pd.DataFrame({
-        'Name': [
-            'Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE', 'NIM', 'Loan yield',
-            'NPL', 'NPL Formation (%)', 'GROUP 2', 'G2 Formation (%)',
-            'NPL Coverage ratio'
+    def get_data(ticker, target_quarter):
+        # The data already has proper column names, no need for KeyCode mapping
+        cols_keep = [
+            'Date_Quarter', 'Loan', 'TOI', 'Provision/ Total Loan', 'PBT', 
+            'ROA', 'ROE', 'NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 
+            'GROUP 2', 'G2 Formation (%)', 'NPL Coverage ratio'
         ]
-        })
-        cols_code_keep = cols_keep.merge(keyitem_data, on='Name', how='left')
-        cols_keep_final = ['Date_Quarter'] + cols_code_keep['KeyCode'].tolist()
-        rename_dict = dict(zip(cols_code_keep['KeyCode'], cols_code_keep['Name']))
+        
+        # Check which columns are actually available in the data
+        available_cols = df_quarter_data.columns.tolist()
+        cols_keep_final = [col for col in cols_keep if col in available_cols]
+        
+        # If Provision expense is not available, use Provision/ Total Loan
+        if 'Provision expense' not in cols_keep_final and 'Provision/ Total Loan' in cols_keep_final:
+            # Keep as is - the column is already named appropriately
+            pass
 
         # Helper functions for growth calculations
         def calculate_growth(df_data, period, suffix):
             """Calculate growth (%) and return formatted DataFrame."""
             growth = df_data.iloc[:, 1:].pct_change(periods=period)
-            growth.columns = growth.columns.map(rename_dict)
             growth = growth.add_suffix(f' {suffix} (%)')
             return pd.concat([df_data['Date_Quarter'], growth], axis=1)
 
@@ -96,20 +104,16 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
             """Calculate YTD growth (%) from current quarter to Q4 of previous year."""
             df_filtered = df_data.copy()
             
-            # Extract year and quarter from Date_Quarter (format: XQ##)
-            df_filtered['Quarter'] = df_filtered['Date_Quarter'].str.extract(r'(\d+)Q').astype(int)
-            df_filtered['Year'] = df_filtered['Date_Quarter'].str.extract(r'Q(\d+)').astype(int)
+            # Extract year and quarter from Date_Quarter (format: YYYY-Q#)
+            df_filtered['Year'] = df_filtered['Date_Quarter'].str.extract(r'(\d{4})-Q').astype(int)
+            df_filtered['Quarter'] = df_filtered['Date_Quarter'].str.extract(r'-Q(\d)').astype(int)
             
             # Calculate YTD growth for Loan only
             ytd_growth = pd.DataFrame(index=df_filtered.index)
             ytd_growth['Date_Quarter'] = df_filtered['Date_Quarter']
             
-            # Find Loan column
-            loan_col = None
-            for col in df_filtered.columns:
-                if col in rename_dict and rename_dict[col] == 'Loan':
-                    loan_col = col
-                    break
+            # Loan column is directly named 'Loan' in the data
+            loan_col = 'Loan' if 'Loan' in df_filtered.columns else None
             
             if loan_col:
                 ytd_growth['Loan YTD (%)'] = np.nan
@@ -134,6 +138,8 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
 
         # Get ticker data up to target quarter
         df_ticker = df_quarter_data[df_quarter_data['TICKER'] == ticker]
+        
+        # Select only the columns we want to keep
         df_ticker = df_ticker[cols_keep_final]
         
         # Sort by date and get data up to target quarter
@@ -144,8 +150,8 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
         df_ticker = df_ticker.sort_values('quarter_numeric')
         df_ticker = df_ticker.drop('quarter_numeric', axis=1)
         
-        # Take last 6 quarters for analysis
-        df_ticker_base = df_ticker.rename(columns=rename_dict).tail(6)
+        # Take last 6 quarters for analysis (no renaming needed as columns already have proper names)
+        df_ticker_base = df_ticker.tail(6)
         
         # Calculate growth metrics for ticker
         df_ticker_qoq = calculate_growth(df_ticker.tail(6), 1, 'QoQ')
@@ -157,13 +163,14 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
         
         # Add specific growth columns
         if not df_ticker_qoq.empty:
-            for metric in ['Loan', 'TOI', 'Provision expense', 'PBT']:
+            # Note: Use the actual column names in the data
+            for metric in ['Loan', 'TOI', 'Provision/ Total Loan', 'PBT']:
                 qoq_col = f'{metric} QoQ (%)'
                 if qoq_col in df_ticker_qoq.columns:
                     ticker_combined[qoq_col] = df_ticker_qoq[qoq_col]
         
         if not df_ticker_yoy.empty:
-            for metric in ['TOI', 'Provision expense', 'PBT']:
+            for metric in ['TOI', 'Provision/ Total Loan', 'PBT']:
                 yoy_col = f'{metric} YoY (%)'
                 if yoy_col in df_ticker_yoy.columns:
                     ticker_combined[yoy_col] = df_ticker_yoy[yoy_col]
@@ -177,53 +184,7 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
         df_ticker_out.columns = df_ticker_out.iloc[0]
         df_ticker_out = df_ticker_out[1:]
         
-        # Get sector data (similar process)
-        df_sector = df_quarter_data[(df_quarter_data['Type'] == sector) & (df_quarter_data['TICKER'].apply(lambda t: len(t) > 3))]
-        if not df_sector.empty:
-            sector_ticker = df_sector['TICKER'].iloc[0]
-            df_sector = df_sector[df_sector['TICKER'] == sector_ticker]
-            df_sector = df_sector[cols_keep_final]
-            
-            # Filter data up to target quarter
-            df_sector['quarter_numeric'] = df_sector['Date_Quarter'].apply(quarter_to_numeric)
-            df_sector = df_sector[df_sector['quarter_numeric'] <= target_numeric]
-            df_sector = df_sector.sort_values('quarter_numeric')
-            df_sector = df_sector.drop('quarter_numeric', axis=1)
-            
-            df_sector_base = df_sector.rename(columns=rename_dict).tail(6)
-            
-            # Calculate growth metrics for sector
-            df_sector_qoq = calculate_growth(df_sector.tail(6), 1, 'QoQ')
-            df_sector_yoy = calculate_growth(df_sector.tail(6), 4, 'YoY')
-            df_sector_ytd = calculate_ytd_growth(df_sector.tail(6))
-            
-            # Combine sector data with growth metrics
-            sector_combined = df_sector_base.copy()
-            
-            if not df_sector_qoq.empty:
-                for metric in ['Loan', 'TOI', 'Provision expense', 'PBT']:
-                    qoq_col = f'{metric} QoQ (%)'
-                    if qoq_col in df_sector_qoq.columns:
-                        sector_combined[qoq_col] = df_sector_qoq[qoq_col]
-            
-            if not df_sector_yoy.empty:
-                for metric in ['TOI', 'Provision expense', 'PBT']:
-                    yoy_col = f'{metric} YoY (%)'
-                    if yoy_col in df_sector_yoy.columns:
-                        sector_combined[yoy_col] = df_sector_yoy[yoy_col]
-            
-            if not df_sector_ytd.empty:
-                if 'Loan YTD (%)' in df_sector_ytd.columns:
-                    sector_combined['Loan YTD (%)'] = df_sector_ytd['Loan YTD (%)']
-            
-            # Transpose sector data
-            df_sector_out = sector_combined.T
-            df_sector_out.columns = df_sector_out.iloc[0]
-            df_sector_out = df_sector_out[1:]
-        else:
-            df_sector_out = pd.DataFrame()
-
-        return df_ticker_out, df_sector_out
+        return df_ticker_out
 
     # Get OpenAI API key
     api_key = os.getenv("OPENAI_API_KEY")
@@ -232,75 +193,126 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
     
     client = openai.OpenAI(api_key=api_key)
     
-    # Get data for both ticker and sector
-    ticker_data, sector_data = get_data(ticker, sector, quarter)
+    # Get ticker data
+    ticker_data = get_data(ticker, quarter)
     
-    # Load writing examples from Excel file
-    writing_examples = ""
-    try:
-        # Use relative path from current directory
-        examples_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Data', 'Prompt testing.xlsx')
+    # Get earnings driver data for the ticker and quarter
+    earnings_drivers = None
+    earnings_data = df_earnings_data[
+        (df_earnings_data['TICKER'] == ticker) & 
+        (df_earnings_data['Date_Quarter'] == quarter)
+    ]
+    
+    if not earnings_data.empty:
+        # Extract QoQ WEIGHTED IMPACT scores (not raw scores)
+        # These show actual percentage point contribution to PBT growth
+        earnings_drivers = {
+            'PBT_Growth_QoQ': earnings_data['PBT_Growth_%_QoQ'].iloc[0] if 'PBT_Growth_%_QoQ' in earnings_data.columns else None,
+            'Main_Components': {
+                'Top_Line_Impact': earnings_data['Top_Line_Impact_QoQ'].iloc[0] if 'Top_Line_Impact_QoQ' in earnings_data.columns else None,
+                'Cost_Cutting_Impact': earnings_data['Cost_Cutting_Impact_QoQ'].iloc[0] if 'Cost_Cutting_Impact_QoQ' in earnings_data.columns else None,
+                'Non_Recurring_Impact': earnings_data['Non_Recurring_Impact_QoQ'].iloc[0] if 'Non_Recurring_Impact_QoQ' in earnings_data.columns else None
+            },
+            'Revenue_Breakdown': {
+                'NII_Impact': earnings_data['NII_Impact_QoQ'].iloc[0] if 'NII_Impact_QoQ' in earnings_data.columns else None,
+                'Fee_Impact': earnings_data['Fee_Impact_QoQ'].iloc[0] if 'Fee_Impact_QoQ' in earnings_data.columns else None
+            },
+            'NII_Breakdown': {
+                'Loan_Impact': earnings_data['Loan_Impact_QoQ'].iloc[0] if 'Loan_Impact_QoQ' in earnings_data.columns else None,
+                'NIM_Impact': earnings_data['NIM_Impact_QoQ'].iloc[0] if 'NIM_Impact_QoQ' in earnings_data.columns else None
+            },
+            'Cost_Breakdown': {
+                'OPEX_Impact': earnings_data['OPEX_Impact_QoQ'].iloc[0] if 'OPEX_Impact_QoQ' in earnings_data.columns else None,
+                'Provision_Impact': earnings_data['Provision_Impact_QoQ'].iloc[0] if 'Provision_Impact_QoQ' in earnings_data.columns else None
+            },
+            'Total_Impact': earnings_data['Total_Impact_QoQ'].iloc[0] if 'Total_Impact_QoQ' in earnings_data.columns else None
+        }
         
-        if os.path.exists(examples_path):
-            examples_df = pd.read_excel(examples_path)
-            
-            writing_examples = "\n4. WRITING STYLE EXAMPLES:\nHere are examples of the preferred writing style and analysis approach you should follow:\n\n"
-            
-            for i, row in examples_df.iterrows():
-                writing_examples += f"EXAMPLE {i+1}:\n"
-                for col in examples_df.columns:
-                    if pd.notna(row[col]) and str(row[col]).strip():
-                        writing_examples += f"{col}: {row[col]}\n"
-                writing_examples += "\n---\n\n"
-                
-            writing_examples += "IMPORTANT: Use the same analytical approach, writing style, tone, and structure as shown in these examples. Pay attention to how data is presented, how insights are developed, and the overall narrative flow.\n\n"
-                
-    except Exception as e:
-        print(f"Warning: Could not load writing examples: {e}")
+        # Clean up None values - format as percentage points
+        def clean_none(value, suffix="pp"):
+            if pd.isna(value) or value is None:
+                return "N/A"
+            # For PBT Growth %, use % suffix
+            if suffix == "%":
+                return f"{value:.1f}%"
+            # For impacts, use pp (percentage points)
+            return f"{value:.1f}pp"
+        
+        # Format all values
+        if earnings_drivers:
+            earnings_drivers['PBT_Growth_QoQ'] = clean_none(earnings_drivers['PBT_Growth_QoQ'], "%")
+            earnings_drivers['Total_Impact'] = clean_none(earnings_drivers['Total_Impact'])
+            for key in earnings_drivers['Main_Components']:
+                earnings_drivers['Main_Components'][key] = clean_none(earnings_drivers['Main_Components'][key])
+            for key in earnings_drivers['Revenue_Breakdown']:
+                earnings_drivers['Revenue_Breakdown'][key] = clean_none(earnings_drivers['Revenue_Breakdown'][key])
+            for key in earnings_drivers['NII_Breakdown']:
+                earnings_drivers['NII_Breakdown'][key] = clean_none(earnings_drivers['NII_Breakdown'][key])
+            for key in earnings_drivers['Cost_Breakdown']:
+                earnings_drivers['Cost_Breakdown'][key] = clean_none(earnings_drivers['Cost_Breakdown'][key])
+    
+    # No longer loading writing examples
+    
+    # Create earnings drivers table
+    earnings_drivers_text = ""
+    if earnings_drivers:
+        earnings_drivers_text = f"""
+Earnings Drivers (QoQ):
+PBT Growth: {earnings_drivers['PBT_Growth_QoQ']}
+
+Component | Impact
+--- | ---
+Top Line (Revenue) | {earnings_drivers['Main_Components']['Top_Line_Impact']}
+- NII | {earnings_drivers['Revenue_Breakdown']['NII_Impact']}
+  - Loan Growth | {earnings_drivers['NII_Breakdown']['Loan_Impact']}
+  - NIM | {earnings_drivers['NII_Breakdown']['NIM_Impact']}
+- Fee Income | {earnings_drivers['Revenue_Breakdown']['Fee_Impact']}
+Cost Cutting | {earnings_drivers['Main_Components']['Cost_Cutting_Impact']}
+- OPEX | {earnings_drivers['Cost_Breakdown']['OPEX_Impact']}
+- Provisions | {earnings_drivers['Cost_Breakdown']['Provision_Impact']}
+Non-Recurring | {earnings_drivers['Main_Components']['Non_Recurring_Impact']}
+"""
     
     prompt = f"""
-    You are a banking analyst assistant. Analyze the provided banking data with the following guidelines:
+    You are a financial analyst specializing in the banking sector. Analyze quarterly bank results from the provided data (financial metrics, ratios, and earnings drivers).
+    Your answer must follow this structure exactly. Do not add or remove sections.
 
-    1. Growth Context Rules:
-    - The time code is written as 'YYYY-Q#' where YYYY is the 4-digit year and # is the quarter number (1-4). For example: 2024-Q1, 2024-Q2, 2024-Q3, 2024-Q4.
-    - Quarter-on-Quarter (QoQ): Always compare with the immediate previous quarter (e.g., 2025-Q1 vs 2024-Q4)
-    - Year-on-Year (YoY): Always compare with the exact same quarter from the previous year (e.g., 2025-Q1 vs 2024-Q1)
-    - Never compare quarters from non-consecutive years (e.g., avoid comparing 2025-Q1 vs 2023-Q1)
-    - Maintain this consistency throughout the analysis
+    1. Conclusion (exactly 3 bullet points)
+        Write these bullets as a story-driven investor takeaway.
+        Focus on the big picture: what kind of quarter this was, what drove it, and how sustainable it looks.
+        Keep numbers supportive, but not the headline. (Example: “Profit rebound looks strong, but much of it came from one-offs, raising questions about repeatability.” instead of “PBT +33% QoQ.”)
+        Tone must be punchy, neutral, analytical.
 
-    2. Key Analysis Areas to Cover:
-    Focus on these important banking performance areas, prioritizing the bank's own trends. Divide the analysis into 3 segments in this exact order and title:
+    2. Profitability
+        Present TOI, PBT, ROA, ROE trends with interpretation.
+        Use the earnings bridge (Revenue, Cost, Non-recurring) to explain what really changed.
+        Each bullet must combine data and meaning.
+
+    3. Loan Growth & NIM
+        Present loan growth (QoQ, YoY) and loan book size.
+        Show NIM and yield evolution, linking to funding dynamics.
+        Explain how volume vs margin balance is shaping income.
+
+    4. Asset Quality
+        Present NPL and Group-2 ratios, formation trends, provisions, coverage.
+        Each bullet must integrate figures with implications for credit risk and earnings durability.
+
+
+    Writing Approach Rules
+        Conclusion = story first, numbers second.
+        Each bullet across all sections must weave number + meaning in one line.
+        Avoid mechanical breakdowns of every bridge component; focus only on what matters most.
+        Keep style punchy, concise, and investment-oriented.
     
-    - Profitability: TOI and Net profit trends, ROA and ROE performance trajectory
-    - Loan Growth & NIM: Loan growth momentum (QoQ and YoY), NIM direction and drivers
-    - Asset Quality: NPL & G2 ratio evolution, formation trends, coverage ratios. 
-    
-    PRIMARY FOCUS: The bank's own performance evolution and trend changes. Use sector data only for brief context when relevant.
-
-    3. Writing Approach:
-    - Create a narrative thread connecting the bank's key performance drivers. 
-    - The writing style should be punchy.
-    - Focus on the 'why' behind the numbers - what business dynamics are driving changes?
-    - Identify the most compelling performance themes and investment implications
-    - Assess historical trends and projected performance, then evaluate whether the latest figures represent a positive or negative surprise versus expectations.
-    - Think like an equity analyst telling investors what matters most
-    - Use simple and neutral words and tone. Avoid all words like "roaring, resurgence, ..."
-
-    {writing_examples}
-
-    Format Guidelines:
-    - Use one decimal point for percentages (e.g., 15.7%) when citing specific figures
-    - Weave data points naturally into the narrative rather than listing them. Writing style should be punchy
-    - Temperature: 0.2, keep it factual
-    - Keep the analysis concise: 250-300 words maximum
-
-    Start with 2-3 key takeaway points, then provide brief supporting analysis.
-
     Data for Bank: {ticker} (Quarter: {quarter})
     {ticker_data.to_markdown(index=True, tablefmt='grid')}
     
-    Sector Benchmark ({sector}):
-    {sector_data.to_markdown(index=True, tablefmt='grid') if not sector_data.empty else 'No sector data available'}
+    {earnings_drivers_text}
+
+    Format Guidelines:
+    - Use one decimal point for percentages (e.g., 15.7%) when citing specific figures
+    - Keep analysis factual and data-driven
+
     """
 
     # Send to OpenAI
@@ -310,23 +322,32 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data):
             messages=[
                 {"role": "system", "content": "You are a financial analyst."},
                 {"role": "user", "content": prompt}
-            ],
-            temperature=0.2
+            ]
+            # Note: GPT-5 only supports default temperature (1.0)
         )
         return response.choices[0].message.content
     except Exception as e:
         print(f"Error calling OpenAI API for {ticker} {quarter}: {str(e)}")
         return None
 
-def generate_all_comments():
-    """Generate comments for all banks and all quarters"""
+def generate_all_comments(specific_quarters=None):
+    """Generate comments for all banks and all quarters
+    
+    Args:
+        specific_quarters: Optional list of quarters to generate (e.g., ['2025-Q1', '2025-Q2'])
+                          If None, generates for all quarters from 2023 onwards
+    """
     
     print("Getting bank-sector mapping...")
     bank_sector_mapping = get_bank_sector_mapping()
     print(f"Found {len(bank_sector_mapping)} entities (banks and sectors)")
     
-    print("Getting quarters from 2023...")
-    quarters = get_quarters_from_2023()
+    if specific_quarters:
+        print(f"Generating for specific quarters: {specific_quarters}")
+        quarters = specific_quarters
+    else:
+        print("Getting quarters from 2023...")
+        quarters = get_quarters_from_2023()
     print(f"Found {len(quarters)} quarters: {quarters}")
     
     # Get ALL tickers (both individual banks and sectors)
@@ -387,7 +408,7 @@ def generate_all_comments():
                     print(f"  No data found for {ticker} in {quarter} - skipping")
                     continue
                 
-                comment = openai_comment_bulk(ticker, sector, quarter, df_quarter, keyitem)
+                comment = openai_comment_bulk(ticker, sector, quarter, df_quarter, keyitem, df_earnings_quality)
                 
                 if comment:
                     all_comments.append({
@@ -462,11 +483,21 @@ class BulkCommentGenerator:
         """Get available quarters from 2023 onwards"""
         return get_quarters_from_2023()
     
-    def generate_bulk_comments(self, start_quarter=None, end_quarter=None, overwrite_existing=False):
-        """Generate comments for specified range"""
-        # For now, ignore the parameters and run the full generation
-        # You can enhance this later to filter by start/end quarter
-        return generate_all_comments()
+    def generate_bulk_comments(self, start_quarter=None, end_quarter=None, overwrite_existing=False, specific_quarters=None):
+        """Generate comments for specified range
+        
+        Args:
+            start_quarter: Start quarter for generation (unused if specific_quarters provided)
+            end_quarter: End quarter for generation (unused if specific_quarters provided)
+            overwrite_existing: Whether to overwrite existing comments
+            specific_quarters: Optional list of specific quarters to generate
+        """
+        if specific_quarters:
+            return generate_all_comments(specific_quarters=specific_quarters)
+        else:
+            # For now, ignore the start/end parameters and run the full generation
+            # You can enhance this later to filter by start/end quarter
+            return generate_all_comments()
 
 if __name__ == "__main__":
     run_with_confirmation()

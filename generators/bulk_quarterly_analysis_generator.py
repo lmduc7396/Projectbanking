@@ -136,9 +136,8 @@ class BulkQuarterlyAnalysisGenerator:
                 messages=[
                     {"role": "system", "content": "You are a senior banking analyst with deep expertise in financial analysis, market trends, and Vietnamese banking sector dynamics. Provide detailed, professional analysis."},
                     {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                top_p=0.9
+                ]
+                # Note: GPT-5 only supports default temperature (1.0)
             )
             
             analysis_text = response.choices[0].message.content

@@ -408,22 +408,26 @@ def calculate_weighted_impacts(df, suffix=''):
         score_suffix = ''
     
     # Calculate PBT Growth % for the appropriate period
-    if suffix == 'T12M':
-        df['PBT_Growth_%'] = np.where(
-            df['PBT_T12M'].notna() & (df['PBT_T12M'] != 0),
-            (df[pbt_change_col] / df['PBT_T12M'].abs()) * 100,
-            0
-        )
-    elif suffix == 'QoQ':
+    # When called from QoQ/YoY calculations, suffix is '' but we need to look for QoQ/YoY columns
+    if 'PBT_QoQ' in df.columns and 'PBT_Change' in df.columns:
+        # This is a QoQ calculation
         df['PBT_Growth_%'] = np.where(
             df['PBT_QoQ'].notna() & (df['PBT_QoQ'] != 0),
-            (df[pbt_change_col] / df['PBT_QoQ'].abs()) * 100,
+            (df['PBT_Change'] / df['PBT_QoQ'].abs()) * 100,
             0
         )
-    elif suffix == 'YoY':
+    elif 'PBT_YoY' in df.columns and 'PBT_Change' in df.columns:
+        # This is a YoY calculation
         df['PBT_Growth_%'] = np.where(
             df['PBT_YoY'].notna() & (df['PBT_YoY'] != 0),
-            (df[pbt_change_col] / df['PBT_YoY'].abs()) * 100,
+            (df['PBT_Change'] / df['PBT_YoY'].abs()) * 100,
+            0
+        )
+    elif 'PBT_T12M' in df.columns and 'PBT_Change' in df.columns:
+        # This is T12M calculation
+        df['PBT_Growth_%'] = np.where(
+            df['PBT_T12M'].notna() & (df['PBT_T12M'] != 0),
+            (df['PBT_Change'] / df['PBT_T12M'].abs()) * 100,
             0
         )
     elif 'PBT_Prior_Year' in df.columns:
@@ -434,12 +438,8 @@ def calculate_weighted_impacts(df, suffix=''):
             0
         )
     else:
-        # For T12M without suffix (quarterly default)
-        df['PBT_Growth_%'] = np.where(
-            df['PBT_T12M'].notna() & (df['PBT_T12M'] != 0),
-            (df['PBT_Change'] / df['PBT_T12M'].abs()) * 100,
-            0
-        )
+        # Fallback
+        df['PBT_Growth_%'] = 0
     
     # Store PBT Growth % with suffix
     df[f'PBT_Growth_%{score_suffix}'] = df['PBT_Growth_%']
@@ -447,8 +447,11 @@ def calculate_weighted_impacts(df, suffix=''):
     # Calculate weighted impacts for main scores
     main_scores = ['Top_Line_Score', 'Cost_Cutting_Score', 'Non_Recurring_Score']
     for score in main_scores:
-        score_col = f'{score}{score_suffix}'
-        impact_col = score_col.replace('_Score', '_Impact')
+        # Try with suffix first, then without (for QoQ/YoY before suffix is added)
+        score_col = f'{score}{score_suffix}' if score_suffix else score
+        if score_col not in df.columns and score in df.columns:
+            score_col = score  # Use base name if suffixed version doesn't exist
+        impact_col = f'{score.replace("_Score", "_Impact")}{score_suffix}'
         if score_col in df.columns:
             df[impact_col] = (df[score_col] * df['PBT_Growth_%'].abs()) / 100
             df[impact_col] = df[impact_col].round(1)
@@ -456,8 +459,11 @@ def calculate_weighted_impacts(df, suffix=''):
     # Calculate weighted impacts for sub-scores (except Loan and NIM)
     sub_scores = ['NII_Sub_Score', 'Fee_Sub_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score']
     for score in sub_scores:
-        score_col = f'{score}{score_suffix}'
-        impact_col = score_col.replace('_Sub_Score', '_Impact')
+        # Try with suffix first, then without (for QoQ/YoY before suffix is added)
+        score_col = f'{score}{score_suffix}' if score_suffix else score
+        if score_col not in df.columns and score in df.columns:
+            score_col = score  # Use base name if suffixed version doesn't exist
+        impact_col = f'{score.replace("_Sub_Score", "_Impact")}{score_suffix}'
         if score_col in df.columns:
             df[impact_col] = (df[score_col] * df['PBT_Growth_%'].abs()) / 100
             df[impact_col] = df[impact_col].round(1)
@@ -497,6 +503,8 @@ def calculate_weighted_impacts(df, suffix=''):
 
 def add_suffix_to_scores(df, suffix):
     """Add suffix to score columns for different comparison types"""
+    # NOTE: We now drop score columns instead of suffixing them
+    # We only keep the impact columns which are calculated in calculate_weighted_impacts
     score_cols = ['Top_Line_Score', 'Cost_Cutting_Score', 'Non_Recurring_Score', 'Total_Score',
                   'NII_Sub_Score', 'Fee_Sub_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score',
                   'Loan_Growth_Score', 'NIM_Change_Score']
@@ -504,10 +512,9 @@ def add_suffix_to_scores(df, suffix):
     base_cols = ['PBT_Change', 'Core_TOI_Change', 'OPEX_Change', 'Provision_Change',
                  'Non_Recurring_Change', 'NII_Change', 'Fee_Change', 'Loan_Growth_%', 'NIM_Change_bps']
     
-    # Add suffix to score columns
+    # Drop score columns - we don't need them in the output
     for col in score_cols:
         if col in df.columns:
-            df[f'{col}_{suffix}'] = df[col]
             df = df.drop(col, axis=1)
     
     # Add suffix to base columns
@@ -536,7 +543,7 @@ def add_suffix_to_scores(df, suffix):
     return df
 
 def merge_all_scores(df_base, df_t12m, df_qoq, df_yoy):
-    """Merge all three comparison dataframes"""
+    """Merge all three comparison dataframes and suffix impacts properly"""
     
     # Start with base columns
     base_cols = ['TICKER', 'Type', 'Date_Quarter', 'TOI', 'Net Interest Income', 'Fees Income',
@@ -545,56 +552,100 @@ def merge_all_scores(df_base, df_t12m, df_qoq, df_yoy):
     
     df_merged = df_base[base_cols].copy()
     
-    # Add T12M columns (including backward compatibility unsuffixed versions)
-    for col in df_t12m.columns:
-        if col not in df_merged.columns:
-            df_merged[col] = df_t12m[col]
-    
-    # For backward compatibility, also add unsuffixed versions from T12M for both scores and impacts
-    score_cols = ['Top_Line_Score', 'Cost_Cutting_Score', 'Non_Recurring_Score', 'Total_Score',
-                  'NII_Sub_Score', 'Fee_Sub_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score',
-                  'Loan_Growth_Score', 'NIM_Change_Score']
-    
+    # List of impact columns to suffix
     impact_cols = ['Top_Line_Impact', 'Cost_Cutting_Impact', 'Non_Recurring_Impact', 'Total_Impact',
                    'NII_Impact', 'Fee_Impact', 'OPEX_Impact', 'Provision_Impact',
                    'Loan_Impact', 'NIM_Impact']
     
-    # Add unsuffixed versions from T12M (default comparison)
-    for col in score_cols:
-        if f'{col}_T12M' in df_merged.columns:
-            df_merged[col] = df_merged[f'{col}_T12M']
+    # Add T12M data with suffixes
+    # First add base columns from T12M
+    for col in df_t12m.columns:
+        if col not in base_cols and col not in df_merged.columns:
+            # Skip score columns entirely
+            if 'Score' in col:
+                continue
+            # Add T12M suffix to impacts and certain other columns
+            if col in impact_cols or 'PBT_Growth_%' in col:
+                df_merged[f'{col}_T12M'] = df_t12m[col]
+            elif col.endswith('_T12M'):
+                # Already has T12M suffix
+                df_merged[col] = df_t12m[col]
+            else:
+                df_merged[col] = df_t12m[col]
     
+    # Also keep unsuffixed versions from T12M for backward compatibility
     for col in impact_cols:
-        if col in df_merged.columns:
-            # Already added from T12M without suffix
-            pass
+        if col in df_t12m.columns:
+            df_merged[col] = df_t12m[col]
+    if 'PBT_Growth_%' in df_t12m.columns:
+        df_merged['PBT_Growth_%'] = df_t12m['PBT_Growth_%']
     
     # Also keep base T12M columns without suffix for backward compatibility
-    if 'PBT_Change_T12M' in df_merged.columns:
-        df_merged['PBT_Change'] = df_merged['PBT_Change_T12M']
-    if 'Loan_Growth_%_T12M' in df_merged.columns:
-        df_merged['Loan_Growth_%'] = df_merged['Loan_Growth_%_T12M']
-    if 'PBT_Growth_%' in df_merged.columns:
-        # Already added from T12M without suffix
-        pass
+    if 'PBT_Change' in df_t12m.columns:
+        df_merged['PBT_Change'] = df_t12m['PBT_Change']
+    if 'Loan_Growth_%' in df_t12m.columns:
+        df_merged['Loan_Growth_%'] = df_t12m['Loan_Growth_%']
     
-    # Add QoQ columns
+    # Add QoQ columns with proper suffixing
     for col in df_qoq.columns:
-        if col not in df_merged.columns and ('_QoQ' in col or 'Impact_QoQ' in col):
+        if col in base_cols or 'Score' in col:
+            continue
+        # Add QoQ suffix to impacts and key columns
+        if col in impact_cols or 'PBT_Growth_%' in col:
+            df_merged[f'{col}_QoQ'] = df_qoq[col]
+        elif col.endswith('_QoQ'):
             df_merged[col] = df_qoq[col]
+        elif 'PBT_Change' in col or 'Loan_Growth_%' in col:
+            df_merged[f'{col}_QoQ'] = df_qoq[col]
     
-    # Add YoY columns
+    # Add YoY columns with proper suffixing
     for col in df_yoy.columns:
-        if col not in df_merged.columns and ('_YoY' in col or 'Impact_YoY' in col):
+        if col in base_cols or 'Score' in col:
+            continue
+        # Add YoY suffix to impacts and key columns
+        if col in impact_cols or 'PBT_Growth_%' in col:
+            df_merged[f'{col}_YoY'] = df_yoy[col]
+        elif col.endswith('_YoY'):
             df_merged[col] = df_yoy[col]
+        elif 'PBT_Change' in col or 'Loan_Growth_%' in col:
+            df_merged[f'{col}_YoY'] = df_yoy[col]
     
-    # Keep flag columns
+    # Keep flag columns (but rename Scores_Capped to Impacts_Capped for clarity)
     if 'Small_PBT_Flag' in df_t12m.columns:
         df_merged['Small_PBT_Flag'] = df_t12m['Small_PBT_Flag']
     if 'Scores_Capped' in df_t12m.columns:
-        df_merged['Scores_Capped'] = df_t12m['Scores_Capped']
+        df_merged['Impacts_Capped'] = df_t12m['Scores_Capped']
     
     return df_merged
+
+def drop_score_columns(df):
+    """Remove all score columns from dataframe, keeping only impact columns"""
+    # List all possible score column patterns to remove
+    score_patterns = ['_Score', 'Total_Score']
+    
+    # Also remove temporary calculation columns we don't need in output
+    temp_patterns = ['PBT_Change_NonZero', 'PBT_Change_Adjusted', 'PBT_Change_Abs_Adjusted',
+                    'Raw_Top_Line', 'Raw_Cost_Cutting', 'Raw_Non_Recurring', 'Check_Sum',
+                    'Loan_Avg', 'NIM_Change_bps']
+    
+    cols_to_drop = []
+    for col in df.columns:
+        # Check if it's a score column
+        for pattern in score_patterns:
+            if pattern in col:
+                cols_to_drop.append(col)
+                break
+        # Check if it's a temporary column
+        for pattern in temp_patterns:
+            if pattern in col:
+                cols_to_drop.append(col)
+                break
+    
+    # Drop the columns
+    if cols_to_drop:
+        df = df.drop(columns=list(set(cols_to_drop)), errors='ignore')
+    
+    return df
 
 def calculate_score_drivers_yearly(df):
     """
@@ -742,6 +793,9 @@ def calculate_score_drivers_yearly(df):
     # Calculate weighted impacts (no suffix for yearly as it's standalone)
     df = calculate_weighted_impacts(df, '')
     
+    # Drop score columns before returning - we only want impacts in the output
+    df = drop_score_columns(df)
+    
     return df
 
 def main():
@@ -758,26 +812,29 @@ def main():
         df_quarter_processed = process_earnings_quality(df_quarter, 'Date_Quarter')
         
         print("  Calculating T12M scores...")
-        # Calculate score drivers for quarterly data - T12M (existing)
+        # Calculate score drivers for quarterly data - T12M 
         df_t12m = calculate_score_drivers_quarterly(df_quarter_processed.copy())
-        df_t12m = add_suffix_to_scores(df_t12m, 'T12M')
-        df_t12m = calculate_weighted_impacts(df_t12m, 'T12M')
+        # Don't add suffix or recalculate - it already has impacts calculated without suffix
+        # We'll handle suffixing in merge
         
         print("  Calculating QoQ scores...")
         # Calculate QoQ scores
         df_qoq = calculate_score_drivers_qoq(df_quarter_processed.copy())
-        df_qoq = add_suffix_to_scores(df_qoq, 'QoQ')
-        df_qoq = calculate_weighted_impacts(df_qoq, 'QoQ')
+        # Calculate impacts with empty suffix since scores don't have suffix yet
+        df_qoq = calculate_weighted_impacts(df_qoq, '')  
         
         print("  Calculating YoY scores...")
         # Calculate YoY scores  
         df_yoy = calculate_score_drivers_yoy(df_quarter_processed.copy())
-        df_yoy = add_suffix_to_scores(df_yoy, 'YoY')
-        df_yoy = calculate_weighted_impacts(df_yoy, 'YoY')
+        # Calculate impacts with empty suffix since scores don't have suffix yet
+        df_yoy = calculate_weighted_impacts(df_yoy, '')
         
         print("  Merging all comparison types...")
         # Merge all three
         df_quarter_with_scores = merge_all_scores(df_quarter_processed, df_t12m, df_qoq, df_yoy)
+        
+        # Drop any remaining score columns - we only want impacts
+        df_quarter_with_scores = drop_score_columns(df_quarter_with_scores)
         
         # Sort by ticker and date for better readability
         df_quarter_with_scores = df_quarter_with_scores.sort_values(['TICKER', 'Date_Quarter'])
@@ -786,14 +843,17 @@ def main():
         df_quarter_with_scores.to_csv('Data/earnings_quality_quarterly.csv', index=False)
         print(f"Done - Quarterly data processed: {len(df_quarter_with_scores)} records with T12M, QoQ, and YoY scores")
         
-        # Display sample with scores
-        print("\nSample of quarterly data with detailed score drivers:")
-        sample_cols = ['TICKER', 'Date_Quarter', 'Top_Line_Score', 'NII_Sub_Score', 
-                      'Fee_Sub_Score', 'Cost_Cutting_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score']
-        # Filter out rows without scores (first 4 quarters per ticker)
-        sample_data = df_quarter_with_scores[df_quarter_with_scores['Top_Line_Score'].notna()]
-        if len(sample_data) > 0:
-            print(sample_data[sample_cols].head(10))
+        # Display sample with weighted impacts
+        print("\nSample of quarterly data with weighted impacts:")
+        sample_cols = ['TICKER', 'Date_Quarter', 'PBT_Growth_%', 'Top_Line_Impact', 'Cost_Cutting_Impact', 
+                      'NII_Impact', 'Fee_Impact', 'OPEX_Impact', 'Provision_Impact']
+        # Filter columns that exist
+        sample_cols = [col for col in sample_cols if col in df_quarter_with_scores.columns]
+        # Filter out rows without impacts
+        if 'Top_Line_Impact' in df_quarter_with_scores.columns:
+            sample_data = df_quarter_with_scores[df_quarter_with_scores['Top_Line_Impact'].notna()]
+            if len(sample_data) > 0 and sample_cols:
+                print(sample_data[sample_cols].head(10))
         
     except Exception as e:
         print(f"Error processing quarterly data: {e}")
@@ -814,14 +874,17 @@ def main():
         df_year_with_scores.to_csv('Data/earnings_quality_yearly.csv', index=False)
         print(f"Done - Yearly data processed: {len(df_year_with_scores)} records")
         
-        # Display sample with scores
-        print("\nSample of yearly data with detailed score drivers:")
-        sample_cols = ['TICKER', 'Year', 'Top_Line_Score', 'NII_Sub_Score', 
-                      'Fee_Sub_Score', 'Cost_Cutting_Score', 'OPEX_Sub_Score', 'Provision_Sub_Score']
-        # Filter out rows without scores (first year per ticker)
-        sample_data = df_year_with_scores[df_year_with_scores['Top_Line_Score'].notna()]
-        if len(sample_data) > 0:
-            print(sample_data[sample_cols].head(10))
+        # Display sample with weighted impacts
+        print("\nSample of yearly data with weighted impacts:")
+        sample_cols = ['TICKER', 'Year', 'PBT_Growth_%', 'Top_Line_Impact', 'Cost_Cutting_Impact',
+                      'NII_Impact', 'Fee_Impact', 'OPEX_Impact', 'Provision_Impact']
+        # Filter columns that exist
+        sample_cols = [col for col in sample_cols if col in df_year_with_scores.columns]
+        # Filter out rows without impacts
+        if 'Top_Line_Impact' in df_year_with_scores.columns:
+            sample_data = df_year_with_scores[df_year_with_scores['Top_Line_Impact'].notna()]
+            if len(sample_data) > 0 and sample_cols:
+                print(sample_data[sample_cols].head(10))
         
     except Exception as e:
         print(f"Error processing yearly data: {e}")
@@ -835,23 +898,35 @@ def main():
         # Analyze latest year score drivers
         df_year = pd.read_csv('Data/earnings_quality_yearly.csv')
         latest_year = df_year['Year'].max()
-        latest_data = df_year[(df_year['Year'] == latest_year) & (df_year['Top_Line_Score'].notna())].copy()
+        # Check for impact columns instead of score columns
+        if 'Top_Line_Impact' in df_year.columns:
+            latest_data = df_year[(df_year['Year'] == latest_year) & (df_year['Top_Line_Impact'].notna())].copy()
+        else:
+            latest_data = pd.DataFrame()
         
         if len(latest_data) > 0:
-            print(f"\nScore Driver Averages for {latest_year}:")
-            print(f"Top Line Score: {latest_data['Top_Line_Score'].mean():.1f}%")
-            print(f"  - NII Sub-score: {latest_data['NII_Sub_Score'].mean():.1f}%")
-            print(f"  - Fee Sub-score: {latest_data['Fee_Sub_Score'].mean():.1f}%")
-            print(f"Cost Cutting Score: {latest_data['Cost_Cutting_Score'].mean():.1f}%")
-            print(f"  - OPEX Sub-score: {latest_data['OPEX_Sub_Score'].mean():.1f}%")
-            print(f"  - Provision Sub-score: {latest_data['Provision_Sub_Score'].mean():.1f}%")
-            print(f"Non-Recurring Score: {latest_data['Non_Recurring_Score'].mean():.1f}%")
+            print(f"\nWeighted Impact Averages for {latest_year}:")
+            if 'Top_Line_Impact' in latest_data.columns:
+                print(f"Top Line Impact: {latest_data['Top_Line_Impact'].mean():.1f}pp")
+            if 'NII_Impact' in latest_data.columns:
+                print(f"  - NII Impact: {latest_data['NII_Impact'].mean():.1f}pp")
+            if 'Fee_Impact' in latest_data.columns:
+                print(f"  - Fee Impact: {latest_data['Fee_Impact'].mean():.1f}pp")
+            if 'Cost_Cutting_Impact' in latest_data.columns:
+                print(f"Cost Cutting Impact: {latest_data['Cost_Cutting_Impact'].mean():.1f}pp")
+            if 'OPEX_Impact' in latest_data.columns:
+                print(f"  - OPEX Impact: {latest_data['OPEX_Impact'].mean():.1f}pp")
+            if 'Provision_Impact' in latest_data.columns:
+                print(f"  - Provision Impact: {latest_data['Provision_Impact'].mean():.1f}pp")
+            if 'Non_Recurring_Impact' in latest_data.columns:
+                print(f"Non-Recurring Impact: {latest_data['Non_Recurring_Impact'].mean():.1f}pp")
             
             # Identify banks with best NII-driven growth
-            print(f"\n\nTop 5 Banks with NII-Driven Growth ({latest_year}):")
-            top_nii = latest_data.nlargest(5, 'NII_Sub_Score')[
-                ['TICKER', 'Type', 'NII_Sub_Score', 'Fee_Sub_Score', 'Total_Score']
-            ]
+            print(f"\n\nTop 5 Banks with Highest NII Impact ({latest_year}):")
+            if 'NII_Impact' in latest_data.columns:
+                top_nii = latest_data.nlargest(5, 'NII_Impact')[
+                    [col for col in ['TICKER', 'Type', 'NII_Impact', 'Fee_Impact', 'Total_Impact'] if col in latest_data.columns]
+                ]
             print(top_nii.to_string(index=False))
         
     except Exception as e:

@@ -132,8 +132,8 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     model=os.getenv("OPENAI_MODEL", "gpt-5"),
                     messages=messages,
                     tools=tools,
-                    tool_choice="auto",
-                    temperature=0.5
+                    tool_choice="auto"
+                    # Note: GPT-5 only supports default temperature (1.0)
                 )
             except Exception as e:
                 return f"❌ Error calling OpenAI: {str(e)}"

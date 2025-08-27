@@ -387,8 +387,8 @@ def analyze_quarterly_comments(quarter_comments_df, quarter):
                 {"role": "system", "content": "You are a senior banking analyst with expertise in financial analysis and market trends."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.2,
             max_tokens=2000
+            # Note: GPT-5 only supports default temperature (1.0)
         )
         
         # Parse the response into sections
