@@ -104,6 +104,28 @@ class BankingToolSystem:
                 return None
         return self.data.get('valuation')
     
+    @lru_cache(maxsize=1)
+    def _load_earnings_quality_quarterly(self):
+        """Lazy load quarterly earnings quality data"""
+        if 'earnings_quality_quarterly' not in self.data:
+            if (self.data_dir / 'earnings_quality_quarterly.csv').exists():
+                self.data['earnings_quality_quarterly'] = pd.read_csv(self.data_dir / 'earnings_quality_quarterly.csv')
+                self._data_loaded['earnings_quality_quarterly'] = True
+            else:
+                return None
+        return self.data.get('earnings_quality_quarterly')
+    
+    @lru_cache(maxsize=1)
+    def _load_earnings_quality_yearly(self):
+        """Lazy load yearly earnings quality data"""
+        if 'earnings_quality_yearly' not in self.data:
+            if (self.data_dir / 'earnings_quality_yearly.csv').exists():
+                self.data['earnings_quality_yearly'] = pd.read_csv(self.data_dir / 'earnings_quality_yearly.csv')
+                self._data_loaded['earnings_quality_yearly'] = True
+            else:
+                return None
+        return self.data.get('earnings_quality_yearly')
+    
     def tool(self, name: str, description: str, parameters: Dict = None):
         """
         Decorator to register a tool with OpenAI schema
@@ -1018,6 +1040,227 @@ class BankingToolSystem:
                 "analyzed": len(results),
                 "status": "success" if results else "failed"
             }
+        
+        # Tool 11: Get Earnings Drivers
+        @self.tool(
+            name="get_earnings_drivers",
+            description="Get detailed earnings drivers analysis showing what's driving profit changes for one or multiple banks",
+            parameters={
+                "tickers": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple"
+                },
+                "period": {
+                    "type": "string",
+                    "description": "Period in format YYYY-Q# for quarterly (e.g., 2025-Q2) or YYYY for yearly (e.g., 2024)"
+                },
+                "timeframe": {
+                    "type": "string",
+                    "description": "Comparison timeframe",
+                    "enum": ["QoQ", "YoY", "T12M"],
+                    "required": False
+                },
+                "frequency": {
+                    "type": "string",
+                    "description": "Data frequency",
+                    "enum": ["quarterly", "yearly"],
+                    "required": False
+                }
+            }
+        )
+        def get_earnings_drivers(tickers, period: str, timeframe: str = "QoQ", frequency: str = "quarterly") -> Dict:
+            """Get earnings drivers analysis for one or multiple banks"""
+            # Convert single ticker to list for uniform processing
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            
+            # Load appropriate data based on frequency
+            if frequency == "yearly":
+                df = self._load_earnings_quality_yearly()
+                period_col = 'Year'
+                # Yearly data doesn't have QoQ/YoY/T12M suffixes
+                suffix = ""
+            else:
+                df = self._load_earnings_quality_quarterly()
+                period_col = 'Date_Quarter'
+                # Map timeframe to column suffix
+                suffix_map = {
+                    "QoQ": "_QoQ",
+                    "YoY": "_YoY", 
+                    "T12M": "_T12M"
+                }
+                suffix = suffix_map.get(timeframe, "_QoQ")
+            
+            if df is None:
+                return {"error": "Earnings quality data not available", "status": "failed"}
+            
+            results = {}
+            
+            for ticker in tickers:
+                ticker = ticker.upper()
+                
+                # Filter data for ticker and period
+                ticker_data = df[(df['TICKER'] == ticker) & (df[period_col] == period)]
+                
+                if ticker_data.empty:
+                    results[ticker] = {
+                        "error": f"No data found for {ticker} in {period}",
+                        "status": "failed"
+                    }
+                    continue
+                
+                # Extract impact columns based on suffix
+                data_row = ticker_data.iloc[0]
+                
+                # Helper function to get value with suffix
+                def get_value(col_base, use_suffix=True):
+                    col_name = f"{col_base}{suffix}" if use_suffix and suffix else col_base
+                    if col_name in data_row.index:
+                        value = data_row[col_name]
+                        if pd.notna(value):
+                            return float(value)
+                    return None
+                
+                # Helper function to format value
+                def format_value(value, is_percent=False):
+                    if value is None:
+                        return "N/A"
+                    if is_percent:
+                        return f"{value:.1f}%"
+                    return f"{value:.1f}pp"
+                
+                # Extract all impact values
+                pbt_growth = get_value('PBT_Growth_%')
+                revenue_impact = get_value('Top_Line_Impact')
+                cost_impact = get_value('Cost_Cutting_Impact')
+                nonrec_impact = get_value('Non_Recurring_Impact')
+                nii_impact = get_value('NII_Impact')
+                fee_impact = get_value('Fee_Impact')
+                opex_impact = get_value('OPEX_Impact')
+                provision_impact = get_value('Provision_Impact')
+                loan_impact = get_value('Loan_Impact')
+                nim_impact = get_value('NIM_Impact')
+                total_impact = get_value('Total_Impact')
+                
+                # Create structured result
+                earnings_analysis = {
+                    "ticker": ticker,
+                    "period": period,
+                    "timeframe": timeframe if frequency == "quarterly" else "YoY",
+                    "pbt_growth": format_value(pbt_growth, is_percent=True),
+                    "components": {
+                        "revenue": {
+                            "total": format_value(revenue_impact),
+                            "nii": {
+                                "total": format_value(nii_impact),
+                                "loan_growth": format_value(loan_impact),
+                                "nim": format_value(nim_impact)
+                            },
+                            "fees": format_value(fee_impact)
+                        },
+                        "cost": {
+                            "total": format_value(cost_impact),
+                            "opex": format_value(opex_impact),
+                            "provisions": format_value(provision_impact)
+                        },
+                        "non_recurring": format_value(nonrec_impact),
+                        "total_impact": format_value(total_impact)
+                    },
+                    "table": f"""
+Earnings Drivers ({timeframe if frequency == "quarterly" else "YoY"}):
+PBT Growth: {format_value(pbt_growth, is_percent=True)}
+
+Component | Impact
+--- | ---
+Top Line (Revenue) | {format_value(revenue_impact)}
+- NII | {format_value(nii_impact)}
+  - Loan Growth | {format_value(loan_impact)}
+  - NIM | {format_value(nim_impact)}
+- Fee Income | {format_value(fee_impact)}
+Cost Cutting | {format_value(cost_impact)}
+- OPEX | {format_value(opex_impact)}
+- Provisions | {format_value(provision_impact)}
+Non-Recurring | {format_value(nonrec_impact)}
+Total Impact | {format_value(total_impact)}
+""",
+                    "interpretation": _interpret_earnings_drivers(
+                        pbt_growth, revenue_impact, cost_impact, nonrec_impact,
+                        nii_impact, fee_impact, opex_impact, provision_impact
+                    ),
+                    "status": "success"
+                }
+                
+                results[ticker] = earnings_analysis
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1 and len(results) == 1:
+                return results[tickers[0]]
+            
+            # Return batch format for multiple tickers
+            return {
+                "period": period,
+                "timeframe": timeframe if frequency == "quarterly" else "YoY",
+                "frequency": frequency,
+                "results": results,
+                "requested": len(tickers),
+                "successful": sum(1 for r in results.values() if r.get("status") == "success"),
+                "status": "success" if any(r.get("status") == "success" for r in results.values()) else "failed"
+            }
+        
+        def _interpret_earnings_drivers(pbt_growth, revenue_impact, cost_impact, 
+                                       nonrec_impact, nii_impact, fee_impact, 
+                                       opex_impact, provision_impact):
+            """Generate interpretation of earnings drivers"""
+            interpretation = []
+            
+            # Overall profit trend
+            if pbt_growth is not None:
+                if pbt_growth > 0:
+                    interpretation.append(f"Profit grew {abs(pbt_growth):.1f}%")
+                else:
+                    interpretation.append(f"Profit declined {abs(pbt_growth):.1f}%")
+            
+            # Main driver identification
+            impacts = [
+                ("revenue", revenue_impact),
+                ("cost efficiency", cost_impact),
+                ("non-recurring items", nonrec_impact)
+            ]
+            
+            # Sort by absolute impact
+            impacts.sort(key=lambda x: abs(x[1]) if x[1] is not None else 0, reverse=True)
+            
+            main_driver = None
+            if impacts[0][1] is not None and abs(impacts[0][1]) > 5:
+                main_driver = impacts[0][0]
+                interpretation.append(f"Main driver: {main_driver} ({impacts[0][1]:.1f}pp contribution)")
+            
+            # Revenue breakdown
+            if revenue_impact is not None:
+                if revenue_impact > 0:
+                    if nii_impact is not None and nii_impact > fee_impact if fee_impact is not None else True:
+                        interpretation.append(f"Revenue growth driven by NII ({nii_impact:.1f}pp)")
+                    elif fee_impact is not None and fee_impact > 0:
+                        interpretation.append(f"Fee income contributed {fee_impact:.1f}pp")
+                elif revenue_impact < 0:
+                    interpretation.append(f"Revenue headwind of {revenue_impact:.1f}pp")
+            
+            # Cost efficiency
+            if cost_impact is not None:
+                if cost_impact > 0:
+                    if provision_impact is not None and provision_impact > opex_impact if opex_impact is not None else True:
+                        interpretation.append(f"Provision release helped ({provision_impact:.1f}pp)")
+                    elif opex_impact is not None and opex_impact > 0:
+                        interpretation.append(f"OPEX efficiency gained {opex_impact:.1f}pp")
+                elif cost_impact < 0:
+                    interpretation.append(f"Cost pressures reduced profit by {abs(cost_impact):.1f}pp")
+            
+            # Non-recurring warning
+            if nonrec_impact is not None and abs(nonrec_impact) > 10:
+                interpretation.append(f"Note: Significant non-recurring impact of {nonrec_impact:.1f}pp")
+            
+            return " | ".join(interpretation) if interpretation else "No significant drivers identified"
     
     def execute_tool(self, tool_name: str, arguments: Dict = None) -> Dict:
         """Execute a tool by name with arguments"""
