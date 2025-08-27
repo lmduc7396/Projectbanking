@@ -635,10 +635,10 @@ class BankingToolSystem:
             except Exception as e:
                 return {"error": f"Unexpected error: {str(e)}", "status": "failed"}
         
-        # Tool 7: Get AI Commentary (Universal - handles single or multiple)
+        # Tool 7: Get Commentary (Universal - handles single or multiple)
         @self.tool(
-            name="get_ai_commentary",
-            description="Get AI-generated commentary for one or multiple banks",
+            name="get_commentary",
+            description="Get detailed commentary by analysts for one or multiple banks",
             parameters={
                 "tickers": {
                     "type": "array",
