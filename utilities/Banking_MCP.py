@@ -281,9 +281,9 @@ class BankingToolSystem:
             
             # Select metrics based on group
             metric_groups = {
-                "profitability": ["ROA", "ROE", "NIM", "CIR"],
+                "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI"],
                 "asset_quality": ["NPL", "NPL Coverage ratio", "Provision/ Total Loan", "GROUP 2"],
-                "growth": ["Loan", "Deposit", "Total Assets", "NPATMI"]
+                "growth": ["Loan", "Deposit", "Total Assets", "NPATMI", "PBT"]
             }
             
             if metric_group != "all":
