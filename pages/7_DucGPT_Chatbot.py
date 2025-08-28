@@ -95,6 +95,83 @@ def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
     return result
 
 
+def compress_assistant_response(response: str, tool_calls_made: List[str], user_message: str) -> Dict:
+    """Compress assistant response to structured data to save tokens"""
+    import re
+    
+    compressed = {
+        "tickers": [],
+        "periods": [],
+        "metrics": {},
+        "tools": tool_calls_made[:5],  # Keep max 5 tool names
+        "summary": ""
+    }
+    
+    # Extract tickers (3-4 letter uppercase)
+    tickers = re.findall(r'\b[A-Z]{3,4}\b', response + " " + user_message)
+    compressed["tickers"] = list(set(tickers))[:10]  # Keep max 10 unique tickers
+    
+    # Extract periods (quarters and years)
+    quarters = re.findall(r'\b\d{4}-Q\d\b|\bQ\d\s*\d{4}\b|\b20\d{2}\b', response)
+    compressed["periods"] = list(set(quarters))[:5]  # Keep max 5 periods
+    
+    # Extract key metrics (numbers with % or specific keywords)
+    roe_match = re.search(r'ROE[:\s]+([0-9.]+)%', response)
+    if roe_match:
+        compressed["metrics"]["ROE"] = roe_match.group(1) + "%"
+    
+    loan_match = re.search(r'loan.*?([+-]?[0-9.]+)%', response, re.IGNORECASE)
+    if loan_match:
+        compressed["metrics"]["Loan"] = loan_match.group(1) + "%"
+    
+    npl_match = re.search(r'NPL[:\s]+([0-9.]+)%', response)
+    if npl_match:
+        compressed["metrics"]["NPL"] = npl_match.group(1) + "%"
+    
+    # Create ultra-short summary (max 50 chars)
+    if compressed["tickers"] and compressed["periods"]:
+        compressed["summary"] = f"{compressed['tickers'][0]} {compressed['periods'][0]}"
+    elif compressed["tickers"]:
+        compressed["summary"] = f"Analyzed {', '.join(compressed['tickers'][:2])}"
+    else:
+        compressed["summary"] = "Banking analysis"
+    
+    return compressed
+
+
+def reconstruct_context(compressed_history: List[Dict]) -> str:
+    """Reconstruct concise context from compressed history"""
+    if not compressed_history:
+        return ""
+    
+    context_parts = []
+    
+    for item in compressed_history[-3:]:  # Last 3 items
+        if item.get("role") == "user":
+            # Keep user messages short
+            content = item.get("content", "")
+            if len(content) > 100:
+                context_parts.append(f"User asked: {content[:100]}...")
+            else:
+                context_parts.append(f"User asked: {content}")
+        elif item.get("role") == "assistant_compressed":
+            # Reconstruct from compressed data
+            data = item.get("data", {})
+            parts = []
+            if data.get("tickers"):
+                parts.append(f"Discussed {', '.join(data['tickers'][:3])}")
+            if data.get("periods"):
+                parts.append(f"for {', '.join(data['periods'][:2])}")
+            if data.get("metrics"):
+                metrics_str = ", ".join([f"{k}:{v}" for k, v in list(data['metrics'].items())[:3]])
+                if metrics_str:
+                    parts.append(f"({metrics_str})")
+            if parts:
+                context_parts.append(" ".join(parts))
+    
+    return " | ".join(context_parts) if context_parts else ""
+
+
 def extract_fact_from_query(user_message: str, tool_calls_made: List[str]) -> str:
     """Extract a concise fact from user query and tools used"""
     # Simple extraction - can be enhanced later
@@ -148,27 +225,28 @@ def chat_with_ai(user_message: str) -> str:
     # Prepare messages with conversation history
     messages = []
     
-    # Build context from facts memory
-    context_parts = []
-    if st.session_state.facts_memory:
-        context_parts.append(f"Recent context: {'; '.join(st.session_state.facts_memory)}")
+    # Build context from compressed history
+    context_str = reconstruct_context(st.session_state.conversation_history)
     
-    # Add system message with context
+    # Add system message with context and anti-laziness instruction
     system_content = """You are a banking analyst assistant. Use tools to get data, then provide CONCISE analysis.
 IMPORTANT: ALWAYS call get_data_availability() first when user asks for 'latest', 'recent', 'current' data or 'developments'.
-Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
+Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple.
+
+CRITICAL: When processing multiple tickers or 'all banks' requests:
+- For sector requests, retrieve ALL banks in that sector
+- Never truncate lists to save tokens - completeness is required
+"""
     
-    if context_parts:
-        system_content += f"\n\n{' '.join(context_parts)}"
+    if context_str:
+        system_content += f"\n\nPrevious context (for reference only): {context_str}"
     
     messages.append({
         "role": "system",
         "content": system_content
     })
     
-    # Add conversation history (last 3 exchanges)
-    for msg in st.session_state.conversation_history:
-        messages.append(msg)
+    # Don't add full conversation history - context is already in system message
     
     # Add current user message
     messages.append({"role": "user", "content": user_message})
@@ -261,21 +339,20 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             else:
                 final_response = "Please provide a more specific banking-related question."
         
-        # Update conversation history (keep last 3 exchanges)
+        # Update conversation history with compression
+        # Store user message as-is (usually short)
         st.session_state.conversation_history.append({"role": "user", "content": user_message})
-        st.session_state.conversation_history.append({"role": "assistant", "content": final_response})
+        
+        # Compress assistant response to save tokens
+        compressed_response = compress_assistant_response(final_response, tool_calls_made, user_message)
+        st.session_state.conversation_history.append({
+            "role": "assistant_compressed",
+            "data": compressed_response
+        })
         
         # Keep only last 6 messages (3 exchanges)
         if len(st.session_state.conversation_history) > 6:
             st.session_state.conversation_history = st.session_state.conversation_history[-6:]
-        
-        # Update facts memory (keep last 3 facts)
-        if user_message and final_response != "Please provide a more specific banking-related question.":
-            fact = extract_fact_from_query(user_message, tool_calls_made)
-            st.session_state.facts_memory.append(fact)
-            # Keep only last 3 facts
-            if len(st.session_state.facts_memory) > 3:
-                st.session_state.facts_memory = st.session_state.facts_memory[-3:]
         
         return final_response
 
