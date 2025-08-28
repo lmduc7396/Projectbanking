@@ -315,7 +315,10 @@ class BankingToolSystem:
                 if is_quarterly:
                     df = df[df['Date_Quarter'] == period]
                 else:
-                    df = df[df['Year'] == int(period)]
+                    # For yearly, period should be a year number
+                    # Skip if it contains YTD (should have been handled above)
+                    if "YTD" not in period:
+                        df = df[df['Year'] == int(period)]
             
             if df.empty:
                 return {"error": "No data found", "status": "failed"}
