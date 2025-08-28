@@ -1122,15 +1122,7 @@ class BankingToolSystem:
                             return float(value)
                     return None
                 
-                # Helper function to format value
-                def format_value(value, is_percent=False):
-                    if value is None:
-                        return "N/A"
-                    if is_percent:
-                        return f"{value:.1f}%"
-                    return f"{value:.1f}pp"
-                
-                # Extract all impact values
+                # Extract all impact values (return numeric values directly)
                 pbt_growth = get_value('PBT_Growth_%')
                 revenue_impact = get_value('Top_Line_Impact')
                 cost_impact = get_value('Cost_Cutting_Impact')
@@ -1143,51 +1135,29 @@ class BankingToolSystem:
                 nim_impact = get_value('NIM_Impact')
                 total_impact = get_value('Total_Impact')
                 
-                # Create structured result
+                # Helper to round values for cleaner JSON
+                def clean_value(value):
+                    if value is None:
+                        return None
+                    return round(value, 1)
+                
+                # Create simplified, flat structure
                 earnings_analysis = {
                     "ticker": ticker,
                     "period": period,
                     "timeframe": timeframe if frequency == "quarterly" else "YoY",
-                    "pbt_growth": format_value(pbt_growth, is_percent=True),
-                    "components": {
-                        "revenue": {
-                            "total": format_value(revenue_impact),
-                            "nii": {
-                                "total": format_value(nii_impact),
-                                "loan_growth": format_value(loan_impact),
-                                "nim": format_value(nim_impact)
-                            },
-                            "fees": format_value(fee_impact)
-                        },
-                        "cost": {
-                            "total": format_value(cost_impact),
-                            "opex": format_value(opex_impact),
-                            "provisions": format_value(provision_impact)
-                        },
-                        "non_recurring": format_value(nonrec_impact),
-                        "total_impact": format_value(total_impact)
+                    "pbt_growth": clean_value(pbt_growth),
+                    "revenue_impact": clean_value(revenue_impact),
+                    "cost_impact": clean_value(cost_impact),
+                    "non_recurring": clean_value(nonrec_impact),
+                    "details": {
+                        "nii": clean_value(nii_impact),
+                        "loan": clean_value(loan_impact),
+                        "nim": clean_value(nim_impact),
+                        "fees": clean_value(fee_impact),
+                        "opex": clean_value(opex_impact),
+                        "provisions": clean_value(provision_impact)
                     },
-                    "table": f"""
-Earnings Drivers ({timeframe if frequency == "quarterly" else "YoY"}):
-PBT Growth: {format_value(pbt_growth, is_percent=True)}
-
-Component | Impact
---- | ---
-Top Line (Revenue) | {format_value(revenue_impact)}
-- NII | {format_value(nii_impact)}
-  - Loan Growth | {format_value(loan_impact)}
-  - NIM | {format_value(nim_impact)}
-- Fee Income | {format_value(fee_impact)}
-Cost Cutting | {format_value(cost_impact)}
-- OPEX | {format_value(opex_impact)}
-- Provisions | {format_value(provision_impact)}
-Non-Recurring | {format_value(nonrec_impact)}
-Total Impact | {format_value(total_impact)}
-""",
-                    "interpretation": _interpret_earnings_drivers(
-                        pbt_growth, revenue_impact, cost_impact, nonrec_impact,
-                        nii_impact, fee_impact, opex_impact, provision_impact
-                    ),
                     "status": "success"
                 }
                 
@@ -1208,59 +1178,6 @@ Total Impact | {format_value(total_impact)}
                 "status": "success" if any(r.get("status") == "success" for r in results.values()) else "failed"
             }
         
-        def _interpret_earnings_drivers(pbt_growth, revenue_impact, cost_impact, 
-                                       nonrec_impact, nii_impact, fee_impact, 
-                                       opex_impact, provision_impact):
-            """Generate interpretation of earnings drivers"""
-            interpretation = []
-            
-            # Overall profit trend
-            if pbt_growth is not None:
-                if pbt_growth > 0:
-                    interpretation.append(f"Profit grew {abs(pbt_growth):.1f}%")
-                else:
-                    interpretation.append(f"Profit declined {abs(pbt_growth):.1f}%")
-            
-            # Main driver identification
-            impacts = [
-                ("revenue", revenue_impact),
-                ("cost efficiency", cost_impact),
-                ("non-recurring items", nonrec_impact)
-            ]
-            
-            # Sort by absolute impact
-            impacts.sort(key=lambda x: abs(x[1]) if x[1] is not None else 0, reverse=True)
-            
-            main_driver = None
-            if impacts[0][1] is not None and abs(impacts[0][1]) > 5:
-                main_driver = impacts[0][0]
-                interpretation.append(f"Main driver: {main_driver} ({impacts[0][1]:.1f}pp contribution)")
-            
-            # Revenue breakdown
-            if revenue_impact is not None:
-                if revenue_impact > 0:
-                    if nii_impact is not None and nii_impact > fee_impact if fee_impact is not None else True:
-                        interpretation.append(f"Revenue growth driven by NII ({nii_impact:.1f}pp)")
-                    elif fee_impact is not None and fee_impact > 0:
-                        interpretation.append(f"Fee income contributed {fee_impact:.1f}pp")
-                elif revenue_impact < 0:
-                    interpretation.append(f"Revenue headwind of {revenue_impact:.1f}pp")
-            
-            # Cost efficiency
-            if cost_impact is not None:
-                if cost_impact > 0:
-                    if provision_impact is not None and provision_impact > opex_impact if opex_impact is not None else True:
-                        interpretation.append(f"Provision release helped ({provision_impact:.1f}pp)")
-                    elif opex_impact is not None and opex_impact > 0:
-                        interpretation.append(f"OPEX efficiency gained {opex_impact:.1f}pp")
-                elif cost_impact < 0:
-                    interpretation.append(f"Cost pressures reduced profit by {abs(cost_impact):.1f}pp")
-            
-            # Non-recurring warning
-            if nonrec_impact is not None and abs(nonrec_impact) > 10:
-                interpretation.append(f"Note: Significant non-recurring impact of {nonrec_impact:.1f}pp")
-            
-            return " | ".join(interpretation) if interpretation else "No significant drivers identified"
     
     def execute_tool(self, tool_name: str, arguments: Dict = None) -> Dict:
         """Execute a tool by name with arguments"""
