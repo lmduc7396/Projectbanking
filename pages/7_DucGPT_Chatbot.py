@@ -39,7 +39,13 @@ from utilities.Banking_MCP import get_tool_system
 # Load environment variables
 load_dotenv()
 
-# Initialize session state (removed conversation history)
+# Initialize session state with conversation memory
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = []  # Last 3 message pairs
+if 'facts_memory' not in st.session_state:
+    st.session_state.facts_memory = []  # Key facts from last 3 questions
+if 'tool_cache' not in st.session_state:
+    st.session_state.tool_cache = {}  # Cache tool results with TTL
 if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
 if 'openai_client' not in st.session_state:
@@ -53,8 +59,19 @@ if 'tool_system' not in st.session_state:
 
 
 def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
-    """Execute a tool and return results"""
+    """Execute a tool and return results with caching"""
     tool_system = st.session_state.tool_system
+    
+    # Create cache key
+    cache_key = f"{tool_name}_{json.dumps(arguments, sort_keys=True)}"
+    
+    # Check cache (5 minute TTL)
+    if cache_key in st.session_state.tool_cache:
+        cached_entry = st.session_state.tool_cache[cache_key]
+        cache_age = (datetime.now() - cached_entry['timestamp']).total_seconds()
+        if cache_age < 300:  # 5 minutes
+            # Return cached result
+            return cached_entry['result']
     
     # Log the tool execution
     execution_log = {
@@ -66,10 +83,40 @@ def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
     # Execute the tool
     result = tool_system.execute_tool(tool_name, arguments)
     
+    # Cache the result
+    st.session_state.tool_cache[cache_key] = {
+        'result': result,
+        'timestamp': datetime.now()
+    }
+    
     execution_log["result"] = result
     st.session_state.tool_executions.append(execution_log)
     
     return result
+
+
+def extract_fact_from_query(user_message: str, tool_calls_made: List[str]) -> str:
+    """Extract a concise fact from user query and tools used"""
+    # Simple extraction - can be enhanced later
+    fact_parts = []
+    
+    # Extract main entities from message (tickers, quarters, metrics)
+    import re
+    tickers = re.findall(r'\b[A-Z]{3,4}\b', user_message)
+    quarters = re.findall(r'\b\d{4}-Q\d\b|\bQ\d\s*\d{4}\b', user_message)
+    
+    if tickers:
+        fact_parts.append(f"Asked about {', '.join(tickers[:2])}")
+    if quarters:
+        fact_parts.append(f"for {quarters[0]}")
+    if tool_calls_made:
+        # Get unique tool types
+        tool_types = list(set([t.split('_')[0] for t in tool_calls_made[:3]]))
+        fact_parts.append(f"({', '.join(tool_types)} data)")
+    
+    if fact_parts:
+        return ' '.join(fact_parts)
+    return f"Query: {user_message[:50]}..."
 
 
 def format_tool_result(result: Dict) -> str:
@@ -93,24 +140,37 @@ def format_tool_result(result: Dict) -> str:
 
 def chat_with_ai(user_message: str) -> str:
     """
-    Send message to OpenAI and handle tool calls
-    Allows unlimited tool execution rounds for complete analysis
+    Send message to OpenAI and handle tool calls with conversation memory
     """
     if not st.session_state.openai_client:
         return "❌ OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file."
     
-    # Prepare messages (NO conversation history - single Q&A mode)
+    # Prepare messages with conversation history
     messages = []
     
-    # Add system message
-    messages.append({
-        "role": "system",
-        "content": """You are a banking analyst assistant. Use tools to get data, then provide CONCISE analysis.
+    # Build context from facts memory
+    context_parts = []
+    if st.session_state.facts_memory:
+        context_parts.append(f"Recent context: {'; '.join(st.session_state.facts_memory)}")
+    
+    # Add system message with context
+    system_content = """You are a banking analyst assistant. Use tools to get data, then provide CONCISE analysis.
 IMPORTANT: ALWAYS call get_data_availability() first when user asks for 'latest', 'recent', 'current' data or 'developments'.
 Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
+    
+    if context_parts:
+        system_content += f"\n\n{' '.join(context_parts)}"
+    
+    messages.append({
+        "role": "system",
+        "content": system_content
     })
     
-    # Add current user message only (no history)
+    # Add conversation history (last 3 exchanges)
+    for msg in st.session_state.conversation_history:
+        messages.append(msg)
+    
+    # Add current user message
     messages.append({"role": "user", "content": user_message})
     
     # Get tool schemas
@@ -122,6 +182,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
         rounds = 0
         final_response = None
         tool_call_count = 0
+        tool_calls_made = []  # Track tool names for fact extraction
         
         while rounds < max_rounds:
             rounds += 1
@@ -154,6 +215,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     
                     # Update status with counter
                     tool_call_count += 1
+                    tool_calls_made.append(function_name)
                     tool_status.info(f"🔧 Executing tool #{tool_call_count}: **{function_name}**")
                     
                     # Execute the tool
@@ -199,6 +261,22 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             else:
                 final_response = "Please provide a more specific banking-related question."
         
+        # Update conversation history (keep last 3 exchanges)
+        st.session_state.conversation_history.append({"role": "user", "content": user_message})
+        st.session_state.conversation_history.append({"role": "assistant", "content": final_response})
+        
+        # Keep only last 6 messages (3 exchanges)
+        if len(st.session_state.conversation_history) > 6:
+            st.session_state.conversation_history = st.session_state.conversation_history[-6:]
+        
+        # Update facts memory (keep last 3 facts)
+        if user_message and final_response != "Please provide a more specific banking-related question.":
+            fact = extract_fact_from_query(user_message, tool_calls_made)
+            st.session_state.facts_memory.append(fact)
+            # Keep only last 3 facts
+            if len(st.session_state.facts_memory) > 3:
+                st.session_state.facts_memory = st.session_state.facts_memory[-3:]
+        
         return final_response
 
 
@@ -243,17 +321,17 @@ def main():
             )
     
     # Main chat interface
-    st.header("💬 Chat (Single Question Mode)")
+    st.header("💬 Chat with Context Memory")
     
-    # Always show rules (no history to check)
-    st.info("**Rules - Please Read:**")
+    # Show conversation info
+    st.info("**Conversation Mode Active:**")
     col1, col2 = st.columns(2)
     with col1:
         st.write("1. Be specific (e.g., ask for PB not just 'valuation')")
         st.write("2. Available: historical, forecast, analysis, stock data")
     with col2:
         st.write("3. Sectors: SOCB, Private_1, Private_2, Private_3")
-        st.write("4. Each question is independent (no context saved)")
+        st.write("4. Context from last 3 questions is remembered")
     
     # Chat input
     user_input = st.chat_input("Ask DucGPT")
@@ -272,8 +350,6 @@ def main():
             
             # Display response
             response_container.write(response)
-        
-        # NO conversation history saved - each query is independent
     
     # Tool execution history (in expander)
     if st.session_state.tool_executions:
