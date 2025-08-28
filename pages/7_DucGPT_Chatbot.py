@@ -281,7 +281,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
 
 
 def main():
-    st.title("DucGPT MCP version")
+    st.title("Duc - AI Chatbot")
     st.markdown("Only banking related questions are supported.")
     
     # Check API key
@@ -320,11 +320,9 @@ def main():
                 "application/json"
             )
     
-    # Main chat interface
-    st.header("💬 Chat with Context Memory")
     
     # Show conversation info
-    st.info("**Conversation Mode Active:**")
+    st.info("**Rules for your questions**")
     col1, col2 = st.columns(2)
     with col1:
         st.write("1. Be specific (e.g., ask for PB not just 'valuation')")
@@ -334,7 +332,7 @@ def main():
         st.write("4. Context from last 3 questions is remembered")
     
     # Chat input
-    user_input = st.chat_input("Ask DucGPT")
+    user_input = st.chat_input("Ask Duc AI")
     
     if user_input:
         # Add user message to display
