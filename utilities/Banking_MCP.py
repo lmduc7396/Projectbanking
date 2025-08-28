@@ -255,15 +255,20 @@ class BankingToolSystem:
                     "description": "Multiple periods like [\"2025-Q1\", \"2025-Q2\", \"2025-Q3\"] for getting multiple quarters at once",
                     "required": False
                 },
+                "metric": {
+                    "type": "string",
+                    "description": "Single metric to query (e.g., 'NIM', 'NPL', 'PBT', 'ROA'). Use this OR metric_group for efficiency.",
+                    "required": False
+                },
                 "metric_group": {
                     "type": "string", 
-                    "description": "Metric group: all, profitability, asset_quality, growth",
+                    "description": "Metric group: all, profitability, asset_quality, growth. Use metric for single indicators to save cost.",
                     "enum": ["all", "profitability", "asset_quality", "growth"],
                     "required": False
                 }
             }
         )
-        def query_historical_data(frequency: str, tickers = None, period: str = None, periods = None, metric_group: str = "all") -> Dict:
+        def query_historical_data(frequency: str, tickers = None, period: str = None, periods = None, metric: str = None, metric_group: str = "all") -> Dict:
             """Query historical data for one or multiple banks"""
             # Check if YTD format is being used - force quarterly if so
             has_ytd = (period and "YTD" in period) or (periods and any("YTD" in str(p) for p in periods if p))
@@ -323,14 +328,21 @@ class BankingToolSystem:
             if df.empty:
                 return {"error": "No data found", "status": "failed"}
             
-            # Select metrics based on group
-            metric_groups = {
-                "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI"],
-                "asset_quality": ["NPL", "NPL Coverage ratio", "Provision/ Total Loan", "GROUP 2"],
-                "growth": ["Loan", "Deposit", "Total Assets", "NPATMI", "PBT"]
-            }
-            
-            if metric_group != "all":
+            # Select metrics - single metric takes precedence over metric_group
+            if metric:
+                # Query single metric for efficiency
+                if metric in df.columns:
+                    id_cols = ['TICKER', 'Year' if 'Year' in df.columns else 'Date_Quarter']
+                    df = df[id_cols + [metric]]
+                else:
+                    return {"error": f"Metric '{metric}' not found in data", "status": "failed"}
+            elif metric_group != "all":
+                # Query metric group
+                metric_groups = {
+                    "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI"],
+                    "asset_quality": ["NPL", "NPL Coverage ratio", "Provision/ Total Loan", "GROUP 2"],
+                    "growth": ["Loan", "Deposit", "Total Assets", "NPATMI", "PBT"]
+                }
                 metrics = metric_groups.get(metric_group, [])
                 available_metrics = [m for m in metrics if m in df.columns]
                 if available_metrics:
