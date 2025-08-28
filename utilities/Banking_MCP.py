@@ -265,9 +265,17 @@ class BankingToolSystem:
         )
         def query_historical_data(frequency: str, tickers = None, period: str = None, periods = None, metric_group: str = "all") -> Dict:
             """Query historical data for one or multiple banks"""
+            # Check if YTD format is being used - force quarterly if so
+            has_ytd = (period and "YTD" in period) or (periods and any("YTD" in str(p) for p in periods if p))
+            
             # Determine if quarterly or yearly based on frequency parameter
-            is_quarterly = (frequency == "quarterly")
-            df = self._load_historical_quarter() if is_quarterly else self._load_historical_year()
+            # Override to quarterly if YTD is detected
+            if has_ytd:
+                is_quarterly = True  # Force quarterly for YTD queries
+                df = self._load_historical_quarter()
+            else:
+                is_quarterly = (frequency == "quarterly")
+                df = self._load_historical_quarter() if is_quarterly else self._load_historical_year()
             
             # Apply ticker filter if specified
             if tickers:
@@ -276,7 +284,7 @@ class BankingToolSystem:
                 tickers = [t.upper() for t in tickers]
                 df = df[df['TICKER'].isin(tickers)]
             
-            # Handle YTD format
+            # Handle YTD format in period
             if period and "YTD" in period and is_quarterly:
                 year = period.split("-")[0]
                 # Get current date to determine which quarters to include
@@ -298,6 +306,7 @@ class BankingToolSystem:
                 else:
                     # For past years, get all available quarters
                     periods = [f"{year}-Q1", f"{year}-Q2", f"{year}-Q3", f"{year}-Q4"]
+            
             
             # Handle multiple periods
             if periods and is_quarterly:
