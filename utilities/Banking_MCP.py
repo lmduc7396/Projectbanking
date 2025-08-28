@@ -248,7 +248,13 @@ class BankingToolSystem:
                     "description": "List of bank tickers - use [\"VCB\"] for single, [\"VCB\", \"ACB\"] for multiple",
                     "required": False
                 },
-                "period": {"type": "string", "description": "Period like 2024-Q3 or 2024", "required": False},
+                "period": {"type": "string", "description": "Single period like 2024-Q3, 2024, or YTD format like 2025-YTD", "required": False},
+                "periods": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Multiple periods like [\"2025-Q1\", \"2025-Q2\", \"2025-Q3\"] for getting multiple quarters at once",
+                    "required": False
+                },
                 "metric_group": {
                     "type": "string", 
                     "description": "Metric group: all, profitability, asset_quality, growth",
@@ -257,7 +263,7 @@ class BankingToolSystem:
                 }
             }
         )
-        def query_historical_data(frequency: str, tickers = None, period: str = None, metric_group: str = "all") -> Dict:
+        def query_historical_data(frequency: str, tickers = None, period: str = None, periods = None, metric_group: str = "all") -> Dict:
             """Query historical data for one or multiple banks"""
             # Determine if quarterly or yearly based on frequency parameter
             is_quarterly = (frequency == "quarterly")
@@ -270,7 +276,33 @@ class BankingToolSystem:
                 tickers = [t.upper() for t in tickers]
                 df = df[df['TICKER'].isin(tickers)]
             
-            if period:
+            # Handle YTD format
+            if period and "YTD" in period and is_quarterly:
+                year = period.split("-")[0]
+                # Get current date to determine which quarters to include
+                from datetime import datetime
+                current_month = datetime.now().month
+                current_year = datetime.now().year
+                
+                # Determine quarters to include based on current date
+                if int(year) == current_year:
+                    # For current year, only include completed quarters
+                    if current_month >= 10:
+                        periods = [f"{year}-Q1", f"{year}-Q2", f"{year}-Q3"]
+                    elif current_month >= 7:
+                        periods = [f"{year}-Q1", f"{year}-Q2"]
+                    elif current_month >= 4:
+                        periods = [f"{year}-Q1"]
+                    else:
+                        periods = []  # No completed quarters yet
+                else:
+                    # For past years, get all available quarters
+                    periods = [f"{year}-Q1", f"{year}-Q2", f"{year}-Q3", f"{year}-Q4"]
+            
+            # Handle multiple periods
+            if periods and is_quarterly:
+                df = df[df['Date_Quarter'].isin(periods)]
+            elif period:
                 if is_quarterly:
                     df = df[df['Date_Quarter'] == period]
                 else:
@@ -294,12 +326,18 @@ class BankingToolSystem:
                     df = df[id_cols + available_metrics]
             
             # Return summary
-            return {
+            result = {
                 "records": len(df),
-                "data": df.head(10).to_dict('records'),
+                "data": df.to_dict('records'),  # Return all records, not just head
                 "columns": df.columns.tolist(),
                 "status": "success"
             }
+            
+            # Add period information if multiple periods were queried
+            if periods:
+                result["periods_included"] = periods
+            
+            return result
         
         # Tool 5: Query Forecast Data (Universal - handles single or multiple)
         @self.tool(
