@@ -47,6 +47,8 @@ if 'tool_cache' not in st.session_state:
     st.session_state.tool_cache = {}
 if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
+if 'selected_model' not in st.session_state:
+    st.session_state.selected_model = "gpt-5"
 
 # Initialize tool system FIRST (before OpenAI client which might use it)
 if 'tool_system' not in st.session_state:
@@ -223,7 +225,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
         try:
             # Call OpenAI with streaming
             stream = st.session_state.openai_client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-5"),
+                model=st.session_state.selected_model,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
@@ -476,6 +478,16 @@ def main():
                 "tool_history.json",
                 "application/json"
             )
+    
+    # Model selection
+    col1, col2, col3 = st.columns([2, 3, 2])
+    with col2:
+        st.session_state.selected_model = st.selectbox(
+            "Select AI Model:",
+            options=["gpt-5", "gpt-5-mini"],
+            index=0 if st.session_state.selected_model == "gpt-5" else 1,
+            help="GPT-5: More capable, better reasoning | GPT-5-mini: Faster, more cost-effective"
+        )
     
     # Show conversation info
     st.info("**Rules for your questions**")
