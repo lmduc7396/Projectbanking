@@ -4,6 +4,13 @@ Streamlit interface for OpenAI-powered banking analysis with tool execution
 """
 
 import streamlit as st
+
+# Page configuration - MUST be first Streamlit command
+st.set_page_config(
+    page_title="DucGPT Chatbot",
+    layout="wide"
+)
+
 import pandas as pd
 import json
 import os
@@ -17,12 +24,6 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
 import threading
-
-# Page configuration
-st.set_page_config(
-    page_title="DucGPT Chatbot",
-    layout="wide"
-)
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -73,6 +74,8 @@ if 'openai_client' not in st.session_state:
 
 def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
     """Execute a tool and return results with caching"""
+    if 'tool_system' not in st.session_state or not st.session_state.tool_system:
+        return {"status": "failed", "error": "Tool system not initialized"}
     tool_system = st.session_state.tool_system
     
     # Create cache key
@@ -196,7 +199,7 @@ def chat_with_ai_streaming(user_message: str):
         st.error("❌ OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.")
         return
     
-    if not st.session_state.tool_system:
+    if 'tool_system' not in st.session_state or not st.session_state.tool_system:
         st.error("❌ Tool system not initialized. Please refresh the page.")
         return
     
@@ -215,7 +218,11 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     messages.append({"role": "user", "content": user_message})
     
     # Get tool schemas
-    tools = st.session_state.tool_system.get_openai_tools()
+    if 'tool_system' in st.session_state and st.session_state.tool_system:
+        tools = st.session_state.tool_system.get_openai_tools()
+    else:
+        st.error("Tool system not available")
+        return
     
     # Create containers for streaming
     response_container = st.empty()
