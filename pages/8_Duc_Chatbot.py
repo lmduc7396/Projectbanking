@@ -505,7 +505,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
 
 def main():
     st.title("Duc - AI Chatbot")
-    st.markdown("Only banking related questions are supported.")
+    st.markdown("This chatbot can draw charts, provide analysis and fetch banking data")
     
     # Add custom CSS for iPhone-style message bubbles
     st.markdown("""
@@ -611,14 +611,14 @@ def main():
     st.info("**Rules for your questions**")
     col1, col2 = st.columns(2)
     with col1:
-        st.write("1. Be specific (e.g., ask for PB not just 'valuation')")
-        st.write("2. Available: historical, forecast, analysis, stock data")
+        st.write("1. Be specific (e.g., ask for PB not just 'valuation', or PBT, not just 'earnings')")
+        st.write("2. Available: historical, forecast, analysis, stock data, charting")
     with col2:
         st.write("3. Sectors: SOCB, Private_1, Private_2, Private_3")
-        st.write("4. Context from last 3 questions is remembered")
+        st.write("4. Short conversation is supported")
     
     # Chat input
-    user_input = st.chat_input("Ask Duc AI")
+    user_input = st.chat_input("Ask Duc something ...")
     
     if user_input:
         # Add user message to display
