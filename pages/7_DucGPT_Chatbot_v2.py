@@ -57,9 +57,10 @@ if 'tool_executions' not in st.session_state:
 if 'tool_system' not in st.session_state:
     try:
         st.session_state.tool_system = get_tool_system()
+        st.session_state.tool_system_error = None
     except Exception as e:
-        st.error(f"Failed to initialize tool system: {e}")
         st.session_state.tool_system = None
+        st.session_state.tool_system_error = str(e)
 
 # Initialize OpenAI client
 if 'openai_client' not in st.session_state:
@@ -397,6 +398,8 @@ def main():
     # Check tool system
     if 'tool_system' not in st.session_state or not st.session_state.tool_system:
         st.error("⚠️ Tool system not initialized!")
+        if 'tool_system_error' in st.session_state and st.session_state.tool_system_error:
+            st.error(f"Error details: {st.session_state.tool_system_error}")
         st.info("Please refresh the page or check that the Banking_MCP module is properly installed.")
         return
     
@@ -406,9 +409,12 @@ def main():
         
         # Show available tools
         with st.expander("📋 Available Tools", expanded=False):
-            tools = st.session_state.tool_system.get_tool_list()
-            for tool in tools:
-                st.write(f"• {tool}")
+            if 'tool_system' in st.session_state and st.session_state.tool_system:
+                tools = st.session_state.tool_system.get_tool_list()
+                for tool in tools:
+                    st.write(f"• {tool}")
+            else:
+                st.write("Tool system not initialized")
         
         # Clear tool executions
         if st.button("🗑️ Clear Tool History"):
