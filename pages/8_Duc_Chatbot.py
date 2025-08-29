@@ -129,8 +129,8 @@ def create_plotly_chart(chart_spec: Dict) -> go.Figure:
     y_label = chart_spec.get("y_label", "")
     y_format = chart_spec.get("y_format", "number")
     
-    # Define custom color palette - #398278 (teal) and darker grey
-    custom_colors = ['#398278', '#4A4A4A', '#7A7A7A', '#5A8A7F', '#2D5E52', '#8B8B8B']
+    # Define custom color palette - #398278 (teal) and #cc7c5e (terracotta)
+    custom_colors = ['#398278', '#cc7c5e', '#5A8A7F', '#e6a085', '#2D5E52', '#b5694f']
     
     # Create figure
     fig = go.Figure()
