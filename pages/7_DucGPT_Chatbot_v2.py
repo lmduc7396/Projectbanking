@@ -394,6 +394,12 @@ def main():
         st.code("OPENAI_API_KEY=your-api-key-here")
         return
     
+    # Check tool system
+    if not st.session_state.tool_system:
+        st.error("⚠️ Tool system not initialized!")
+        st.info("Please refresh the page or check that the Banking_MCP module is properly installed.")
+        return
+    
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
