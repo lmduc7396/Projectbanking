@@ -54,14 +54,27 @@ st.markdown("""
 
 st.title(' ')
 
-# OPTIMIZED: Load data with better caching
-@st.cache_data(ttl=3600)  # Refresh cache every hour
+# Function to detect the last complete year from historical data
+@st.cache_data(ttl=3600)
+def get_last_historical_year():
+    """Detect the last complete year (LENGTHREPORT=5) from original historical data"""
+    # Read original IS data to find the last complete year
+    dfis = pd.read_csv(os.path.join(project_root, 'Data/IS_Bank.csv'))
+    # Find years that have LENGTHREPORT=5 (complete year data)
+    complete_years = dfis[dfis['LENGTHREPORT'] == 5]['YEARREPORT'].unique()
+    if len(complete_years) > 0:
+        return int(max(complete_years))
+    return None
+
+# Load data
+@st.cache_data(ttl=3600)
 def load_data():
     """Load all required data in one optimized function"""
     df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
     
-    # Load forecast data if it exists and combine with historical
+    # Load forecast data if it exists
     forecast_file = os.path.join(project_root, 'Data/dfsectorforecast.parquet')
+    df_forecast = None
     if os.path.exists(forecast_file):
         df_forecast = pd.read_parquet(forecast_file)
         # Combine historical and forecast data
@@ -70,29 +83,24 @@ def load_data():
     df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     
-    # Dynamically determine forecast years from data
-    # Get years from actual bank data (3-letter tickers only)
-    years_with_data = df_year[df_year['TICKER'].str.len() == 3]['Year'].unique()
-    years_with_data = sorted(years_with_data)
-    
-    # Find the most recent historical year (not a forecast year)
-    # Forecast years are typically the last 2 years in the data
-    if len(years_with_data) >= 3:
-        last_complete_year = int(years_with_data[-3])  # Third from last is the last complete year
-        forecast_year_1 = int(years_with_data[-2])     # Second from last is first forecast year
-        forecast_year_2 = int(years_with_data[-1])     # Last is second forecast year
-    else:
-        # If not enough years, use the available years
-        last_complete_year = int(years_with_data[0]) if years_with_data else None
-        forecast_year_1 = last_complete_year + 1 if last_complete_year else None
-        forecast_year_2 = last_complete_year + 2 if last_complete_year else None
-    
     # Pre-process quarter data
     df_quarter['Year'] = 2000 + df_quarter['Date_Quarter'].str.extract(r'Q(\d+)', expand=False).astype(int)
     
-    return df_year, df_quarter, keyitem, last_complete_year, forecast_year_1, forecast_year_2
+    return df_year, df_quarter, df_forecast, keyitem
 
-df_year, df_quarter, keyitem, last_complete_year, forecast_year_1, forecast_year_2 = load_data()
+df_year, df_quarter, df_forecast, keyitem = load_data()
+
+# Get the last historical year
+last_complete_year = get_last_historical_year()
+
+# Determine forecast years from the forecast data
+if df_forecast is not None:
+    forecast_years = sorted(df_forecast['Year'].unique())
+    forecast_year_1 = forecast_years[0] if len(forecast_years) > 0 else last_complete_year + 1
+    forecast_year_2 = forecast_years[1] if len(forecast_years) > 1 else forecast_year_1 + 1
+else:
+    forecast_year_1 = last_complete_year + 1
+    forecast_year_2 = last_complete_year + 2
 
 # OPTIMIZED: Vectorized filtering for banks with forecast
 forecast_mask = df_year['Year'].isin([forecast_year_1, forecast_year_2])
