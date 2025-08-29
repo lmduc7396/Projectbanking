@@ -210,8 +210,11 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     max_rounds = 20
     rounds = 0
     
-    # Show initial typing indicator
-    typing_container.info("Duc is typing...")
+    # Show initial typing indicator with custom styling
+    typing_container.markdown(
+        '<div style="background-color: #DDDDD6; padding: 8px 16px; border-radius: 8px; display: inline-block; font-size: 14px; color: #333;">Duc is typing...</div>',
+        unsafe_allow_html=True
+    )
     
     # Main chat loop
     while rounds < max_rounds:
