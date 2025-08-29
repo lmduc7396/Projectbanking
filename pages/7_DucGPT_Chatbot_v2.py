@@ -210,6 +210,9 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     max_rounds = 20
     rounds = 0
     
+    # Show initial typing indicator
+    typing_container.info("Duc is typing...")
+    
     # Main chat loop
     while rounds < max_rounds:
         rounds += 1
@@ -252,6 +255,9 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                 
                 # Check for content (non-tool response)
                 if delta.content and not is_tool_call:
+                    # Clear typing indicator when actual content starts streaming
+                    if not assistant_content:  # First content chunk
+                        typing_container.empty()
                     assistant_content += delta.content
                     accumulated_response += delta.content
                     # Stream the response to user
@@ -263,8 +269,8 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             
             # Handle tool calls if any
             if current_tool_calls:
-                # Show prominent "Duc is typing" status while processing tools
-                typing_container.info("Duc is typing...")
+                # Keep the typing indicator visible during tool execution
+                # (it's already shown at the start of the loop)
                 
                 # Collect tool names for minimal display
                 tool_names = []
@@ -311,8 +317,8 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                         "result": result
                     })
                 
-                # Clear the "Duc is typing" message
-                typing_container.empty()
+                # Don't clear typing here - let it stay until response starts
+                # The typing indicator will be cleared when actual content starts streaming
                 
                 # Show minimal tool summary (small captions below)
                 with tool_status_container:
