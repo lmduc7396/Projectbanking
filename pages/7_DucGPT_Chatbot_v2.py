@@ -51,15 +51,27 @@ if 'tool_cache' not in st.session_state:
 if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
 
+# Debug session state
+st.write("Debug: Session state keys:", list(st.session_state.keys()))
+
 # Initialize tool system FIRST (before OpenAI client which might use it)
 if 'tool_system' not in st.session_state:
+    st.write("Debug: tool_system not in session state, initializing...")
     try:
         from utilities.Banking_MCP import get_tool_system
-        st.session_state.tool_system = get_tool_system()
+        tool_sys = get_tool_system()
+        st.write(f"Debug: get_tool_system returned: {tool_sys}")
+        st.session_state.tool_system = tool_sys
         st.session_state.tool_system_error = None
+        st.write(f"Debug: tool_system set in session state: {st.session_state.tool_system}")
     except Exception as e:
+        st.write(f"Debug: Exception occurred: {e}")
         st.session_state.tool_system = None
         st.session_state.tool_system_error = str(e)
+        import traceback
+        st.code(traceback.format_exc())
+else:
+    st.write(f"Debug: tool_system already in session state: {st.session_state.tool_system}")
 
 # Initialize OpenAI client
 if 'openai_client' not in st.session_state:
