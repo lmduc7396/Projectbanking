@@ -262,14 +262,17 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             
             # Handle tool calls if any
             if current_tool_calls:
-                # Show execution status
-                with tool_status_container:
-                    st.info(f"🔧 Executing {len(current_tool_calls)} tool(s)...")
-                    
-                    for i, tool_call in enumerate(current_tool_calls):
-                        tool_name = tool_call['function']['name']
-                        tool_calls_made.append(tool_name)
-                        tool_call_count += 1
+                # Show "Duc is typing" status
+                typing_status = tool_status_container.empty()
+                typing_status.caption("_Duc is typing..._")
+                
+                # Collect tool names for minimal display
+                tool_names = []
+                for i, tool_call in enumerate(current_tool_calls):
+                    tool_name = tool_call['function']['name']
+                    tool_calls_made.append(tool_name)
+                    tool_names.append(tool_name)
+                    tool_call_count += 1
                 
                 # Execute tools in parallel (background)
                 start_time = time.time()
@@ -308,20 +311,15 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                         "result": result
                     })
                 
-                # Show execution summary
+                # Clear typing status and show minimal tool summary
+                typing_status.empty()
                 with tool_status_container:
-                    st.success(f"✅ Executed {len(current_tool_calls)} tools in {execution_time:.2f}s (parallel)")
-                    
-                    # Show results in expanders
-                    for i, (tool_call, result) in enumerate(zip(current_tool_calls, results)):
-                        with st.expander(f"Tool: {tool_call['function']['name']}", expanded=False):
-                            st.code(json.dumps(json.loads(tool_call['function']['arguments']), indent=2))
-                            if result.get("status") == "success":
-                                st.success("✅ Success")
-                                if "records" in result:
-                                    st.write(f"Found {result['records']} records")
-                            else:
-                                st.error(f"❌ {result.get('error', 'Failed')}")
+                    # Show one line per tool with status icon
+                    for tool_name, result in zip(tool_names, results):
+                        if result.get("status") == "success":
+                            st.caption(f"✓ {tool_name}")
+                        else:
+                            st.caption(f"✗ {tool_name}: {result.get('error', 'Failed')[:50]}")
                 
                 # Add tool results to messages
                 messages.append({
@@ -360,9 +358,9 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     if len(st.session_state.conversation_history) > 6:
                         st.session_state.conversation_history = st.session_state.conversation_history[-6:]
                     
-                    # Add tool usage summary
+                    # Add minimal tool summary if tools were used
                     if tool_call_count > 0:
-                        st.markdown(f"\n\n---\n*Analysis completed using {tool_call_count} tool{'s' if tool_call_count > 1 else ''} with parallel execution.*")
+                        st.caption(f"_Used {tool_call_count} tool{'s' if tool_call_count > 1 else ''}_")
                 
                 break
                 
