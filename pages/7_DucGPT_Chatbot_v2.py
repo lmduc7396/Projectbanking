@@ -1,6 +1,6 @@
 """
-MCP Model - AI Banking Analysis Assistant with Streaming and Parallel Execution
-Enhanced version with performance optimizations
+MCP Model - AI Banking Analysis Assistant
+Streamlit interface for OpenAI-powered banking analysis with tool execution
 """
 
 import streamlit as st
@@ -20,7 +20,7 @@ import threading
 
 # Page configuration
 st.set_page_config(
-    page_title="DucGPT Chatbot v2",
+    page_title="DucGPT Chatbot",
     layout="wide"
 )
 
@@ -52,14 +52,22 @@ if 'tool_cache' not in st.session_state:
     st.session_state.tool_cache = {}
 if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
+
+# Initialize tool system FIRST (before OpenAI client which might use it)
+if 'tool_system' not in st.session_state:
+    try:
+        st.session_state.tool_system = get_tool_system()
+    except Exception as e:
+        st.error(f"Failed to initialize tool system: {e}")
+        st.session_state.tool_system = None
+
+# Initialize OpenAI client
 if 'openai_client' not in st.session_state:
     api_key = os.getenv("OPENAI_API_KEY")
     if api_key:
         st.session_state.openai_client = OpenAI(api_key=api_key)
     else:
         st.session_state.openai_client = None
-if 'tool_system' not in st.session_state:
-    st.session_state.tool_system = get_tool_system()
 
 
 def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
@@ -185,6 +193,10 @@ def chat_with_ai_streaming(user_message: str):
     """
     if not st.session_state.openai_client:
         st.error("❌ OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.")
+        return
+    
+    if not st.session_state.tool_system:
+        st.error("❌ Tool system not initialized. Please refresh the page.")
         return
     
     # Prepare messages
@@ -372,8 +384,8 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
 
 
 def main():
-    st.title("Duc - AI Chatbot v2 (Optimized)")
-    st.markdown("🚀 **Enhanced with streaming responses and parallel tool execution**")
+    st.title("Duc - AI Chatbot")
+    st.markdown("Only banking related questions are supported.")
     
     # Check API key
     if not st.session_state.openai_client:
@@ -386,36 +398,42 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
         
-        # Performance metrics
-        st.subheader("🎯 Performance Features")
-        st.success("✅ Streaming responses enabled")
-        st.success("✅ Parallel tool execution enabled")
-        st.info(f"📊 Cache size: {len(st.session_state.tool_cache)} entries")
-        
-        # Available tools
+        # Show available tools
         with st.expander("📋 Available Tools", expanded=False):
             tools = st.session_state.tool_system.get_tool_list()
             for tool in tools:
                 st.write(f"• {tool}")
         
-        # Clear cache button
-        if st.button("🗑️ Clear Cache"):
-            st.session_state.tool_cache = {}
+        # Clear tool executions
+        if st.button("🗑️ Clear Tool History"):
             st.session_state.tool_executions = []
             st.rerun()
+        
+        # Export tool executions
+        if st.button("📥 Export Tool History"):
+            export_data = {
+                "tool_executions": st.session_state.tool_executions,
+                "timestamp": datetime.now().isoformat()
+            }
+            st.download_button(
+                "Download JSON",
+                json.dumps(export_data, indent=2, default=str),
+                "tool_history.json",
+                "application/json"
+            )
     
-    # Info section
-    st.info("**Enhanced Features:**")
+    # Show conversation info
+    st.info("**Rules for your questions**")
     col1, col2 = st.columns(2)
     with col1:
-        st.write("• 🚀 **Streaming**: See responses as they're generated")
-        st.write("• ⚡ **Parallel Execution**: Multiple tools run simultaneously")
+        st.write("1. Be specific (e.g., ask for PB not just 'valuation')")
+        st.write("2. Available: historical, forecast, analysis, stock data")
     with col2:
-        st.write("• 💾 **Smart Caching**: 5-minute cache for repeated queries")
-        st.write("• 📊 **Progress Tracking**: Real-time execution status")
+        st.write("3. Sectors: SOCB, Private_1, Private_2, Private_3")
+        st.write("4. Context from last 3 questions is remembered")
     
     # Chat input
-    user_input = st.chat_input("Ask Duc AI (try: 'Compare VCB and ACB latest performance')")
+    user_input = st.chat_input("Ask Duc AI")
     
     if user_input:
         # Add user message to display
@@ -426,21 +444,20 @@ def main():
         with st.chat_message("assistant"):
             chat_with_ai_streaming(user_input)
     
-    # Tool execution history
+    # Tool execution history (in expander)
     if st.session_state.tool_executions:
         with st.expander(f"🔧 Tool Execution History ({len(st.session_state.tool_executions)} executions)"):
-            # Show last 5 executions
-            for execution in reversed(st.session_state.tool_executions[-5:]):
-                col1, col2, col3 = st.columns([2, 2, 1])
+            for i, execution in enumerate(reversed(st.session_state.tool_executions[-10:])):
+                st.write(f"**{execution['tool']}** - {execution['timestamp']}")
+                col1, col2 = st.columns(2)
                 with col1:
-                    st.write(f"**{execution['tool']}**")
+                    st.code(json.dumps(execution['arguments'], indent=2), language="json")
                 with col2:
-                    st.caption(execution['timestamp'])
-                with col3:
                     if execution['result'].get('status') == 'success':
-                        st.success("✅")
+                        st.success("✅ Success")
                     else:
-                        st.error("❌")
+                        st.error(f"❌ {execution['result'].get('error', 'Failed')}")
+                st.divider()
 
 
 if __name__ == "__main__":
