@@ -481,7 +481,7 @@ def main():
     
     # Model selection
     col1, col2, col3 = st.columns([2, 3, 2])
-    with col2:
+    with col1:
         st.session_state.selected_model = st.selectbox(
             "Select AI Model:",
             options=["gpt-5", "gpt-5-mini"],
