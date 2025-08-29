@@ -395,7 +395,7 @@ def main():
         return
     
     # Check tool system
-    if not st.session_state.tool_system:
+    if 'tool_system' not in st.session_state or not st.session_state.tool_system:
         st.error("⚠️ Tool system not initialized!")
         st.info("Please refresh the page or check that the Banking_MCP module is properly installed.")
         return
