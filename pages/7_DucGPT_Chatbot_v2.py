@@ -262,9 +262,9 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             
             # Handle tool calls if any
             if current_tool_calls:
-                # Show "Duc is typing" status
-                typing_status = tool_status_container.empty()
-                typing_status.caption("_Duc is typing..._")
+                # Show prominent "Duc is typing" status while processing tools
+                typing_placeholder = response_container.empty()
+                typing_placeholder.info("Duc is typing...")
                 
                 # Collect tool names for minimal display
                 tool_names = []
@@ -311,8 +311,10 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                         "result": result
                     })
                 
-                # Clear typing status and show minimal tool summary
-                typing_status.empty()
+                # Clear the "Duc is typing" message
+                typing_placeholder.empty()
+                
+                # Show minimal tool summary (small captions below)
                 with tool_status_container:
                     # Show one line per tool with status icon
                     for tool_name, result in zip(tool_names, results):
