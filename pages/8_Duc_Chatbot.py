@@ -24,6 +24,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import plotly.graph_objects as go
+import plotly.express as px
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,16 +51,28 @@ if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
 if 'selected_model' not in st.session_state:
     st.session_state.selected_model = "gpt-5"
+if 'pending_charts' not in st.session_state:
+    st.session_state.pending_charts = []
 
 # Initialize tool system FIRST (before OpenAI client which might use it)
-if 'tool_system' not in st.session_state:
-    try:
-        from utilities.Banking_MCP import get_tool_system
-        st.session_state.tool_system = get_tool_system()
-        st.session_state.tool_system_error = None
-    except Exception as e:
-        st.session_state.tool_system = None
-        st.session_state.tool_system_error = str(e)
+# Force reload to get latest schema changes
+if 'tool_system' in st.session_state:
+    del st.session_state.tool_system
+
+# Clear module cache to ensure fresh import
+import importlib
+if 'utilities.Banking_MCP' in sys.modules:
+    importlib.reload(sys.modules['utilities.Banking_MCP'])
+
+try:
+    from utilities.Banking_MCP import get_tool_system
+    # Create fresh instance (don't use cached singleton)
+    from utilities.Banking_MCP import BankingToolSystem
+    st.session_state.tool_system = BankingToolSystem()
+    st.session_state.tool_system_error = None
+except Exception as e:
+    st.session_state.tool_system = None
+    st.session_state.tool_system_error = str(e)
 
 # Initialize OpenAI client
 if 'openai_client' not in st.session_state:
@@ -104,6 +118,91 @@ async def execute_parallel_tools(tool_calls: List[Dict], tool_system) -> List[Di
     
     results = await asyncio.gather(*tasks)
     return results
+
+
+def create_plotly_chart(chart_spec: Dict) -> go.Figure:
+    """Create a Plotly chart from the specification"""
+    chart_type = chart_spec.get("chart_type", "line")
+    data = chart_spec.get("data", {})
+    title = chart_spec.get("title", "")
+    x_label = chart_spec.get("x_label", "")
+    y_label = chart_spec.get("y_label", "")
+    y_format = chart_spec.get("y_format", "number")
+    
+    # Define custom color palette - #398278 (teal) and darker grey
+    custom_colors = ['#398278', '#4A4A4A', '#7A7A7A', '#5A8A7F', '#2D5E52', '#8B8B8B']
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Add data series
+    x_values = data.get("x", [])
+    for idx, series in enumerate(data.get("series", [])):
+        name = series.get("name", "Series")
+        y_values = series.get("y", [])
+        color = custom_colors[idx % len(custom_colors)]
+        
+        if chart_type == "line":
+            fig.add_trace(go.Scatter(
+                x=x_values,
+                y=y_values,
+                mode='lines+markers',
+                name=name,
+                line=dict(width=2, color=color),
+                marker=dict(size=6, color=color)
+            ))
+        elif chart_type == "bar":
+            fig.add_trace(go.Bar(
+                x=x_values,
+                y=y_values,
+                name=name,
+                marker=dict(color=color)
+            ))
+        elif chart_type == "scatter":
+            fig.add_trace(go.Scatter(
+                x=x_values,
+                y=y_values,
+                mode='markers',
+                name=name,
+                marker=dict(size=8, color=color)
+            ))
+        elif chart_type == "area":
+            fig.add_trace(go.Scatter(
+                x=x_values,
+                y=y_values,
+                mode='lines',
+                name=name,
+                fill='tozeroy',
+                line=dict(width=2, color=color),
+                fillcolor=color
+            ))
+    
+    # Format y-axis based on type
+    yaxis_config = {"title": y_label}
+    if y_format == "percent":
+        yaxis_config["tickformat"] = ".1%"
+    elif y_format == "currency":
+        yaxis_config["tickformat"] = "$,.0f"
+    
+    # Update layout
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_label,
+        yaxis=yaxis_config,
+        hovermode='x unified',
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        margin=dict(l=50, r=50, t=80, b=50),
+        height=400
+    )
+    
+    return fig
 
 
 def compress_assistant_response(response: str, tool_calls_made: List[str], user_message: str) -> Dict:
@@ -180,6 +279,9 @@ def chat_with_ai_streaming(user_message: str):
     if 'tool_system' not in st.session_state or not st.session_state.tool_system:
         st.error("❌ Tool system not initialized. Please refresh the page.")
         return
+    
+    # Clear any pending charts from previous messages
+    st.session_state.pending_charts = []
     
     # Get tool system reference before async operations
     tool_system = st.session_state.tool_system
@@ -308,6 +410,11 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     function_args = json.loads(tool_call['function']['arguments'])
                     cache_key = f"{function_name}_{json.dumps(function_args, sort_keys=True)}"
                     
+                    # Check if this is a chart rendering tool
+                    if function_name == "render_chart" and result.get("status") == "success":
+                        if "chart_spec" in result:
+                            st.session_state.pending_charts.append(result["chart_spec"])
+                    
                     # Update cache in session state (main thread)
                     st.session_state.tool_cache[cache_key] = {
                         'result': result,
@@ -374,6 +481,17 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     # Add minimal tool summary if tools were used
                     if tool_call_count > 0:
                         st.caption(f"_Used {tool_call_count} tool{'s' if tool_call_count > 1 else ''}_")
+                    
+                    # Render any pending charts
+                    if st.session_state.pending_charts:
+                        for chart_spec in st.session_state.pending_charts:
+                            try:
+                                fig = create_plotly_chart(chart_spec)
+                                st.plotly_chart(fig, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"Error rendering chart: {str(e)}")
+                        # Clear pending charts after rendering
+                        st.session_state.pending_charts = []
                 
                 break
                 
