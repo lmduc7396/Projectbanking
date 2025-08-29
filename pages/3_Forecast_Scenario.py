@@ -70,15 +70,18 @@ def get_last_historical_year():
 @st.cache_data(ttl=3600)
 def load_data():
     """Load all required data in one optimized function"""
-    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
+    # Load historical data
+    df_year_historical = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
     
     # Load forecast data if it exists
     forecast_file = os.path.join(project_root, 'Data/dfsectorforecast.parquet')
     df_forecast = None
     if os.path.exists(forecast_file):
         df_forecast = pd.read_parquet(forecast_file)
-        # Combine historical and forecast data
-        df_year = pd.concat([df_year, df_forecast], ignore_index=True)
+        # Combine historical and forecast data for complete dataset
+        df_year = pd.concat([df_year_historical, df_forecast], ignore_index=True)
+    else:
+        df_year = df_year_historical
     
     df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
@@ -86,9 +89,10 @@ def load_data():
     # Pre-process quarter data
     df_quarter['Year'] = 2000 + df_quarter['Date_Quarter'].str.extract(r'Q(\d+)', expand=False).astype(int)
     
-    return df_year, df_quarter, df_forecast, keyitem
+    # Return both historical and combined data
+    return df_year, df_quarter, df_forecast, keyitem, df_year_historical
 
-df_year, df_quarter, df_forecast, keyitem = load_data()
+df_year, df_quarter, df_forecast, keyitem, df_year_historical = load_data()
 
 # Get the last historical year
 last_complete_year = get_last_historical_year()
@@ -198,7 +202,7 @@ def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None)
 
 # OPTIMIZED: Batch data extraction
 @st.cache_data
-def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2):
+def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2, df_year_historical):
     """Extract all bank data in one optimized function - handles both banks and sectors"""
     
     # Check if ticker is a sector (length > 3) or individual bank
@@ -215,7 +219,7 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
             
             # Get historical data for these banks
             years = [last_complete_year-2, last_complete_year-1, last_complete_year]
-            historical = aggregate_sector_data(df_year, None, banks_with_forecast, years)
+            historical = aggregate_sector_data(df_year_historical, None, banks_with_forecast, years)
             
             # Get forecast data - aggregate from banks
             forecast_years = [forecast_year_1, forecast_year_2]
@@ -255,8 +259,8 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
                 quarterly_prev = quarterly_prev.drop('index', axis=1)
         else:
             # For other sectors (Private_1, Private_2, SOCB), use pre-calculated data
-            hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
-            historical = df_year[hist_mask].set_index('Year')
+            hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
+            historical = df_year_historical[hist_mask].set_index('Year')
             
             forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
             forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
@@ -276,8 +280,8 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
             ]
     else:
         # Individual bank - original logic
-        hist_mask = (df_year['TICKER'] == ticker) & df_year['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
-        historical = df_year[hist_mask].set_index('Year')
+        hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
+        historical = df_year_historical[hist_mask].set_index('Year')
         
         forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
         forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
@@ -299,7 +303,7 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
     return historical, forecast_1, forecast_2, quarterly, quarterly_prev
 
 historical_data, forecast_1, forecast_2, quarterly_forecast, quarterly_prev = get_bank_data(
-    df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2
+    df_year, df_quarter, ticker, last_complete_year, forecast_year_1, forecast_year_2, df_year_historical
 )
 
 # OPTIMIZED: Batch value extraction function
@@ -364,8 +368,8 @@ def prepare_table_vectorized(historical, forecast_1, forecast_2, quarterly,
     # Combine all data sources
     data_list = []
     
-    # Historical years
-    for year in [last_complete_year-1, last_complete_year]:
+    # Historical years - include all three years
+    for year in [last_complete_year-2, last_complete_year-1, last_complete_year]:
         if year in historical.index:
             row = historical.loc[year]
             data_list.append({'Period': str(year), **{k: row.get(v, 0) for k, v in metrics_config.items()}})
