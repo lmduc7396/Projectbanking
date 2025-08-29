@@ -55,14 +55,24 @@ if 'pending_charts' not in st.session_state:
     st.session_state.pending_charts = []
 
 # Initialize tool system FIRST (before OpenAI client which might use it)
-if 'tool_system' not in st.session_state:
-    try:
-        from utilities.Banking_MCP import get_tool_system
-        st.session_state.tool_system = get_tool_system()
-        st.session_state.tool_system_error = None
-    except Exception as e:
-        st.session_state.tool_system = None
-        st.session_state.tool_system_error = str(e)
+# Force reload to get latest schema changes
+if 'tool_system' in st.session_state:
+    del st.session_state.tool_system
+
+# Clear module cache to ensure fresh import
+import importlib
+if 'utilities.Banking_MCP' in sys.modules:
+    importlib.reload(sys.modules['utilities.Banking_MCP'])
+
+try:
+    from utilities.Banking_MCP import get_tool_system
+    # Create fresh instance (don't use cached singleton)
+    from utilities.Banking_MCP import BankingToolSystem
+    st.session_state.tool_system = BankingToolSystem()
+    st.session_state.tool_system_error = None
+except Exception as e:
+    st.session_state.tool_system = None
+    st.session_state.tool_system_error = str(e)
 
 # Initialize OpenAI client
 if 'openai_client' not in st.session_state:
@@ -286,6 +296,13 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     
     # Get tool schemas
     tools = tool_system.get_openai_tools()
+    
+    # Debug: Check render_chart schema
+    for tool in tools:
+        if tool['function']['name'] == 'render_chart':
+            import json
+            st.write("DEBUG - render_chart schema:")
+            st.code(json.dumps(tool['function']['parameters']['properties']['data'], indent=2))
     
     # Create containers for streaming
     typing_container = st.empty()  # Separate container for "Duc is typing"

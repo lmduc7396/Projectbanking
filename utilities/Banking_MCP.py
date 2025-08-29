@@ -1109,7 +1109,8 @@ class BankingToolSystem:
                     "properties": {
                         "x": {
                             "type": "array",
-                            "description": "X-axis labels (dates, categories, etc.)"
+                            "description": "X-axis labels (dates, categories, etc.)",
+                            "items": {"type": "string"}
                         },
                         "series": {
                             "type": "array",
@@ -1118,7 +1119,11 @@ class BankingToolSystem:
                                 "type": "object",
                                 "properties": {
                                     "name": {"type": "string", "description": "Series name for legend"},
-                                    "y": {"type": "array", "description": "Y-axis values"}
+                                    "y": {
+                                        "type": "array", 
+                                        "description": "Y-axis values",
+                                        "items": {"type": "number"}
+                                    }
                                 }
                             }
                         }
