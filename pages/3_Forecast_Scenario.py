@@ -140,9 +140,9 @@ def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None)
         lambda x: (x['NPL'] * x['Loan']).sum() / x['Loan'].sum() if x['Loan'].sum() != 0 else 0
     ))
     
-    # NPL Formation weighted by loans
-    aggregated['NPL Formation (%)'] = (year_data.groupby('Year').apply(
-        lambda x: (x['NPL Formation (%)'] * x['Loan']).sum() / x['Loan'].sum() if x['Loan'].sum() != 0 else 0
+    # New NPL weighted by loans
+    aggregated['New NPL'] = (year_data.groupby('Year').apply(
+        lambda x: (x['New NPL'] * x['Loan']).sum() / x['Loan'].sum() if x['Loan'].sum() != 0 else 0
     ))
     
     # CIR = OPEX / TOI
@@ -165,7 +165,7 @@ def aggregate_sector_data(df_year, df_quarter, banks_list, years, quarters=None)
                     if total_loan_q > 0:
                         quarterly_agg.loc[q, 'NIM'] = (q_data['NIM'] * q_data['Loan']).sum() / total_loan_q
                         quarterly_agg.loc[q, 'NPL'] = (q_data['NPL'] * q_data['Loan']).sum() / total_loan_q
-                        quarterly_agg.loc[q, 'NPL Formation (%)'] = (q_data['NPL Formation (%)'] * q_data['Loan']).sum() / total_loan_q
+                        quarterly_agg.loc[q, 'New NPL'] = (q_data['New NPL'] * q_data['Loan']).sum() / total_loan_q
                     
                     if quarterly_agg.loc[q, 'TOI'] != 0:
                         quarterly_agg.loc[q, 'CIR'] = quarterly_agg.loc[q, 'OPEX'] / quarterly_agg.loc[q, 'TOI']
@@ -294,10 +294,10 @@ def extract_values(df, columns, default=0):
 
 # Extract all needed values at once
 forecast_1_vals = extract_values(forecast_1, ['PBT', 'Net Interest Income', 'OPEX', 'TOI', 'Provision expense', 
-                                              'NIM', 'NPL', 'CIR', 'NPL Formation (%)',
+                                              'NIM', 'NPL', 'CIR', 'New NPL',
                                               'Loan', 'Provision on Balance Sheet', 'Write-off'])
 forecast_2_vals = extract_values(forecast_2, ['PBT', 'Net Interest Income', 'OPEX', 'TOI', 'Provision expense',
-                                              'NIM', 'NPL', 'CIR', 'NPL Formation (%)',
+                                              'NIM', 'NPL', 'CIR', 'New NPL',
                                               'Loan', 'Provision on Balance Sheet', 'Write-off'])
 
 # Get loan values
@@ -655,7 +655,7 @@ st.header("Segment 3: Asset Quality Assumptions")
 # Prepare Asset Quality historical table
 asset_quality_metrics = {
     'NPL (%)': 'NPL',
-    'NPL Formation (%)': 'NPL Formation (%)',
+    'New NPL': 'New NPL',
     'Provision': 'Provision on Balance Sheet',  # Keep for calculation but won't display
     'Provision Expense': 'Provision expense',
     'Write-off': 'Write-off'
@@ -668,7 +668,7 @@ asset_quality_table = prepare_table_vectorized(
 
 # Convert units and calculate additional metrics
 asset_quality_table['NPL (%)'] *= 100
-asset_quality_table['NPL Formation (%)'] = asset_quality_table['NPL Formation (%)'].abs() * 100
+asset_quality_table['New NPL'] = asset_quality_table['New NPL'].abs() * 100
 asset_quality_table['Provision'] /= 1e12  # Keep for calculation
 asset_quality_table['Provision Expense'] /= 1e12
 asset_quality_table['Write-off'] /= 1e12
@@ -711,12 +711,12 @@ for period in asset_quality_table.index:
         asset_quality_table.loc[period, 'NPL Coverage (%)'] = (-bs14_val / (npl_val * loan_val) * 100)
 
 # Reorder columns: NPL, NPL Formation, NPL Coverage, Provision Expense, Write-off (hide Provision)
-display_table = asset_quality_table[['NPL (%)', 'NPL Formation (%)', 'NPL Coverage (%)', 'Provision Expense', 'Write-off']]
+display_table = asset_quality_table[['NPL (%)', 'New NPL', 'NPL Coverage (%)', 'Provision Expense', 'Write-off']]
 
 st.subheader("Historical and Forecast Asset Quality Metrics")
 st.dataframe(display_table.style.format({
     'NPL (%)': '{:.2f}%',
-    'NPL Formation (%)': '{:.2f}%',
+    'New NPL': '{:.2f}%',
     'NPL Coverage (%)': '{:.1f}%',
     'Provision Expense': '{:.2f}T',
     'Write-off': '{:.2f}T'
@@ -730,8 +730,8 @@ col1, col2 = st.columns(2)
 npl_f1_orig = forecast_1_vals['NPL'] * 100
 npl_f2_orig = forecast_2_vals['NPL'] * 100
 
-npl_formation_f1_orig = abs(forecast_1_vals['NPL Formation (%)'] * 100) if forecast_1_vals['NPL Formation (%)'] != 0 else 0.5
-npl_formation_f2_orig = abs(forecast_2_vals['NPL Formation (%)'] * 100) if forecast_2_vals['NPL Formation (%)'] != 0 else 0.5
+npl_formation_f1_orig = abs(forecast_1_vals['New NPL'] * 100) if forecast_1_vals['New NPL'] != 0 else 0.5
+npl_formation_f2_orig = abs(forecast_2_vals['New NPL'] * 100) if forecast_2_vals['New NPL'] != 0 else 0.5
 
 # Calculate original NPL coverage
 bs14_f1 = forecast_1_vals['Provision on Balance Sheet']
@@ -766,7 +766,7 @@ with col1:
     st.markdown(f"**{forecast_year_1} Adjustments**")
     npl_f1_new = st.number_input(f"NPL {forecast_year_1} (%)", 0.0, 100.0,
                                  key=f"{ticker}_npl_f1", step=0.1)
-    npl_formation_f1_new = st.number_input(f"NPL Formation {forecast_year_1} (%)", 0.0, 1000.0,
+    npl_formation_f1_new = st.number_input(f"New NPL {forecast_year_1} (%)", 0.0, 1000.0,
                                            key=f"{ticker}_npl_formation_f1", step=0.1)
     npl_coverage_f1_new = st.number_input(f"NPL Coverage {forecast_year_1} (%)", 0.0, 10000.0,
                                           key=f"{ticker}_npl_coverage_f1", step=1.0)
@@ -775,7 +775,7 @@ with col2:
     st.markdown(f"**{forecast_year_2} Adjustments**")
     npl_f2_new = st.number_input(f"NPL {forecast_year_2} (%)", 0.0, 100.0,
                                  key=f"{ticker}_npl_f2", step=0.1)
-    npl_formation_f2_new = st.number_input(f"NPL Formation {forecast_year_2} (%)", 0.0, 1000.0,
+    npl_formation_f2_new = st.number_input(f"New NPL {forecast_year_2} (%)", 0.0, 1000.0,
                                            key=f"{ticker}_npl_formation_f2", step=0.1)
     npl_coverage_f2_new = st.number_input(f"NPL Coverage {forecast_year_2} (%)", 0.0, 10000.0,
                                           key=f"{ticker}_npl_coverage_f2", step=1.0)
@@ -797,7 +797,7 @@ npl_abs_f2_new = (npl_f2_new / 100) * loan_f2_new
 npl_abs_f1_orig = (npl_f1_orig / 100) * loan_f1
 npl_abs_f2_orig = (npl_f2_orig / 100) * loan_f2
 
-# Calculate NPL formation absolute
+# Calculate New NPL absolute
 npl_formation_abs_f1_new = (npl_formation_f1_new / 100) * loan_last
 npl_formation_abs_f2_new = (npl_formation_f2_new / 100) * loan_f1_new
 npl_formation_abs_f1_orig = (npl_formation_f1_orig / 100) * loan_last
@@ -920,7 +920,7 @@ impact_data.append({
 
 impact_data.append({
     'Segment': 'Asset Quality',
-    'Input': 'NPL Formation Change',
+    'Input': 'New NPL Change',
     f'{forecast_year_1} Change': f"{impact_details_segment3['npl_formation_change'][0]:+.2f}pp",
     f'{forecast_year_1} PBT Impact (T)': 0,  # Part of combined provision impact
     f'{forecast_year_2} Change': f"{impact_details_segment3['npl_formation_change'][1]:+.2f}pp",

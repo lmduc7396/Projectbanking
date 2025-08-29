@@ -95,7 +95,7 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
         cols_keep = pd.DataFrame({
         'Name': [
             'Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE', 'NIM', 'Loan yield',
-            'NPL', 'NPL Formation (%)', 'GROUP 2', 'G2 Formation (%)',
+            'NPL', 'New NPL', 'GROUP 2', 'New G2',
             'NPL Coverage ratio'
         ]
         })

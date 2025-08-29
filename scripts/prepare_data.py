@@ -568,16 +568,16 @@ def Calculate(df):
     # CA.21: Individual/ Total loan: Nt.89/BS.12
     df['CA.21'] = df['Nt.89'] / df['BS.12']
     
-    # CA.22: NPL Formation:
+    # CA.22: NPL Formation amount:
     df['CA.22'] = (df['CA.4'] - df['Nt.220']) - (df['CA.4'].shift(1))
     
-    # CA.23: NPL Formation (%):
+    # CA.23: New NPL:
     df['CA.23'] = df['CA.22'] / df['BS.13'].shift(1)
     
     # CA.24: Group 2 Formation
     df['CA.24'] = (df['Nt.67'] + df['CA.22']) - df['Nt.67'].shift(1)
     
-    # CA.25: Group 2 Formation (%):
+    # CA.25: New G2:
     df['CA.25'] = df['CA.24'] / df['BS.13'].shift(1)
     
     #CA.26: Overdue loan (%)

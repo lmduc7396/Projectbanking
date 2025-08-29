@@ -35,7 +35,7 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
     
     cols_keep_table2 = pd.DataFrame({
         'Name': [
-            'NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 'GROUP 2', 'G2 Formation (%)',
+            'NIM', 'Loan yield', 'NPL', 'New NPL', 'GROUP 2', 'New G2',
             'NPL Coverage ratio', 'Provision/ Total Loan'
         ]
     })

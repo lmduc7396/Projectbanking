@@ -80,8 +80,8 @@ def openai_comment_bulk(ticker, sector, quarter, df_quarter_data, keyitem_data, 
         # The data already has proper column names, no need for KeyCode mapping
         cols_keep = [
             'Date_Quarter', 'Loan', 'TOI', 'Provision/ Total Loan', 'PBT', 
-            'ROA', 'ROE', 'NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 
-            'GROUP 2', 'G2 Formation (%)', 'NPL Coverage ratio'
+            'ROA', 'ROE', 'NIM', 'Loan yield', 'NPL', 'New NPL', 
+            'GROUP 2', 'New G2', 'NPL Coverage ratio'
         ]
         
         # Check which columns are actually available in the data

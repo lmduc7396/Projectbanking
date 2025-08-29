@@ -33,8 +33,8 @@ def create_banking_table(ticker_or_type, num_periods, growth_type, df=None, keyi
 
     # Define metrics for each table
     earnings_metrics = ['Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE']
-    ratio_metrics = ['NIM', 'Loan yield', 'NPL', 'NPL Formation (%)', 
-                     'GROUP 2', 'G2 Formation (%)', 'NPL Coverage ratio', 'Provision/ Total Loan']
+    ratio_metrics = ['NIM', 'Loan yield', 'NPL', 'New NPL', 
+                     'GROUP 2', 'New G2', 'NPL Coverage ratio', 'Provision/ Total Loan']
     
     # Get KeyCode mappings
     earnings_df = pd.DataFrame({'Name': earnings_metrics})
