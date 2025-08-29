@@ -47,7 +47,7 @@ def load_valuation_data():
     """Load valuation data"""
     file_path = os.path.join(project_root, 'Data', 'Valuation_banking.parquet')
     if os.path.exists(file_path):
-        df = pd.read_csv(file_path)
+        df = pd.read_parquet(file_path)
         df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
         return df
     return None

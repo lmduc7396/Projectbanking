@@ -99,12 +99,21 @@ forecast_mask = df_year['Year'].isin([forecast_year_1, forecast_year_2])
 ticker_mask = df_year['TICKER'].str.len() == 3
 banks_with_forecast = sorted(df_year[forecast_mask & ticker_mask]['TICKER'].unique())
 
+# Check if there's any data to work with
+if len(banks_with_forecast) == 0:
+    st.error("No banks with forecast data found. Please check your data files.")
+    st.stop()
+
 # Sidebar with Bank/Sector selection
 st.sidebar.markdown("### Analysis Type")
 analysis_type = st.sidebar.radio("Select Analysis Type:", ["Individual Bank", "Sector Analysis"], index=0)
 
 if analysis_type == "Individual Bank":
-    ticker = st.sidebar.selectbox("Select Bank:", banks_with_forecast, index=0)
+    if len(banks_with_forecast) > 0:
+        ticker = st.sidebar.selectbox("Select Bank:", banks_with_forecast, index=0)
+    else:
+        ticker = None
+        st.sidebar.warning("No banks with forecast data available")
 else:
     # Sector options (excluding Private_3 as it has no forecast)
     sector_options = ['Sector', 'Private_1', 'Private_2', 'SOCB']
@@ -112,6 +121,11 @@ else:
 
 st.sidebar.markdown("---")
 revert_button = st.sidebar.button("Revert to Default Forecast", type="secondary", use_container_width=True)
+
+# Check if ticker is valid before proceeding
+if ticker is None:
+    st.error("No valid ticker selected. Cannot proceed with analysis.")
+    st.stop()
 
 # Function to aggregate sector data
 @st.cache_data(ttl=3600)  # Refresh cache every hour
@@ -180,6 +194,9 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
     """Extract all bank data in one optimized function - handles both banks and sectors"""
     
     # Check if ticker is a sector (length > 3) or individual bank
+    if ticker is None or not isinstance(ticker, str):
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
     is_sector = len(ticker) > 3
     
     if is_sector:
