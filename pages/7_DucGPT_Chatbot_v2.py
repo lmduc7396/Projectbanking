@@ -67,58 +67,38 @@ if 'openai_client' not in st.session_state:
         st.session_state.openai_client = None
 
 
-def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
-    """Execute a tool and return results with caching"""
-    if 'tool_system' not in st.session_state or not st.session_state.tool_system:
-        return {"status": "failed", "error": "Tool system not initialized"}
-    tool_system = st.session_state.tool_system
-    
+def execute_tool_call_sync(tool_name: str, arguments: Dict, tool_system) -> Dict:
+    """Execute a tool synchronously without accessing session state"""
     # Create cache key
     cache_key = f"{tool_name}_{json.dumps(arguments, sort_keys=True)}"
-    
-    # Check cache (5 minute TTL)
-    if cache_key in st.session_state.tool_cache:
-        cached_entry = st.session_state.tool_cache[cache_key]
-        cache_age = (datetime.now() - cached_entry['timestamp']).total_seconds()
-        if cache_age < 300:  # 5 minutes
-            return cached_entry['result']
-    
-    # Log the tool execution
-    execution_log = {
-        "tool": tool_name,
-        "arguments": arguments,
-        "timestamp": datetime.now().isoformat()
-    }
     
     # Execute the tool
     result = tool_system.execute_tool(tool_name, arguments)
     
-    # Cache the result
-    st.session_state.tool_cache[cache_key] = {
-        'result': result,
-        'timestamp': datetime.now()
-    }
-    
-    execution_log["result"] = result
-    st.session_state.tool_executions.append(execution_log)
-    
+    return result, cache_key
+
+
+async def execute_tool_async(tool_name: str, arguments: Dict, tool_system) -> Dict:
+    """Async wrapper for tool execution"""
+    loop = asyncio.get_event_loop()
+    # Run in executor without accessing session state
+    result, cache_key = await loop.run_in_executor(
+        None, 
+        execute_tool_call_sync, 
+        tool_name, 
+        arguments,
+        tool_system
+    )
     return result
 
 
-async def execute_tool_async(tool_name: str, arguments: Dict) -> Dict:
-    """Async wrapper for tool execution"""
-    loop = asyncio.get_event_loop()
-    # Use None for default executor instead of global ThreadPoolExecutor
-    return await loop.run_in_executor(None, execute_tool_call, tool_name, arguments)
-
-
-async def execute_parallel_tools(tool_calls: List[Dict]) -> List[Dict]:
+async def execute_parallel_tools(tool_calls: List[Dict], tool_system) -> List[Dict]:
     """Execute multiple tools in parallel"""
     tasks = []
     for tool_call in tool_calls:
         function_name = tool_call['function']['name']
         function_args = json.loads(tool_call['function']['arguments'])
-        tasks.append(execute_tool_async(function_name, function_args))
+        tasks.append(execute_tool_async(function_name, function_args, tool_system))
     
     results = await asyncio.gather(*tasks)
     return results
@@ -145,7 +125,7 @@ def compress_assistant_response(response: str, tool_calls_made: List[str], user_
     compressed["periods"] = list(set(quarters))[:5]
     
     # Extract key metrics
-    roe_match = re.search(r'ROE[:\s]+([0-9.]+)%', response)
+    roe_match = re.search(r'ROE[\s]+([0-9.]+)%', response)
     if roe_match:
         compressed["metrics"]["ROE"] = roe_match.group(1) + "%"
     
@@ -199,6 +179,9 @@ def chat_with_ai_streaming(user_message: str):
         st.error("❌ Tool system not initialized. Please refresh the page.")
         return
     
+    # Get tool system reference before async operations
+    tool_system = st.session_state.tool_system
+    
     # Prepare messages
     messages = []
     context_str = reconstruct_context(st.session_state.conversation_history)
@@ -214,11 +197,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     messages.append({"role": "user", "content": user_message})
     
     # Get tool schemas
-    if 'tool_system' in st.session_state and st.session_state.tool_system:
-        tools = st.session_state.tool_system.get_openai_tools()
-    else:
-        st.error("Tool system not available")
-        return
+    tools = tool_system.get_openai_tools()
     
     # Create containers for streaming
     response_container = st.empty()
@@ -283,43 +262,51 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             
             # Handle tool calls if any
             if current_tool_calls:
-                # Show parallel execution status
+                # Show execution status
                 with tool_status_container:
-                    st.info(f"🔧 Executing {len(current_tool_calls)} tool(s) in parallel...")
-                    
-                    # Create columns for parallel execution display
-                    cols = st.columns(min(len(current_tool_calls), 3))
-                    progress_bars = []
+                    st.info(f"🔧 Executing {len(current_tool_calls)} tool(s)...")
                     
                     for i, tool_call in enumerate(current_tool_calls):
                         tool_name = tool_call['function']['name']
                         tool_calls_made.append(tool_name)
                         tool_call_count += 1
-                        
-                        with cols[i % 3]:
-                            st.write(f"**Tool #{tool_call_count}**: {tool_name}")
-                            progress_bars.append(st.progress(0))
                 
-                # Execute tools in parallel
+                # Execute tools in parallel (background)
                 start_time = time.time()
                 
-                # Run async execution
-                async def run_parallel():
-                    return await execute_parallel_tools(current_tool_calls)
-                
-                # Execute in event loop
+                # Run async execution in background
                 try:
+                    # Create new event loop for async execution
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    results = loop.run_until_complete(run_parallel())
+                    # Pass tool_system to avoid accessing session state from async
+                    results = loop.run_until_complete(
+                        execute_parallel_tools(current_tool_calls, tool_system)
+                    )
                 finally:
                     loop.close()
                 
                 execution_time = time.time() - start_time
                 
-                # Update progress bars to complete
-                for pb in progress_bars:
-                    pb.progress(100)
+                # Update cache and execution log in main thread
+                for tool_call, result in zip(current_tool_calls, results):
+                    function_name = tool_call['function']['name']
+                    function_args = json.loads(tool_call['function']['arguments'])
+                    cache_key = f"{function_name}_{json.dumps(function_args, sort_keys=True)}"
+                    
+                    # Update cache in session state (main thread)
+                    st.session_state.tool_cache[cache_key] = {
+                        'result': result,
+                        'timestamp': datetime.now()
+                    }
+                    
+                    # Log execution
+                    st.session_state.tool_executions.append({
+                        "tool": function_name,
+                        "arguments": function_args,
+                        "timestamp": datetime.now().isoformat(),
+                        "result": result
+                    })
                 
                 # Show execution summary
                 with tool_status_container:
