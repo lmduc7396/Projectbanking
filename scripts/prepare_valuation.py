@@ -27,7 +27,7 @@ bank_type_df = pd.read_excel(data_dir / 'Bank_Type.xlsx')
 print(f"Loaded {len(bank_type_df)} banks with type classifications")
 
 # Also get bank list from quarterly data as backup
-quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.csv')
+quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.parquet')
 all_bank_tickers = quarter_df[quarter_df['TICKER'].str.len() == 3]['TICKER'].unique()
 print(f"Found {len(all_bank_tickers)} bank tickers in quarterly data")
 
@@ -146,8 +146,8 @@ for ticker in final_df['TICKER'].unique():
         final_df.loc[mask, col] = final_df.loc[mask, col].ffill(limit=5)
 
 #%% Save output
-output_path = data_dir / 'Valuation_banking.csv'
-final_df.to_csv(output_path, index=False)
+output_path = data_dir / 'Valuation_banking.parquet'
+final_df.to_parquet(output_path, index=False, engine='pyarrow', compression='snappy')
 print(f"\nSaved to {output_path}")
 
 #%% Summary statistics

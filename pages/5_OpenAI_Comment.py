@@ -35,8 +35,8 @@ load_dotenv()
 # Load your data (same as main file)
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
-    df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
-    df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
+    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     bank_type = pd.read_excel(os.path.join(project_root, 'Data/Bank_Type.xlsx'))
     return df_quarter, df_year, keyitem, bank_type
@@ -143,7 +143,7 @@ if ticker:
         # Check if cached analysis exists for this ticker and quarter
         if cache_exists and not force_regenerate:
             try:
-                cached_comments = pd.read_excel(comments_file)
+                cached_comments = pd.read_parquet(comments_file)
                 ticker_cache = cached_comments[
                     (cached_comments['TICKER'] == ticker) & 
                     (cached_comments['QUARTER'] == selected_quarter)

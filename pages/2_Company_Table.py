@@ -34,8 +34,8 @@ from utilities.stock_candle import Stock_price_plot
 # Load your data (same as main file)
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
-    df_quarter = pd.read_csv(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
-    df_year = pd.read_csv(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
+    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.csv'))
     
     # Load forecast data if it exists
     forecast_path = os.path.join(project_root, 'Data/dfsectorforecast.csv')

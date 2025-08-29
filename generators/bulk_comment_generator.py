@@ -20,12 +20,12 @@ data_dir = os.path.join(project_root, 'Data')
 
 # Load data
 print("Loading data...")
-df_quarter = pd.read_csv(os.path.join(data_dir, 'dfsectorquarter.csv'))
+df_quarter = pd.read_parquet(os.path.join(data_dir, 'dfsectorquarter.parquet'))
 keyitem = pd.read_excel(os.path.join(data_dir, 'Key_items.xlsx'))
 bank_type_mapping = pd.read_excel(os.path.join(data_dir, 'Bank_Type.xlsx'))
 
 # Load earnings quality data for QoQ earnings drivers
-df_earnings_quality = pd.read_csv(os.path.join(data_dir, 'earnings_quality_quarterly.csv'))
+df_earnings_quality = pd.read_parquet(os.path.join(data_dir, 'earnings_quality_quarterly.parquet'))
 print(f"Loaded earnings quality data with {len(df_earnings_quality)} records")
 
 print(f"Bank Type mapping structure:")
@@ -355,9 +355,9 @@ def generate_all_comments(specific_quarters=None):
     print(f"Processing {len(all_tickers)} tickers (including individual banks and sectors)")
     
     # Check if comments file already exists
-    comments_file = 'Data/banking_comments.xlsx'
+    comments_file = 'Data/banking_comments.parquet'
     if os.path.exists(comments_file):
-        existing_comments = pd.read_excel(comments_file)
+        existing_comments = pd.read_parquet(comments_file)
         print(f"Found existing comments file with {len(existing_comments)} entries")
     else:
         existing_comments = pd.DataFrame(columns=['TICKER', 'SECTOR', 'QUARTER', 'COMMENT', 'GENERATED_DATE'])
@@ -434,13 +434,13 @@ def generate_all_comments(specific_quarters=None):
             # Save progress every 10 comments
             if processed % 10 == 0:
                 temp_df = pd.DataFrame(all_comments)
-                temp_df.to_excel(f"Data/banking_comments_temp_{processed}.xlsx", index=False)
+                temp_df.to_parquet(f"Data/banking_comments_temp_{processed}.parquet", index=False, engine='pyarrow', compression='snappy')
                 print(f"  Saved temporary progress: {len(all_comments)} comments")
     
     # Save final results
     if all_comments:
         final_df = pd.DataFrame(all_comments)
-        final_df.to_excel(comments_file, index=False)
+        final_df.to_parquet(comments_file, index=False, engine='pyarrow', compression='snappy')
         print(f"\n✓ Completed! Generated {len(all_comments)} total comments")
         print(f"✓ Saved to: {comments_file}")
         print(f"✗ Errors encountered: {errors}")

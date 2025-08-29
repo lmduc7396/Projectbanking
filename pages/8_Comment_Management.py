@@ -39,7 +39,7 @@ def get_data_path():
     return os.path.join(project_root, 'Data')
 
 def get_comments_file_path():
-    return os.path.join(get_data_path(), 'banking_comments.xlsx')
+    return os.path.join(get_data_path(), 'banking_comments.parquet')
 
 def show_comment_management():
     st.title("Banking Comment Management")
@@ -62,7 +62,7 @@ def show_comment_management():
         
         if comments_exist:
             try:
-                comments_df = pd.read_excel(comments_file)
+                comments_df = pd.read_parquet(comments_file)
                 
                 # Display summary statistics
                 col1, col2, col3, col4 = st.columns(4)
@@ -156,7 +156,7 @@ def show_comment_management():
         
         if comments_exist:
             try:
-                comments_df = pd.read_excel(comments_file)
+                comments_df = pd.read_parquet(comments_file)
                 
                 # Overall statistics
                 st.subheader("Overall Statistics")
@@ -195,7 +195,7 @@ def show_comment_management():
                 
                 # Load original data to check coverage
                 data_path = get_data_path()
-                df_quarter = pd.read_csv(os.path.join(data_path, "dfsectorquarter.csv"))
+                df_quarter = pd.read_csv(os.path.join(data_path, "dfsectorquarter.parquet"))
                 all_banks = df_quarter[df_quarter['TICKER'].str.len() == 3]['TICKER'].unique()
                 all_quarters = df_quarter['Date_Quarter'].unique()
                 
@@ -222,7 +222,7 @@ def show_comment_management():
         
         if comments_exist:
             try:
-                comments_df = pd.read_excel(comments_file)
+                comments_df = pd.read_parquet(comments_file)
                 
                 # Get available quarters (newest first)
                 from utilities.quarter_utils import sort_quarters

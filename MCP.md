@@ -2,317 +2,415 @@
 
 ## Overview
 
-The MCP Banking Analysis System integrates OpenAI's GPT models with your Vietnamese banking data to provide intelligent, context-aware analysis. The system allows OpenAI to access multiple specialized tools and chain them together to answer complex banking questions.
+The MCP Banking Analysis System integrates OpenAI's GPT models with Vietnamese banking data to provide intelligent, context-aware analysis. The system uses a modular tool architecture that allows OpenAI to access specialized functions and chain them together to answer complex banking questions.
 
-## Architecture
+## Current Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
-│           Streamlit UI (pages/9_MCP_Model.py)   │
-│  - Chat interface                                │
+│        Streamlit UI (pages/7_DucGPT_Chatbot.py) │
+│  - Natural language chat interface               │
 │  - Tool execution visualization                  │
-│  - Results display                               │
+│  - Conversation memory with compression          │
+│  - Results display with formatting               │
 └────────────────┬────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────┐
 │         OpenAI Integration Layer                 │
+│  - GPT-5 model (configurable via .env)           │
 │  - Manages conversation flow                     │
-│  - Handles multiple tool calls                   │
+│  - Handles multiple tool calls in parallel       │
 │  - Chains tools until answer is complete         │
 └────────────────┬────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────┐
 │      Tool System (utilities/Banking_MCP.py)      │
-│  - Modular tool definitions                      │
-│  - Data access layer                             │
-│  - Analysis functions                            │
+│  - 8 modular tools with decorator pattern        │
+│  - Lazy data loading with caching                │
+│  - Universal single/multiple ticker support      │
+│  - 5-minute result caching (TTL)                 │
 └────────────────┬────────────────────────────────┘
                  │
 ┌────────────────▼────────────────────────────────┐
 │              Data Layer                          │
-│  - dfsectoryear.csv (Historical yearly)          │
+│  Primary Data Files:                             │
 │  - dfsectorquarter.csv (Historical quarterly)    │
+│  - dfsectoryear.csv (Historical yearly)          │
 │  - dfsectorforecast.csv (2025-2026 forecasts)   │
+│                                                  │
+│  Aggregated/Sector Data:                         │
+│  - Sector tickers: Sector, SOCB, Private_1/2/3   │
+│  - Pre-calculated in same data files             │
+│                                                  │
+│  Analysis Files:                                 │
+│  - earnings_quality_quarterly.csv (QoQ, YoY, T12M)│
+│  - earnings_quality_yearly.csv                   │
 │  - banking_comments.xlsx (AI commentary)         │
 │  - quarterly_analysis_results.xlsx               │
-│  - Valuation_banking.csv                         │
+│  - Valuation_banking.csv (52K historical points) │
+│                                                  │
+│  Reference Files:                                │
+│  - Bank_Type.xlsx (Bank classifications)         │
+│  - Key_items.xlsx (Metric definitions)           │
 └──────────────────────────────────────────────────┘
 ```
 
 ## Core Concepts
 
-### 1. Tool System
+### 1. Universal Tool Pattern
 
-Tools are functions that OpenAI can call to access banking data. Each tool:
-- Has a unique name and description
-- Defines input parameters with JSON schema
-- Returns structured data that OpenAI can interpret
-
-### 2. Tool Chaining
-
-OpenAI can call unlimited tools in sequence to answer complex questions:
-1. First call `get_data_availability()` to understand what data is available
-2. Then call `query_historical_data()` to get specific metrics
-3. Finally call `calculate_growth_metrics()` to compute growth rates
-4. Continue calling as many tools as needed until the analysis is complete
-
-The system allows up to 50 tool calls per query (effectively unlimited for practical purposes) to ensure comprehensive analysis without artificial restrictions.
-
-### 3. Parallel Tool Calls
-
-OpenAI can request multiple tools simultaneously for efficiency:
-- Get data for multiple banks at once
-- Query different time periods in parallel
-- Fetch both historical and forecast data together
-
-## Available Tools
-
-### Data Discovery Tools
-
-#### `get_data_availability()`
-Returns current date and available data periods.
-- **No parameters required**
-- **Returns**: Latest quarters, years, forecast periods
-
-#### `get_bank_info(ticker)`
-Get bank sector classification and basic information.
-- **Parameters**: 
-  - `ticker` (string): Bank ticker (e.g., "VCB", "ACB")
-- **Returns**: Sector, bank type, basic info
-
-#### `list_all_banks()`
-List all available banks with their sectors.
-- **No parameters required**
-- **Returns**: List of all banks grouped by sector
-
-### Data Query Tools
-
-#### `query_historical_data(ticker, period, metric_group)`
-Query historical banking metrics.
-- **Parameters**:
-  - `ticker` (string, optional): Bank ticker or sector
-  - `period` (string, optional): Period like "2024-Q3" or "2024"
-  - `metric_group` (string, optional): "all", "profitability", "asset_quality", "growth"
-- **Returns**: DataFrame with requested metrics
-
-#### `query_forecast_data(ticker, year)`
-Query forecast data for 2025-2026.
-- **Parameters**:
-  - `ticker` (string, optional): Bank ticker or sector
-  - `year` (string, optional): "2025" or "2026"
-- **Returns**: Forecast metrics
-
-### Analysis Tools
-
-#### `calculate_growth_metrics(ticker, metric, periods)`
-Calculate YoY, QoQ growth rates.
-- **Parameters**:
-  - `ticker` (string): Bank ticker
-  - `metric` (string): Metric name (e.g., "Loan", "Deposit")
-  - `periods` (integer): Number of periods
-- **Returns**: Growth rates and trends
-
-#### `get_valuation_analysis(ticker, metric)`
-Get valuation statistics with Z-scores.
-- **Parameters**:
-  - `ticker` (string): Bank ticker
-  - `metric` (string): "PE", "PB", or "PS"
-- **Returns**: Current value, historical stats, Z-score, percentile
-
-#### `compare_banks(tickers, metrics, period)`
-Compare multiple banks on specific metrics.
-- **Parameters**:
-  - `tickers` (array): List of bank tickers
-  - `metrics` (array): List of metrics to compare
-  - `period` (string): Period for comparison
-- **Returns**: Comparison table
-
-#### `get_ai_commentary(ticker, quarter)`
-Get AI-generated qualitative analysis.
-- **Parameters**:
-  - `ticker` (string): Bank ticker or "Sector"
-  - `quarter` (string): Quarter like "2024-Q3"
-- **Returns**: Qualitative analysis text
-
-#### `get_stock_performance(ticker, start_date, end_date)`
-Get stock price performance between two dates.
-- **Parameters**:
-  - `ticker` (string): Stock ticker symbol (e.g., "VPB", "VCB")
-  - `start_date` (string): Start date in YYYY-MM-DD format
-  - `end_date` (string): End date in YYYY-MM-DD format
-- **Returns**: Starting price, ending price, and performance percentage
-
-## Adding New Tools
-
-To add a new tool, follow these steps:
-
-### 1. Define the Tool in Banking_MCP.py
-
+Most tools support both single and multiple entity queries:
 ```python
-@tool(
-    name="your_tool_name",
-    description="Clear description of what the tool does",
-    parameters={
-        "param1": {"type": "string", "description": "Parameter description"},
-        "param2": {"type": "number", "description": "Another parameter", "required": False}
-    }
-)
-def your_tool_name(self, param1: str, param2: float = None) -> Dict:
-    """
-    Implementation of your tool
-    """
-    # Access data
-    df = self.data['historical']
-    
-    # Process data
-    result = df[df['TICKER'] == param1]
-    
-    # Return structured result
-    return {
-        "status": "success",
-        "data": result.to_dict(),
-        "message": "Tool executed successfully"
-    }
+# Single ticker
+get_bank_info(tickers=["VCB"])
+
+# Multiple tickers  
+get_bank_info(tickers=["VCB", "ACB", "BID"])
+
+# Response adapts: single returns simple dict, multiple returns batch format
 ```
 
-### 2. The Tool Decorator Automatically:
-- Registers the tool with OpenAI
-- Validates parameters
-- Handles errors
-- Formats responses
+### 2. Sector Ticker Support
 
-### 3. Tool Design Best Practices:
-- Keep tools focused on a single task
-- Return structured data (dicts, lists)
-- Include helpful error messages
-- Document parameters clearly
-- Make parameters optional when sensible
+`query_historical_data` now supports pre-aggregated sector data:
+- **"Sector"** - Overall banking sector aggregate
+- **"SOCB"** - State-owned commercial banks aggregate
+- **"Private_1"** - Tier 1 private banks aggregate
+- **"Private_2"** - Tier 2 private banks aggregate
+- **"Private_3"** - Tier 3 private banks aggregate
+
+These can be mixed with individual bank tickers in the same query.
+
+### 3. Tool Chaining
+
+OpenAI chains tools automatically to build complete answers:
+1. `get_data_availability()` → Understand available periods
+2. `query_historical_data()` → Get specific metrics
+3. `get_earnings_drivers()` → Analyze profit drivers
+4. Continue until analysis is complete (up to 20 tool calls)
+
+### 4. Data Caching Strategy
+
+- **Lazy Loading**: Data files loaded only when needed
+- **Memory Cache**: Data kept in memory after first load
+- **Result Cache**: Tool results cached for 5 minutes (TTL)
+- **Cache Key**: Based on tool name + sorted arguments
+
+## Current Tools (8 Active)
+
+### 1. get_data_availability()
+**Purpose**: Discover what data periods are available  
+**Parameters**: None  
+**Returns**: 
+- Current date
+- Latest quarterly data (last 8 quarters)
+- Latest yearly data (last 5 years)
+- Forecast years available
+**Usage**: MUST be called first for any "latest", "recent", or "current" data queries
+
+### 2. get_bank_sector_info()
+**Purpose**: Get bank/sector information - lists banks, identifies sectors, or returns component banks  
+**Parameters**:
+- `tickers` (optional): Array of bank tickers OR sector names (SOCB, Private_1, etc.)
+**Returns**: 
+- No params: All banks grouped by sector
+- Bank ticker: Sector classification
+- Sector name: Component banks within that sector
+**Note**: Merged functionality of list_all_banks and get_bank_info
+
+### 3. query_historical_data()
+**Purpose**: Query historical banking metrics with optional filtering  
+**Parameters**:
+- `frequency` (required): "quarterly" or "yearly"
+- `tickers` (optional): Array of bank/sector tickers
+- `period` (optional): Single period like "2024-Q3" or "2024"
+- `periods` (optional): Multiple periods ["2024-Q1", "2024-Q2"]
+- `metric` (optional): Single metric name (efficient for specific queries)
+- `metric_group` (optional): "all", "profitability", "asset_quality", "growth"
+**Special Features**:
+- Supports YTD queries (e.g., "2025-YTD")
+- Handles sector tickers (Sector, SOCB, Private_1/2/3)
+- Mixed-case ticker handling for compatibility
+**Returns**: DataFrame with requested metrics
+
+### 4. query_forecast_data()
+**Purpose**: Get forecast data for 2025-2026  
+**Parameters**:
+- `tickers` (optional): Array of bank tickers
+**Returns**: 
+- Actual data from latest year
+- Forecast data for all future years
+- Growth rate comparisons
+**Note**: Always returns ALL forecast years (no year filtering)
+
+### 5. get_commentary()
+**Purpose**: Get AI-generated analysis and commentary  
+**Parameters**:
+- `tickers` (required): Array of bank tickers or ["Sector"]
+- `quarter` (required): Quarter like "2024-Q3"
+**Returns**:
+- For banks: Individual AI commentary
+- For "Sector": Quarterly market analysis
+**Data Source**: banking_comments.xlsx, quarterly_analysis_results.xlsx
+
+### 6. get_valuation_analysis()
+**Purpose**: Statistical valuation analysis with Z-scores  
+**Parameters**:
+- `tickers` (required): Array of bank tickers
+- `metric` (optional): "PE" or "PB" (default: "PB")
+**Returns**:
+- Current value vs historical statistics
+- Z-score and percentile rank
+- Interpretation (Undervalued/Fair/Overvalued)
+**Data Source**: Valuation_banking.csv (52K+ data points)
+
+### 7. get_stock_performance()
+**Purpose**: Get stock price performance between dates  
+**Parameters**:
+- `tickers` (required): Array of stock tickers
+- `start_date` (required): YYYY-MM-DD format
+- `end_date` (required): YYYY-MM-DD format
+**Returns**:
+- Start/end prices
+- Performance percentage
+- Ranking for multiple stocks
+**Data Source**: TCBS API (real-time)
+
+### 8. get_earnings_drivers()
+**Purpose**: Analyze what's driving profit changes  
+**Parameters**:
+- `tickers` (required): Array of bank tickers
+- `period` (required): Period like "2024-Q3" or "2024"
+- `timeframe` (optional): "QoQ", "YoY", "T12M" (quarterly only)
+- `frequency` (optional): "quarterly" or "yearly"
+**Returns**:
+- PBT growth rate
+- Revenue, cost, non-recurring impacts
+- Detailed component breakdown (NII, fees, OPEX, provisions)
+**Data Source**: earnings_quality_quarterly.csv, earnings_quality_yearly.csv
+
+## Removed/Deprecated Tools
+
+### compare_banks (Removed)
+**Reason**: Functionality absorbed by query_historical_data with multiple ticker support  
+**Migration**: Use `query_historical_data(tickers=["VCB", "ACB", "BID"])`
+
+### get_sector_performance (Removed)
+**Reason**: Sector data now accessible via query_historical_data  
+**Migration**: Use `query_historical_data(tickers=["Sector"])` or specific sector tickers
+
+### list_all_banks (Removed)
+**Reason**: Merged into get_bank_sector_info  
+**Migration**: Use `get_bank_sector_info()` with no parameters
+
+### calculate_growth_metrics (Removed)
+**Reason**: OpenAI can calculate growth from raw data; pre-calculated growth available in get_earnings_drivers  
+**Migration**: 
+- Use `query_historical_data()` and let OpenAI calculate growth
+- Or use `get_earnings_drivers()` for pre-calculated QoQ, YoY, T12M impacts
 
 ## Usage Examples
 
 ### Example 1: Simple Query
-**User**: "What is VCB's NPL ratio for 2024-Q3?"
+**User**: "What is VCB's NPL ratio for Q3 2024?"
 
 **System Flow**:
-1. OpenAI calls `get_data_availability()` → Gets latest periods
-2. OpenAI calls `query_historical_data("VCB", "2024-Q3", "asset_quality")` → Gets NPL data
-3. OpenAI formulates answer with specific NPL ratio
+1. `get_data_availability()` → Verify Q3 2024 is available
+2. `query_historical_data(frequency="quarterly", tickers=["VCB"], period="2024-Q3", metric="NPL")`
+3. Return: NPL ratio of 1.22%
 
-### Example 2: Comparison Query
-**User**: "Compare the profitability of all Private_1 banks in 2024"
-
-**System Flow**:
-1. OpenAI calls `get_bank_info()` for sector components
-2. OpenAI calls `compare_banks(["VCB", "CTG", "BID"], ["ROA", "ROE", "NIM"], "2024")`
-3. OpenAI analyzes results and provides comparison
-
-### Example 3: Complex Analysis
-**User**: "Which bank has the best valuation and growth prospects?"
+### Example 2: Sector Comparison
+**User**: "Compare profitability of state-owned banks vs private banks"
 
 **System Flow**:
-1. OpenAI calls `list_all_banks()` → Gets all banks
-2. OpenAI calls `get_valuation_analysis()` for each bank (parallel)
-3. OpenAI calls `query_forecast_data()` for growth prospects
-4. OpenAI calls `get_ai_commentary()` for qualitative insights
-5. OpenAI synthesizes all data into recommendation
+1. `query_historical_data(frequency="quarterly", tickers=["SOCB", "Private_1"], period="2024-Q3", metric_group="profitability")`
+2. Returns aggregated metrics for both sectors
+3. AI analyzes differences in ROA, ROE, NIM
 
-### Example 4: Stock Performance Query
-**User**: "What's the YTD price performance for VPB?"
+### Example 3: YTD Performance
+**User**: "Show me YTD 2025 performance for all banks"
 
 **System Flow**:
-1. OpenAI calls `get_data_availability()` → Gets current date (2024-08-25)
-2. OpenAI determines YTD start date → 2023-12-31 (last day of previous year)
-3. OpenAI calls `get_stock_performance("VPB", "2023-12-31", "2024-08-25")`
-4. OpenAI presents result: "VPB has increased 13.51% YTD, from 18,500 VND to 21,000 VND"
+1. `get_data_availability()` → Determine completed quarters
+2. `query_historical_data(frequency="quarterly", period="2025-YTD", metric_group="all")`
+3. Automatically aggregates Q1-Q3 2025 data (if in Q4)
 
-## Streamlit Integration
+### Example 4: Earnings Analysis
+**User**: "What drove VPB's profit growth in Q2 2025?"
 
-The system is fully integrated with Streamlit:
+**System Flow**:
+1. `get_earnings_drivers(tickers=["VPB"], period="2025-Q2", timeframe="QoQ")`
+2. Returns structured breakdown:
+   - Revenue impact: +15pp (NII: +10pp, Fees: +5pp)
+   - Cost impact: -3pp (OPEX: -1pp, Provisions: -2pp)
+   - Non-recurring: +2pp
 
-### Features:
-1. **Chat Interface**: Natural conversation with context retention
-2. **Tool Execution Display**: See which tools are being called
-3. **Progress Indicators**: Visual feedback during processing
-4. **Results Formatting**: Tables, charts, and formatted text
-5. **History Management**: Save and review past conversations
-6. **Export Options**: Download analysis results
+### Example 5: Complex Multi-Tool Analysis
+**User**: "Which banks have the best valuation and growth prospects?"
 
-### UI Components:
-- Chat input box
-- Message history display
-- Tool execution log
-- Results panel with tabs for different data types
-- Settings sidebar for model configuration
+**System Flow**:
+1. `get_bank_sector_info()` → Get all bank tickers
+2. `get_valuation_analysis(tickers=[...all banks...], metric="PB")` → Parallel execution
+3. `query_forecast_data(tickers=[...top 5 undervalued...])` → Growth prospects
+4. `get_commentary(tickers=[...top picks...], quarter="2024-Q3")` → Qualitative insights
+5. AI synthesizes comprehensive recommendation
+
+### Example 6: Sector Component Query
+**User**: "What are the individual banks in the SOCB sector?"
+
+**System Flow**:
+1. `get_bank_sector_info(tickers=["SOCB"])`
+2. Returns: Component banks ["BID", "CTG", "VCB", "AGB"]
+
+## Adding New Tools
+
+### Tool Definition Pattern
+```python
+@self.tool(
+    name="your_tool_name",
+    description="Clear description for OpenAI to understand usage",
+    parameters={
+        "param1": {
+            "type": "string",
+            "description": "Parameter description",
+            "required": True
+        },
+        "param2": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional array parameter",
+            "required": False
+        }
+    }
+)
+def your_tool_name(param1: str, param2: List[str] = None) -> Dict:
+    """Implementation"""
+    # Use lazy loading for data
+    df = self._load_historical_quarter()
+    
+    # Process request
+    result = process_data(df, param1, param2)
+    
+    # Return structured response
+    return {
+        "status": "success",
+        "data": result,
+        "records": len(result)
+    }
+```
+
+### Best Practices
+1. **Lazy Loading**: Load data only when needed
+2. **Universal Pattern**: Support single and multiple entities
+3. **Structured Returns**: Always return dicts with status
+4. **Error Handling**: Return {"error": "message", "status": "failed"}
+5. **Efficient Defaults**: Make parameters optional when sensible
 
 ## Configuration
 
-### Environment Variables (.env file):
+### Environment Variables (.env)
 ```
 OPENAI_API_KEY=your-api-key-here
-OPENAI_MODEL=gpt-4-turbo-preview
-ENABLE_TOOL_LOGGING=true
+OPENAI_MODEL=gpt-5  # or gpt-4-turbo-preview
 ```
 
-### Settings:
-- **Model Selection**: Choose between GPT-4, GPT-4-Turbo, GPT-3.5
-- **Temperature**: Control response creativity (0.0 - 1.0)
-- **Max Tokens**: Limit response length
-- **Tool Timeout**: Maximum execution time per tool
+### Key Settings
+- **Model**: GPT-5 (default) or GPT-4 Turbo
+- **Temperature**: 1.0 (GPT-5 only supports default)
+- **Max Tool Calls**: 20 per conversation turn
+- **Cache TTL**: 300 seconds (5 minutes)
+- **Conversation Memory**: Last 3 exchanges (compressed)
+
+## Performance Optimizations
+
+### Data Loading
+- **Lazy Loading**: Files loaded only when first needed
+- **LRU Cache**: @lru_cache decorator on load methods
+- **Pre-aggregated Data**: Sector-level data pre-calculated in database
+
+### Tool Execution
+- **Parallel Calls**: Multiple banks processed simultaneously
+- **Result Caching**: 5-minute TTL on identical queries
+- **Compressed Memory**: Conversation history compressed to save tokens
+
+### Pre-calculated Metrics
+The database includes pre-calculated growth metrics:
+- QoQ (Quarter-over-Quarter)
+- YoY (Year-over-Year)
+- T12M (Trailing 12 Months)
+These should be used instead of recalculating.
+
+## Tool Redundancy Analysis
+
+### Completed Optimizations
+1. **Merged list_all_banks into get_bank_sector_info** ✓
+2. **Removed calculate_growth_metrics** ✓ (OpenAI calculates from raw data)
+3. **Tools reduced from 10 → 8**
+
+### Remaining Opportunities
+- Consider combining get_commentary + get_earnings_drivers (both provide analysis)
+- Further optimize data loading strategies
 
 ## Error Handling
 
-The system includes robust error handling:
+### Common Issues and Solutions
 
-1. **Data Availability Checks**: Verify data exists before querying
-2. **Parameter Validation**: Ensure valid inputs for each tool
-3. **Graceful Failures**: Return helpful error messages
-4. **Retry Logic**: Automatic retries for transient failures
-5. **Fallback Responses**: Provide partial answers when possible
+1. **"No data found"**
+   - Verify ticker exists in Bank_Type.xlsx
+   - Check period format (YYYY-Q# or YYYY)
+   - Ensure data files are present
 
-## Performance Optimization
+2. **Sector ticker issues**
+   - Use exact case: "Sector", not "SECTOR"
+   - Private sectors: "Private_1", not "PRIVATE_1"
 
-### Caching Strategy:
-- Cache frequently accessed data in memory
-- Store tool results for repeated queries
-- Implement TTL (Time To Live) for cache entries
+3. **YTD queries**
+   - Format: "2025-YTD"
+   - Automatically switches to quarterly frequency
+   - Returns all completed quarters in the year
 
-### Efficient Tool Calls:
-- Batch similar queries together
-- Use parallel tool calls when possible
-- Minimize data transfer between tools
-
-## Security Considerations
-
-1. **API Key Management**: Never expose OpenAI API keys in code
-2. **Input Sanitization**: Validate all user inputs
-3. **Rate Limiting**: Implement request throttling
-4. **Data Access Control**: Restrict access to sensitive data
-5. **Audit Logging**: Track all tool executions
+4. **Tool timeout**
+   - Large queries may timeout
+   - Break into smaller batches
+   - Use specific metrics instead of "all"
 
 ## Troubleshooting
 
-### Common Issues:
+### Debug Mode
+Enable logging by uncommenting debug statements in Banking_MCP.py:
+```python
+# print(f"DEBUG: Initial data loaded - {len(df)} rows")
+```
 
-1. **"No data found"**: Check data file paths and formats
-2. **"Tool timeout"**: Increase timeout or optimize query
-3. **"Invalid parameters"**: Verify parameter types and values
-4. **"API rate limit"**: Implement backoff strategy
+### Tool Execution Monitoring
+The Streamlit UI shows:
+- Tool execution order
+- Parameters passed
+- Success/failure status
+- Result summaries
+- Execution time
 
-### Debug Mode:
-Enable verbose logging to see:
-- Raw OpenAI requests/responses
-- Tool execution details
-- Data query results
-- Error stack traces
+### Cache Inspection
+Check session state in Streamlit:
+- `st.session_state.tool_cache` - Cached results
+- `st.session_state.tool_executions` - Execution history
+- `st.session_state.conversation_history` - Compressed chat history
 
 ## Future Enhancements
 
-Potential improvements to consider:
+### Immediate Priorities
+1. ✓ Tool consolidation complete (10 → 8 tools)
+2. Implement streaming responses
+3. Add batch processing for large queries
 
-1. **Advanced Analytics**: Statistical models, ML predictions
-2. **Custom Visualizations**: Interactive charts and graphs
-3. **Report Generation**: Automated PDF/Excel reports
-4. **Alerting System**: Notifications for significant changes
-5. **Multi-language Support**: Vietnamese language interface
-6. **Voice Interface**: Speech-to-text input
-7. **Mobile App**: Responsive design for mobile devices
+### Medium Term
+1. Vietnamese language support
+2. Advanced visualizations
+3. Export functionality (PDF/Excel)
+4. Real-time data integration
+
+### Long Term
+1. Machine learning predictions
+2. Alert system for significant changes
+3. Mobile application
+4. Voice interface support

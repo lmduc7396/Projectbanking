@@ -31,8 +31,8 @@ class BulkQuarterlyAnalysisGenerator:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
         
         self.client = openai.OpenAI(api_key=self.api_key)
-        self.comments_file = os.path.join(data_dir, "banking_comments.xlsx")
-        self.analysis_file = os.path.join(data_dir, "quarterly_analysis_results.xlsx")
+        self.comments_file = os.path.join(data_dir, "banking_comments.parquet")
+        self.analysis_file = os.path.join(data_dir, "quarterly_analysis_results.parquet")
         
         print(f"Comments file: {self.comments_file}")
         print(f"Analysis results will be saved to: {self.analysis_file}")
@@ -42,7 +42,7 @@ class BulkQuarterlyAnalysisGenerator:
         if not os.path.exists(self.comments_file):
             raise FileNotFoundError(f"Comments file not found: {self.comments_file}")
         
-        return pd.read_excel(self.comments_file)
+        return pd.read_parquet(self.comments_file)
     
     def get_quarters_to_analyze(self, comments_df):
         """Get all quarters from 2024-Q1 onwards"""
@@ -68,7 +68,7 @@ class BulkQuarterlyAnalysisGenerator:
         """Load existing analysis results if file exists"""
         if os.path.exists(self.analysis_file):
             try:
-                return pd.read_excel(self.analysis_file)
+                return pd.read_parquet(self.analysis_file)
             except Exception as e:
                 print(f"Error loading existing analysis file: {e}")
                 return pd.DataFrame()
@@ -171,7 +171,7 @@ class BulkQuarterlyAnalysisGenerator:
             results_df = results_df.sort_values('quarter_sort').drop('quarter_sort', axis=1)
             
             # Save to Excel
-            results_df.to_excel(self.analysis_file, index=False)
+            results_df.to_parquet(self.analysis_file, index=False, engine='pyarrow', compression='snappy')
             print(f"\n✅ Analysis results saved to: {self.analysis_file}")
             
             return True
@@ -183,7 +183,7 @@ class BulkQuarterlyAnalysisGenerator:
         """Get list of available quarters from comments data"""
         try:
             if os.path.exists(self.comments_file):
-                comments_df = pd.read_excel(self.comments_file)
+                comments_df = pd.read_parquet(self.comments_file)
                 quarters = comments_df['QUARTER'].unique().tolist()
                 return sort_quarters(quarters, reverse=True)
             return []
@@ -398,7 +398,7 @@ def main():
         
         # Check if analysis file already exists
         if os.path.exists(generator.analysis_file):
-            existing_df = pd.read_excel(generator.analysis_file)
+            existing_df = pd.read_parquet(generator.analysis_file)
             print(f"📋 Existing analysis file found with {len(existing_df)} quarters")
             
             choice = input("Options:\n1. Skip existing quarters (recommended)\n2. Regenerate all quarters\nChoose (1/2): ").strip()

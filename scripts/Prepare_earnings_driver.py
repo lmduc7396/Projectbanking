@@ -808,7 +808,7 @@ def main():
     # Process Quarterly Data
     try:
         print("\nProcessing quarterly data...")
-        df_quarter = pd.read_csv('Data/dfsectorquarter.csv')
+        df_quarter = pd.read_parquet('Data/dfsectorquarter.parquet')
         df_quarter_processed = process_earnings_quality(df_quarter, 'Date_Quarter')
         
         print("  Calculating T12M scores...")
@@ -840,7 +840,7 @@ def main():
         df_quarter_with_scores = df_quarter_with_scores.sort_values(['TICKER', 'Date_Quarter'])
         
         # Save to CSV
-        df_quarter_with_scores.to_csv('Data/earnings_quality_quarterly.csv', index=False)
+        df_quarter_with_scores.to_parquet('Data/earnings_quality_quarterly.parquet', index=False, engine='pyarrow', compression='snappy')
         print(f"Done - Quarterly data processed: {len(df_quarter_with_scores)} records with T12M, QoQ, and YoY scores")
         
         # Display sample with weighted impacts
@@ -861,7 +861,7 @@ def main():
     # Process Yearly Data
     try:
         print("\n\nProcessing yearly data...")
-        df_year = pd.read_csv('Data/dfsectoryear.csv')
+        df_year = pd.read_parquet('Data/dfsectoryear.parquet')
         df_year_processed = process_earnings_quality(df_year, 'Year')
         
         # Calculate score drivers for yearly data
@@ -871,7 +871,7 @@ def main():
         df_year_with_scores = df_year_with_scores.sort_values(['TICKER', 'Year'])
         
         # Save to CSV
-        df_year_with_scores.to_csv('Data/earnings_quality_yearly.csv', index=False)
+        df_year_with_scores.to_parquet('Data/earnings_quality_yearly.parquet', index=False, engine='pyarrow', compression='snappy')
         print(f"Done - Yearly data processed: {len(df_year_with_scores)} records")
         
         # Display sample with weighted impacts
@@ -896,7 +896,7 @@ def main():
     
     try:
         # Analyze latest year score drivers
-        df_year = pd.read_csv('Data/earnings_quality_yearly.csv')
+        df_year = pd.read_parquet('Data/earnings_quality_yearly.parquet')
         latest_year = df_year['Year'].max()
         # Check for impact columns instead of score columns
         if 'Top_Line_Impact' in df_year.columns:

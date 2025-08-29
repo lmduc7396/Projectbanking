@@ -1,0 +1,447 @@
+"""
+MCP Model - AI Banking Analysis Assistant with Streaming and Parallel Execution
+Enhanced version with performance optimizations
+"""
+
+import streamlit as st
+import pandas as pd
+import json
+import os
+import sys
+import asyncio
+import time
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+from openai import OpenAI
+from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
+import threading
+
+# Page configuration
+st.set_page_config(
+    page_title="DucGPT Chatbot v2",
+    layout="wide"
+)
+
+# Add project root to path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
+
+# Import and apply Google Fonts
+from utilities.style_utils import apply_google_font
+from utilities.sidebar_style import apply_sidebar_style
+apply_google_font()
+apply_sidebar_style()
+
+# Import the banking tool system
+from utilities.Banking_MCP import get_tool_system
+
+# Load environment variables
+load_dotenv()
+
+# Thread pool for parallel execution
+executor = ThreadPoolExecutor(max_workers=5)
+
+# Initialize session state
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = []
+if 'facts_memory' not in st.session_state:
+    st.session_state.facts_memory = []
+if 'tool_cache' not in st.session_state:
+    st.session_state.tool_cache = {}
+if 'tool_executions' not in st.session_state:
+    st.session_state.tool_executions = []
+if 'openai_client' not in st.session_state:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        st.session_state.openai_client = OpenAI(api_key=api_key)
+    else:
+        st.session_state.openai_client = None
+if 'tool_system' not in st.session_state:
+    st.session_state.tool_system = get_tool_system()
+
+
+def execute_tool_call(tool_name: str, arguments: Dict) -> Dict:
+    """Execute a tool and return results with caching"""
+    tool_system = st.session_state.tool_system
+    
+    # Create cache key
+    cache_key = f"{tool_name}_{json.dumps(arguments, sort_keys=True)}"
+    
+    # Check cache (5 minute TTL)
+    if cache_key in st.session_state.tool_cache:
+        cached_entry = st.session_state.tool_cache[cache_key]
+        cache_age = (datetime.now() - cached_entry['timestamp']).total_seconds()
+        if cache_age < 300:  # 5 minutes
+            return cached_entry['result']
+    
+    # Log the tool execution
+    execution_log = {
+        "tool": tool_name,
+        "arguments": arguments,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Execute the tool
+    result = tool_system.execute_tool(tool_name, arguments)
+    
+    # Cache the result
+    st.session_state.tool_cache[cache_key] = {
+        'result': result,
+        'timestamp': datetime.now()
+    }
+    
+    execution_log["result"] = result
+    st.session_state.tool_executions.append(execution_log)
+    
+    return result
+
+
+async def execute_tool_async(tool_name: str, arguments: Dict) -> Dict:
+    """Async wrapper for tool execution"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(executor, execute_tool_call, tool_name, arguments)
+
+
+async def execute_parallel_tools(tool_calls: List[Dict]) -> List[Dict]:
+    """Execute multiple tools in parallel"""
+    tasks = []
+    for tool_call in tool_calls:
+        function_name = tool_call['function']['name']
+        function_args = json.loads(tool_call['function']['arguments'])
+        tasks.append(execute_tool_async(function_name, function_args))
+    
+    results = await asyncio.gather(*tasks)
+    return results
+
+
+def compress_assistant_response(response: str, tool_calls_made: List[str], user_message: str) -> Dict:
+    """Compress assistant response to structured data to save tokens"""
+    import re
+    
+    compressed = {
+        "tickers": [],
+        "periods": [],
+        "metrics": {},
+        "tools": tool_calls_made[:5],
+        "summary": ""
+    }
+    
+    # Extract tickers
+    tickers = re.findall(r'\b[A-Z]{3,4}\b', response + " " + user_message)
+    compressed["tickers"] = list(set(tickers))[:10]
+    
+    # Extract periods
+    quarters = re.findall(r'\b\d{4}-Q\d\b|\bQ\d\s*\d{4}\b|\b20\d{2}\b', response)
+    compressed["periods"] = list(set(quarters))[:5]
+    
+    # Extract key metrics
+    roe_match = re.search(r'ROE[:\s]+([0-9.]+)%', response)
+    if roe_match:
+        compressed["metrics"]["ROE"] = roe_match.group(1) + "%"
+    
+    # Create summary
+    if compressed["tickers"] and compressed["periods"]:
+        compressed["summary"] = f"{compressed['tickers'][0]} {compressed['periods'][0]}"
+    elif compressed["tickers"]:
+        compressed["summary"] = f"Analyzed {', '.join(compressed['tickers'][:2])}"
+    else:
+        compressed["summary"] = "Banking analysis"
+    
+    return compressed
+
+
+def reconstruct_context(compressed_history: List[Dict]) -> str:
+    """Reconstruct concise context from compressed history"""
+    if not compressed_history:
+        return ""
+    
+    context_parts = []
+    
+    for item in compressed_history[-3:]:  # Last 3 items
+        if item.get("role") == "user":
+            content = item.get("content", "")
+            if len(content) > 100:
+                context_parts.append(f"User asked: {content[:100]}...")
+            else:
+                context_parts.append(f"User asked: {content}")
+        elif item.get("role") == "assistant_compressed":
+            data = item.get("data", {})
+            parts = []
+            if data.get("tickers"):
+                parts.append(f"Discussed {', '.join(data['tickers'][:3])}")
+            if data.get("periods"):
+                parts.append(f"for {', '.join(data['periods'][:2])}")
+            if parts:
+                context_parts.append(" ".join(parts))
+    
+    return " | ".join(context_parts) if context_parts else ""
+
+
+def chat_with_ai_streaming(user_message: str):
+    """
+    Enhanced chat function with streaming responses and parallel tool execution
+    """
+    if not st.session_state.openai_client:
+        st.error("❌ OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.")
+        return
+    
+    # Prepare messages
+    messages = []
+    context_str = reconstruct_context(st.session_state.conversation_history)
+    
+    system_content = """You are a banking analyst assistant. Use tools to get data, then provide CONCISE analysis.
+IMPORTANT: ALWAYS call get_data_availability() first when user asks for 'latest', 'recent', 'current' data.
+Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
+    
+    if context_str:
+        system_content += f"\n\nPrevious context: {context_str}"
+    
+    messages.append({"role": "system", "content": system_content})
+    messages.append({"role": "user", "content": user_message})
+    
+    # Get tool schemas
+    tools = st.session_state.tool_system.get_openai_tools()
+    
+    # Create containers for streaming
+    response_container = st.empty()
+    tool_status_container = st.container()
+    
+    accumulated_response = ""
+    tool_call_count = 0
+    tool_calls_made = []
+    max_rounds = 20
+    rounds = 0
+    
+    # Main chat loop
+    while rounds < max_rounds:
+        rounds += 1
+        
+        try:
+            # Call OpenAI with streaming
+            stream = st.session_state.openai_client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-5"),
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                stream=True
+            )
+            
+            # Process streaming response
+            current_tool_calls = []
+            assistant_content = ""
+            is_tool_call = False
+            
+            for chunk in stream:
+                delta = chunk.choices[0].delta
+                
+                # Check for tool calls
+                if delta.tool_calls:
+                    is_tool_call = True
+                    for tool_call in delta.tool_calls:
+                        # Accumulate tool call data
+                        if len(current_tool_calls) <= tool_call.index:
+                            current_tool_calls.append({
+                                "id": "",
+                                "function": {"name": "", "arguments": ""}
+                            })
+                        
+                        if tool_call.id:
+                            current_tool_calls[tool_call.index]["id"] = tool_call.id
+                        if tool_call.function.name:
+                            current_tool_calls[tool_call.index]["function"]["name"] = tool_call.function.name
+                        if tool_call.function.arguments:
+                            current_tool_calls[tool_call.index]["function"]["arguments"] += tool_call.function.arguments
+                
+                # Check for content (non-tool response)
+                if delta.content and not is_tool_call:
+                    assistant_content += delta.content
+                    accumulated_response += delta.content
+                    # Stream the response to user
+                    response_container.markdown(accumulated_response + "▌")
+            
+            # Remove cursor after streaming
+            if assistant_content:
+                response_container.markdown(accumulated_response)
+            
+            # Handle tool calls if any
+            if current_tool_calls:
+                # Show parallel execution status
+                with tool_status_container:
+                    st.info(f"🔧 Executing {len(current_tool_calls)} tool(s) in parallel...")
+                    
+                    # Create columns for parallel execution display
+                    cols = st.columns(min(len(current_tool_calls), 3))
+                    progress_bars = []
+                    
+                    for i, tool_call in enumerate(current_tool_calls):
+                        tool_name = tool_call['function']['name']
+                        tool_calls_made.append(tool_name)
+                        tool_call_count += 1
+                        
+                        with cols[i % 3]:
+                            st.write(f"**Tool #{tool_call_count}**: {tool_name}")
+                            progress_bars.append(st.progress(0))
+                
+                # Execute tools in parallel
+                start_time = time.time()
+                
+                # Run async execution
+                async def run_parallel():
+                    return await execute_parallel_tools(current_tool_calls)
+                
+                # Execute in event loop
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    results = loop.run_until_complete(run_parallel())
+                finally:
+                    loop.close()
+                
+                execution_time = time.time() - start_time
+                
+                # Update progress bars to complete
+                for pb in progress_bars:
+                    pb.progress(100)
+                
+                # Show execution summary
+                with tool_status_container:
+                    st.success(f"✅ Executed {len(current_tool_calls)} tools in {execution_time:.2f}s (parallel)")
+                    
+                    # Show results in expanders
+                    for i, (tool_call, result) in enumerate(zip(current_tool_calls, results)):
+                        with st.expander(f"Tool: {tool_call['function']['name']}", expanded=False):
+                            st.code(json.dumps(json.loads(tool_call['function']['arguments']), indent=2))
+                            if result.get("status") == "success":
+                                st.success("✅ Success")
+                                if "records" in result:
+                                    st.write(f"Found {result['records']} records")
+                            else:
+                                st.error(f"❌ {result.get('error', 'Failed')}")
+                
+                # Add tool results to messages
+                messages.append({
+                    "role": "assistant",
+                    "content": assistant_content or None,
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": tc["function"]
+                        } for tc in current_tool_calls
+                    ]
+                })
+                
+                for tool_call, result in zip(current_tool_calls, results):
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": json.dumps(result, default=str)
+                    })
+                
+                # Continue to next round for tool response
+                continue
+            else:
+                # No tool calls, we have the final response
+                if assistant_content:
+                    # Update conversation history
+                    st.session_state.conversation_history.append({"role": "user", "content": user_message})
+                    compressed_response = compress_assistant_response(accumulated_response, tool_calls_made, user_message)
+                    st.session_state.conversation_history.append({
+                        "role": "assistant_compressed",
+                        "data": compressed_response
+                    })
+                    
+                    # Keep only last 6 messages
+                    if len(st.session_state.conversation_history) > 6:
+                        st.session_state.conversation_history = st.session_state.conversation_history[-6:]
+                    
+                    # Add tool usage summary
+                    if tool_call_count > 0:
+                        st.markdown(f"\n\n---\n*Analysis completed using {tool_call_count} tool{'s' if tool_call_count > 1 else ''} with parallel execution.*")
+                
+                break
+                
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+            break
+    
+    if rounds >= max_rounds:
+        st.warning(f"Analysis completed with {tool_call_count} tool calls. The query may be too complex.")
+
+
+def main():
+    st.title("Duc - AI Chatbot v2 (Optimized)")
+    st.markdown("🚀 **Enhanced with streaming responses and parallel tool execution**")
+    
+    # Check API key
+    if not st.session_state.openai_client:
+        st.error("⚠️ OpenAI API key not configured!")
+        st.info("Please create a `.env` file with your OpenAI API key:")
+        st.code("OPENAI_API_KEY=your-api-key-here")
+        return
+    
+    # Sidebar configuration
+    with st.sidebar:
+        st.header("⚙️ Configuration")
+        
+        # Performance metrics
+        st.subheader("🎯 Performance Features")
+        st.success("✅ Streaming responses enabled")
+        st.success("✅ Parallel tool execution enabled")
+        st.info(f"📊 Cache size: {len(st.session_state.tool_cache)} entries")
+        
+        # Available tools
+        with st.expander("📋 Available Tools", expanded=False):
+            tools = st.session_state.tool_system.get_tool_list()
+            for tool in tools:
+                st.write(f"• {tool}")
+        
+        # Clear cache button
+        if st.button("🗑️ Clear Cache"):
+            st.session_state.tool_cache = {}
+            st.session_state.tool_executions = []
+            st.rerun()
+    
+    # Info section
+    st.info("**Enhanced Features:**")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("• 🚀 **Streaming**: See responses as they're generated")
+        st.write("• ⚡ **Parallel Execution**: Multiple tools run simultaneously")
+    with col2:
+        st.write("• 💾 **Smart Caching**: 5-minute cache for repeated queries")
+        st.write("• 📊 **Progress Tracking**: Real-time execution status")
+    
+    # Chat input
+    user_input = st.chat_input("Ask Duc AI (try: 'Compare VCB and ACB latest performance')")
+    
+    if user_input:
+        # Add user message to display
+        with st.chat_message("user"):
+            st.write(user_input)
+        
+        # Get AI response with streaming
+        with st.chat_message("assistant"):
+            chat_with_ai_streaming(user_input)
+    
+    # Tool execution history
+    if st.session_state.tool_executions:
+        with st.expander(f"🔧 Tool Execution History ({len(st.session_state.tool_executions)} executions)"):
+            # Show last 5 executions
+            for execution in reversed(st.session_state.tool_executions[-5:]):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                with col1:
+                    st.write(f"**{execution['tool']}**")
+                with col2:
+                    st.caption(execution['timestamp'])
+                with col3:
+                    if execution['result'].get('status') == 'success':
+                        st.success("✅")
+                    else:
+                        st.error("❌")
+
+
+if __name__ == "__main__":
+    main()

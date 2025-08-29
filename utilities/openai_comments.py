@@ -8,10 +8,12 @@ from dotenv import load_dotenv
 def load_cached_comment(ticker, quarter):
     """Load a previously generated comment from the cache file"""
     try:
-        comments_file = r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\banking_comments.xlsx"
+        # Get project root dynamically
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        comments_file = os.path.join(project_root, 'Data', 'banking_comments.parquet')
         
         if os.path.exists(comments_file):
-            comments_df = pd.read_excel(comments_file)
+            comments_df = pd.read_parquet(comments_file)
             
             # Find the comment for this ticker and quarter
             comment_row = comments_df[
@@ -360,11 +362,13 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
 def save_comment_to_cache(ticker, sector, quarter, comment):
     """Save a newly generated comment to the cache file"""
     try:
-        comments_file = r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\banking_comments.xlsx"
+        # Get project root dynamically
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        comments_file = os.path.join(project_root, 'Data', 'banking_comments.parquet')
         
         # Load existing comments or create new DataFrame
         if os.path.exists(comments_file):
-            comments_df = pd.read_excel(comments_file)
+            comments_df = pd.read_parquet(comments_file)
         else:
             comments_df = pd.DataFrame(columns=['TICKER', 'SECTOR', 'QUARTER', 'COMMENT', 'GENERATED_DATE'])
         
@@ -392,7 +396,7 @@ def save_comment_to_cache(ticker, sector, quarter, comment):
             comments_df = pd.concat([comments_df, pd.DataFrame([new_entry])], ignore_index=True)
         
         # Save to Excel
-        comments_df.to_excel(comments_file, index=False)
+        comments_df.to_parquet(comments_file, index=False, engine='pyarrow', compression='snappy')
         
     except Exception as e:
         raise Exception(f"Failed to save comment to cache: {e}")

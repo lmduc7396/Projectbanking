@@ -45,7 +45,7 @@ from utilities.valuation_analysis import (
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_valuation_data():
     """Load valuation data"""
-    file_path = os.path.join(project_root, 'Data', 'Valuation_banking.csv')
+    file_path = os.path.join(project_root, 'Data', 'Valuation_banking.parquet')
     if os.path.exists(file_path):
         df = pd.read_csv(file_path)
         df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])

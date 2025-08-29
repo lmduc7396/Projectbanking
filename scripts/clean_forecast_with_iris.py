@@ -27,7 +27,7 @@ print(f"Loaded {len(iris_keycode_df)} rows of IRIS_KEYCODE data")
 
 # Load banking tickers from existing data sources
 # Get bank list from quarterly data
-quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.csv')
+quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.parquet')
 all_bank_tickers = quarter_df[quarter_df['TICKER'].str.len() == 3]['TICKER'].unique()
 print(f"Found {len(all_bank_tickers)} bank tickers in quarterly data")
 
@@ -70,7 +70,7 @@ print(f"Unique KeyCodes in IRIS Bank format: {iris_bank['KeyCode'].nunique()}")
 print("\nStep 2.5: Filtering dates for current and next year...")
 
 # Get the latest year from quarterly data to determine current year
-quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.csv')
+quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.parquet')
 # Extract year from Date_Quarter column (format: YYYY-Q# where YYYY is 4-digit year)
 quarter_df['Year'] = quarter_df['Date_Quarter'].str.extract(r'(\d{4})-Q').astype(int)
 current_year = quarter_df['Year'].max()

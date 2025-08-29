@@ -40,8 +40,8 @@ st.markdown("### Analyze earnings drivers through revenue growth, cost efficienc
 def load_data():
     """Load quarterly and yearly data"""
     try:
-        quarterly_df = pd.read_csv(os.path.join(project_root, 'Data/earnings_quality_quarterly.csv'))
-        yearly_df = pd.read_csv(os.path.join(project_root, 'Data/earnings_quality_yearly.csv'))
+        quarterly_df = pd.read_parquet(os.path.join(project_root, 'Data/earnings_quality_quarterly.csv'))
+        yearly_df = pd.read_parquet(os.path.join(project_root, 'Data/earnings_quality_yearly.csv'))
         return quarterly_df, yearly_df
     except FileNotFoundError:
         st.error("Data files not found. Please run scripts/Prepare_earnings_driver.py first.")

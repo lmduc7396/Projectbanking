@@ -717,27 +717,27 @@ if has_forecast:
     print(f"  dfsectorforecast columns (first 10): {dfsectorforecast.columns.tolist()[:10]}")
 
 if has_forecast:
-    # Save historical data
-    dfsectoryear_historical.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
-    # Save forecast data separately
-    dfsectorforecast.to_csv(os.path.join(data_dir, 'dfsectorforecast.csv'), index=False)
+    # Save historical data as Parquet
+    dfsectoryear_historical.to_parquet(os.path.join(data_dir, 'dfsectoryear.parquet'), index=False, engine='pyarrow', compression='snappy')
+    # Save forecast data as Parquet
+    dfsectorforecast.to_parquet(os.path.join(data_dir, 'dfsectorforecast.parquet'), index=False, engine='pyarrow', compression='snappy')
     
-    print(f"Files saved:")
-    print(f"  - dfsectoryear.csv (historical): {len(dfsectoryear_historical)} rows")
-    print(f"  - dfsectorforecast.csv (forecast): {len(dfsectorforecast)} rows")
+    print(f"Files saved as Parquet:")
+    print(f"  - dfsectoryear.parquet (historical): {len(dfsectoryear_historical)} rows")
+    print(f"  - dfsectorforecast.parquet (forecast): {len(dfsectorforecast)} rows")
 else:
-    # No forecast data, save only historical
-    dfsectoryear_historical.to_csv(os.path.join(data_dir, 'dfsectoryear.csv'), index=False)
-    print(f"Files saved:")
-    print(f"  - dfsectoryear.csv: {len(dfsectoryear)} rows")
+    # No forecast data, save only historical as Parquet
+    dfsectoryear_historical.to_parquet(os.path.join(data_dir, 'dfsectoryear.parquet'), index=False, engine='pyarrow', compression='snappy')
+    print(f"Files saved as Parquet:")
+    print(f"  - dfsectoryear.parquet: {len(dfsectoryear)} rows")
 
-# Save quarterly data (always historical only)
-dfsectorquarter.to_csv(os.path.join(data_dir, 'dfsectorquarter.csv'), index=False)
+# Save quarterly data as Parquet (always historical only)
+dfsectorquarter.to_parquet(os.path.join(data_dir, 'dfsectorquarter.parquet'), index=False, engine='pyarrow', compression='snappy')
 
 # Debug: Verify saved files
 print("\nDEBUG - Verifying saved files:")
-test_yearly = pd.read_csv(os.path.join(data_dir, 'dfsectoryear.csv'))
-test_quarterly = pd.read_csv(os.path.join(data_dir, 'dfsectorquarter.csv'))
+test_yearly = pd.read_parquet(os.path.join(data_dir, 'dfsectoryear.parquet'))
+test_quarterly = pd.read_parquet(os.path.join(data_dir, 'dfsectorquarter.parquet'))
 print(f"  dfsectoryear.csv columns (first 10): {test_yearly.columns.tolist()[:10]}")
 print(f"  dfsectorquarter.csv columns (first 10): {test_quarterly.columns.tolist()[:10]}")
 
@@ -751,6 +751,7 @@ if has_forecast:
     print(f"  Historical rows (2018-{most_recent_full_year}): {historical_rows}")
     print(f"  Forecast rows ({forecast_year_1}-{forecast_year_2}): {forecast_rows_count}")
     print(f"  Total rows: {len(dfsectoryear)}")
+    print(f"  Quarterly data saved: {len(dfsectorquarter)} rows")
     
     # Generate simple coverage report for forecast years
     print("\nForecast coverage summary:")

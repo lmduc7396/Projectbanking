@@ -37,14 +37,14 @@ def get_data_path():
     return os.path.join(project_root, 'Data')
 
 def get_comments_file_path():
-    return os.path.join(get_data_path(), 'banking_comments.xlsx')
+    return os.path.join(get_data_path(), 'banking_comments.parquet')
 
 def quarterly_analysis_page():
     st.title("Quarterly Banking Analysis")
     st.markdown("Comprehensive AI-powered analysis of banking comments for specific quarters")
     
     # Check if analysis results file exists
-    analysis_file = os.path.join(get_data_path(), "quarterly_analysis_results.xlsx")
+    analysis_file = os.path.join(get_data_path(), "quarterly_analysis_results.parquet")
     analysis_exists = os.path.exists(analysis_file)
     
     # Check if comments file exists using dynamic path
@@ -54,7 +54,7 @@ def quarterly_analysis_page():
     if analysis_exists:
         try:
             # Load pre-generated analysis results
-            analysis_df = pd.read_excel(analysis_file)
+            analysis_df = pd.read_parquet(analysis_file)
             
             # Get available quarters from analysis results
             available_quarters_raw = analysis_df['quarter'].unique().tolist()
@@ -92,7 +92,7 @@ def quarterly_analysis_page():
                 quarter_comments = pd.DataFrame()
                 if comments_exist:
                     try:
-                        comments_df = pd.read_excel(comments_file)
+                        comments_df = pd.read_parquet(comments_file)
                         quarter_comments = comments_df[comments_df['QUARTER'] == selected_quarter]
                     except:
                         pass
