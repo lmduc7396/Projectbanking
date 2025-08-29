@@ -100,14 +100,16 @@ last_complete_year = get_last_historical_year()
 # Determine forecast years from the forecast data
 if df_forecast is not None:
     forecast_years = sorted(df_forecast['Year'].unique())
-    forecast_year_1 = forecast_years[0] if len(forecast_years) > 0 else last_complete_year + 1
-    forecast_year_2 = forecast_years[1] if len(forecast_years) > 1 else forecast_year_1 + 1
+    # Convert string years to integers for calculations
+    forecast_year_1 = int(forecast_years[0]) if len(forecast_years) > 0 else last_complete_year + 1
+    forecast_year_2 = int(forecast_years[1]) if len(forecast_years) > 1 else forecast_year_1 + 1
 else:
     forecast_year_1 = last_complete_year + 1
     forecast_year_2 = last_complete_year + 2
 
 # OPTIMIZED: Vectorized filtering for banks with forecast
-forecast_mask = df_year['Year'].isin([forecast_year_1, forecast_year_2])
+# Convert forecast years to strings for comparison
+forecast_mask = df_year['Year'].isin([str(forecast_year_1), str(forecast_year_2)])
 ticker_mask = df_year['TICKER'].str.len() == 3
 banks_with_forecast = sorted(df_year[forecast_mask & ticker_mask]['TICKER'].unique())
 
@@ -214,23 +216,25 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
     if is_sector:
         if ticker == 'Sector':
             # For 'Sector', aggregate only banks with forecast data
-            banks_with_forecast = df_year[(df_year['Year'].isin([forecast_year_1, forecast_year_2])) & 
+            # Convert forecast years to strings for comparison
+            banks_with_forecast = df_year[(df_year['Year'].isin([str(forecast_year_1), str(forecast_year_2)])) & 
                                          (df_year['TICKER'].str.len() == 3)]['TICKER'].unique()
             
-            # Get historical data for these banks
-            years = [last_complete_year-2, last_complete_year-1, last_complete_year]
+            # Get historical data for these banks - convert years to strings
+            years = [str(last_complete_year-2), str(last_complete_year-1), str(last_complete_year)]
             historical = aggregate_sector_data(df_year_historical, None, banks_with_forecast, years)
             
-            # Get forecast data - aggregate from banks
-            forecast_years = [forecast_year_1, forecast_year_2]
+            # Get forecast data - aggregate from banks (use string years)
+            forecast_years = [str(forecast_year_1), str(forecast_year_2)]
             forecast_data = aggregate_sector_data(df_year, None, banks_with_forecast, forecast_years)
             
             forecast_1 = pd.DataFrame()
             forecast_2 = pd.DataFrame()
-            if forecast_year_1 in forecast_data.index:
-                forecast_1 = pd.DataFrame([forecast_data.loc[forecast_year_1]])
-            if forecast_year_2 in forecast_data.index:
-                forecast_2 = pd.DataFrame([forecast_data.loc[forecast_year_2]])
+            # Convert forecast years to strings for index lookup
+            if str(forecast_year_1) in forecast_data.index:
+                forecast_1 = pd.DataFrame([forecast_data.loc[str(forecast_year_1)]])
+            if str(forecast_year_2) in forecast_data.index:
+                forecast_2 = pd.DataFrame([forecast_data.loc[str(forecast_year_2)]])
             
             # Get quarterly data
             quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
@@ -259,11 +263,17 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
                 quarterly_prev = quarterly_prev.drop('index', axis=1)
         else:
             # For other sectors (Private_1, Private_2, SOCB), use pre-calculated data
-            hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
-            historical = df_year_historical[hist_mask].set_index('Year')
+            # Convert years to strings for comparison
+            hist_years = [str(last_complete_year-2), str(last_complete_year-1), str(last_complete_year)]
+            hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin(hist_years)
+            historical = df_year_historical[hist_mask].copy()
+            # Convert Year to int for indexing
+            historical['Year'] = historical['Year'].astype(int)
+            historical = historical.set_index('Year')
             
-            forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
-            forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
+            # Use string years for forecast queries
+            forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_1))]
+            forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_2))]
             
             quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
             quarterly = df_quarter[
@@ -280,11 +290,17 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
             ]
     else:
         # Individual bank - original logic
-        hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin([last_complete_year-2, last_complete_year-1, last_complete_year])
-        historical = df_year_historical[hist_mask].set_index('Year')
+        # Convert years to strings for comparison
+        hist_years = [str(last_complete_year-2), str(last_complete_year-1), str(last_complete_year)]
+        hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin(hist_years)
+        historical = df_year_historical[hist_mask].copy()
+        # Convert Year to int for indexing
+        historical['Year'] = historical['Year'].astype(int)
+        historical = historical.set_index('Year')
         
-        forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
-        forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
+        # Use string years for forecast queries
+        forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_1))]
+        forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_2))]
         
         quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
         quarterly = df_quarter[
@@ -570,24 +586,25 @@ opex_table = prepare_table_vectorized(
 )
 
 # Convert units and calculate additional metrics
-opex_table['OPEX'] /= 1e12
+# OPEX is negative in data (expenses), convert to positive for display
+opex_table['OPEX'] = -opex_table['OPEX'] / 1e12
 opex_table['TOI'] /= 1e12  # Keep for internal calculations
 opex_table['CIR (%)'] *= 100
 
 # Calculate OPEX growth YoY for all periods
 opex_table['OPEX Growth YoY (%)'] = 0.0
 
-# Get previous year data for YoY calculation
+# Get previous year data for YoY calculation (handle negative OPEX values)
 if last_complete_year-2 in historical_data.index:
-    prev_opex = historical_data.loc[last_complete_year-2, 'OPEX']
-    curr_opex = historical_data.loc[last_complete_year-1, 'OPEX'] if last_complete_year-1 in historical_data.index else 0
+    prev_opex = -historical_data.loc[last_complete_year-2, 'OPEX']  # Convert to positive
+    curr_opex = -historical_data.loc[last_complete_year-1, 'OPEX'] if last_complete_year-1 in historical_data.index else 0  # Convert to positive
     if prev_opex != 0 and str(last_complete_year-1) in opex_table.index:
         opex_table.loc[str(last_complete_year-1), 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
-# Historical years growth
+# Historical years growth (handle negative OPEX values)
 if str(last_complete_year) in opex_table.index and last_complete_year-1 in historical_data.index:
-    prev_opex = historical_data.loc[last_complete_year-1, 'OPEX']
-    curr_opex = historical_data.loc[last_complete_year, 'OPEX'] if last_complete_year in historical_data.index else 0
+    prev_opex = -historical_data.loc[last_complete_year-1, 'OPEX']  # Convert to positive
+    curr_opex = -historical_data.loc[last_complete_year, 'OPEX'] if last_complete_year in historical_data.index else 0  # Convert to positive
     if prev_opex != 0:
         opex_table.loc[str(last_complete_year), 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
@@ -600,15 +617,15 @@ for period in opex_table.index:
         # Get previous year same quarter data
         prev_quarter_row = quarterly_prev[quarterly_prev['Date_Quarter'] == prev_quarter]
         if not prev_quarter_row.empty:
-            prev_opex = prev_quarter_row['OPEX'].values[0] / 1e12
-            curr_opex = opex_table.loc[period, 'OPEX']
+            prev_opex = -prev_quarter_row['OPEX'].values[0] / 1e12  # Convert to positive
+            curr_opex = opex_table.loc[period, 'OPEX']  # Already positive
             if prev_opex != 0:
                 opex_table.loc[period, 'OPEX Growth YoY (%)'] = ((curr_opex / prev_opex) - 1) * 100
 
-# Forecast years growth
-opex_last = historical_data.loc[last_complete_year, 'OPEX'] if last_complete_year in historical_data.index else 0
+# Forecast years growth (handle negative OPEX values)
+opex_last = -historical_data.loc[last_complete_year, 'OPEX'] if last_complete_year in historical_data.index else 0  # Convert to positive
 if f'{forecast_year_1}F' in opex_table.index and opex_last != 0:
-    opex_table.loc[f'{forecast_year_1}F', 'OPEX Growth YoY (%)'] = ((forecast_1_vals['OPEX'] / opex_last) - 1) * 100
+    opex_table.loc[f'{forecast_year_1}F', 'OPEX Growth YoY (%)'] = ((-forecast_1_vals['OPEX'] / opex_last) - 1) * 100
 if f'{forecast_year_2}F' in opex_table.index and forecast_1_vals['OPEX'] != 0:
     opex_table.loc[f'{forecast_year_2}F', 'OPEX Growth YoY (%)'] = ((forecast_2_vals['OPEX'] / forecast_1_vals['OPEX']) - 1) * 100
 
@@ -625,8 +642,13 @@ st.dataframe(display_table.style.format({
 # Input section
 st.subheader("Adjust OPEX Growth")
 
-opex_growth_f1_orig = ((forecast_1_vals['OPEX'] / opex_last) - 1) * 100 if opex_last != 0 else 10
-opex_growth_f2_orig = ((forecast_2_vals['OPEX'] / forecast_1_vals['OPEX']) - 1) * 100 if forecast_1_vals['OPEX'] != 0 else 10
+# Calculate original growth rates (handle negative OPEX values)
+opex_last_positive = -opex_last if opex_last < 0 else opex_last
+opex_f1_positive = -forecast_1_vals['OPEX'] if forecast_1_vals['OPEX'] < 0 else forecast_1_vals['OPEX']
+opex_f2_positive = -forecast_2_vals['OPEX'] if forecast_2_vals['OPEX'] < 0 else forecast_2_vals['OPEX']
+
+opex_growth_f1_orig = ((opex_f1_positive / opex_last_positive) - 1) * 100 if opex_last_positive != 0 else 10
+opex_growth_f2_orig = ((opex_f2_positive / opex_f1_positive) - 1) * 100 if opex_f1_positive != 0 else 10
 
 # Initialize session state for OPEX inputs
 if f"{ticker}_opex_growth_f1" not in st.session_state:
@@ -648,12 +670,18 @@ with col2:
     opex_growth_f2_new = st.number_input(f"OPEX Growth YoY {forecast_year_2} (%)", -30.0, 50.0,
                                          key=f"{ticker}_opex_growth_f2", step=1.0)
 
-# Calculate OPEX changes
-opex_f1_new = opex_last * (1 + opex_growth_f1_new / 100)
-opex_f2_new = opex_f1_new * (1 + opex_growth_f2_new / 100)
+# Calculate OPEX changes (handle negative values)
+# opex_last is already converted to positive
+opex_f1_new_positive = opex_last_positive * (1 + opex_growth_f1_new / 100)
+opex_f2_new_positive = opex_f1_new_positive * (1 + opex_growth_f2_new / 100)
 
-pbt_change_segment2_f1 = opex_f1_new - forecast_1_vals['OPEX']
-pbt_change_segment2_f2 = opex_f2_new - forecast_2_vals['OPEX']
+# Convert back to negative for PBT calculation (OPEX is an expense)
+opex_f1_new = -opex_f1_new_positive
+opex_f2_new = -opex_f2_new_positive
+
+# PBT change: negative difference means higher expense reduces PBT
+pbt_change_segment2_f1 = -(opex_f1_new - forecast_1_vals['OPEX'])
+pbt_change_segment2_f2 = -(opex_f2_new - forecast_2_vals['OPEX'])
 
 st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_1}'] = pbt_change_segment2_f1
 st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_2}'] = pbt_change_segment2_f2
@@ -662,11 +690,12 @@ st.session_state[f'{ticker}_pbt_change_segment2_{forecast_year_2}'] = pbt_change
 toi_f1 = forecast_1_vals['TOI'] + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_1}', 0)
 toi_f2 = forecast_2_vals['TOI'] + st.session_state.get(f'{ticker}_pbt_change_segment1_{forecast_year_2}', 0)
 
-cir_f1_orig = (forecast_1_vals['OPEX'] / forecast_1_vals['TOI'] * 100) if forecast_1_vals['TOI'] != 0 else 0
-cir_f2_orig = (forecast_2_vals['OPEX'] / forecast_2_vals['TOI'] * 100) if forecast_2_vals['TOI'] != 0 else 0
+# CIR calculations (use absolute values since OPEX is negative)
+cir_f1_orig = (abs(forecast_1_vals['OPEX']) / forecast_1_vals['TOI'] * 100) if forecast_1_vals['TOI'] != 0 else 0
+cir_f2_orig = (abs(forecast_2_vals['OPEX']) / forecast_2_vals['TOI'] * 100) if forecast_2_vals['TOI'] != 0 else 0
 
-cir_f1_new = (opex_f1_new / toi_f1 * 100) if toi_f1 != 0 else 0
-cir_f2_new = (opex_f2_new / toi_f2 * 100) if toi_f2 != 0 else 0
+cir_f1_new = (abs(opex_f1_new) / toi_f1 * 100) if toi_f1 != 0 else 0
+cir_f2_new = (abs(opex_f2_new) / toi_f2 * 100) if toi_f2 != 0 else 0
 
 # Store for final analysis
 impact_details_segment2 = {
