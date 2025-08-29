@@ -333,7 +333,7 @@ class BankingToolSystem:
                 # Query metric group
                 metric_groups = {
                     "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI"],
-                    "asset_quality": ["NPL", "NPL Coverage ratio", "Provision/ Total Loan", "GROUP 2"],
+                    "asset_quality": ["NPL", "New NPL", "NPL Coverage ratio", "GROUP 2"],
                     "growth": ["Loan", "Deposit", "Total Assets", "NPATMI", "PBT"]
                 }
                 metrics = metric_groups.get(metric_group, [])
@@ -571,7 +571,7 @@ class BankingToolSystem:
         # Tool 7: Get Commentary (Universal - handles single or multiple)
         @self.tool(
             name="get_commentary",
-            description="Get detailed commentary by analysts for one or multiple banks",
+            description="Get detailed commentary by analysts for one or multiple banks for fundamental insights",
             parameters={
                 "tickers": {
                     "type": "array",
@@ -1093,6 +1093,7 @@ class BankingToolSystem:
             1. ALWAYS gather data first using other tools (get_financial_data, get_valuation_metrics, etc.)
             2. Structure data with clear x-axis labels and y-values
             3. Specify y_format: 'percent' for rates/ratios, 'number' for counts, 'currency' for monetary values
+            4. Available chart types: line, bar, scatter, area
 
             IMPORTANT:
             - Only pass processed, chart-ready data
