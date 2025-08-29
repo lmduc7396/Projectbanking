@@ -200,6 +200,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     tools = tool_system.get_openai_tools()
     
     # Create containers for streaming
+    typing_container = st.empty()  # Separate container for "Duc is typing"
     response_container = st.empty()
     tool_status_container = st.container()
     
@@ -263,8 +264,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             # Handle tool calls if any
             if current_tool_calls:
                 # Show prominent "Duc is typing" status while processing tools
-                typing_placeholder = response_container.empty()
-                typing_placeholder.info("Duc is typing...")
+                typing_container.info("Duc is typing...")
                 
                 # Collect tool names for minimal display
                 tool_names = []
@@ -312,7 +312,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     })
                 
                 # Clear the "Duc is typing" message
-                typing_placeholder.empty()
+                typing_container.empty()
                 
                 # Show minimal tool summary (small captions below)
                 with tool_status_container:
