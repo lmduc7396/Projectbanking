@@ -7,7 +7,7 @@ import streamlit as st
 
 # Page configuration - MUST be first Streamlit command
 st.set_page_config(
-    page_title="DucGPT Chatbot",
+    page_title="Duc Chatbot",
     layout="wide"
 )
 
@@ -386,6 +386,50 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
 def main():
     st.title("Duc - AI Chatbot")
     st.markdown("Only banking related questions are supported.")
+    
+    # Add custom CSS for iPhone-style message bubbles
+    st.markdown("""
+    <style>
+    /* User message styling - iPhone blue */
+    div[data-testid="stChatMessageContent-user"] {
+        background-color: #619BF7;
+        color: white;
+        border-radius: 18px;
+        padding: 8px 14px;
+        margin: 4px 0;
+        max-width: 70%;
+        margin-left: auto;
+        margin-right: 0;
+    }
+    
+    /* Assistant message styling - iPhone gray */
+    div[data-testid="stChatMessageContent-assistant"] {
+        background-color: #F1F1F2;
+        color: black;
+        border-radius: 18px;
+        padding: 8px 14px;
+        margin: 4px 0;
+        max-width: 70%;
+        margin-left: 0;
+        margin-right: auto;
+    }
+    
+    /* Adjust message container alignment */
+    div[data-testid="stChatMessage-user"] {
+        justify-content: flex-end;
+    }
+    
+    div[data-testid="stChatMessage-assistant"] {
+        justify-content: flex-start;
+    }
+    
+    /* Hide default avatars for cleaner look */
+    div[data-testid="stChatMessage-user"] img,
+    div[data-testid="stChatMessage-assistant"] img {
+        display: none;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
     # Check API key
     if not st.session_state.openai_client:
