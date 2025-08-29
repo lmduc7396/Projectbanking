@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 
 #%% Main function to calculate valuation metrics
 def calculate_valuation_metrics(ticker_or_sector: str, 
-                               data_path: str = 'Data/Valuation_banking.csv') -> Dict[str, Any]:
+                               data_path: str = 'Data/Valuation_banking.parquet') -> Dict[str, Any]:
     """
     Calculate valuation percentiles (CDF) and Z-scores for P/B and P/E ratios
     
@@ -234,7 +234,7 @@ def get_valuation_statistics(ticker_or_sector: str,
 
 
 def calculate_valuation_metrics_batch(tickers: List[str], 
-                                     data_path: str = 'Data/Valuation_banking.csv') -> Dict[str, Dict[str, Any]]:
+                                     data_path: str = 'Data/Valuation_banking.parquet') -> Dict[str, Dict[str, Any]]:
     """
     Calculate valuation metrics for multiple tickers in batch
     Loads data once and processes all tickers together

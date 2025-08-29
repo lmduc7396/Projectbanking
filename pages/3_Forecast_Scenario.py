@@ -58,16 +58,16 @@ st.title(' ')
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
     """Load all required data in one optimized function"""
-    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
     
     # Load forecast data if it exists and combine with historical
-    forecast_file = os.path.join(project_root, 'Data/dfsectorforecast.csv')
+    forecast_file = os.path.join(project_root, 'Data/dfsectorforecast.parquet')
     if os.path.exists(forecast_file):
-        df_forecast = pd.read_csv(forecast_file)
+        df_forecast = pd.read_parquet(forecast_file)
         # Combine historical and forecast data
         df_year = pd.concat([df_year, df_forecast], ignore_index=True)
     
-    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
+    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     
     # Dynamically determine forecast years from data

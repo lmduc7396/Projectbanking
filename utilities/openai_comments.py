@@ -252,8 +252,9 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
     # Load writing examples from Excel file
     writing_examples = ""
     try:
-        # Define the absolute path to the examples file
-        examples_path = r"c:\Users\ducle\OneDrive\Work-related\VS - Code project\Data\Prompt testing.xlsx"
+        # Define the cross-platform path to the examples file
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        examples_path = os.path.join(project_root, 'Data', 'Prompt testing.xlsx')
         
         # Debug info
         st.info(f"Looking for examples file at: {examples_path}")

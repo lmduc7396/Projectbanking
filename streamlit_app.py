@@ -33,8 +33,8 @@ load_dotenv()
 # Load your data
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
-    df_quarter = pd.read_parquet('Data/dfsectorquarter.csv')
-    df_year = pd.read_parquet('Data/dfsectoryear.csv')
+    df_quarter = pd.read_parquet('Data/dfsectorquarter.parquet')
+    df_year = pd.read_parquet('Data/dfsectoryear.parquet')
     keyitem = pd.read_excel('Data/Key_items.xlsx')
     return df_quarter, df_year, keyitem
 

@@ -29,14 +29,14 @@ apply_sidebar_style()
 # Load your data (same as main file)
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
-    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
-    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
+    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
     
     # Load forecast data if it exists
-    forecast_path = os.path.join(project_root, 'Data/dfsectorforecast.csv')
+    forecast_path = os.path.join(project_root, 'Data/dfsectorforecast.parquet')
     df_forecast = None
     if os.path.exists(forecast_path):
-        df_forecast = pd.read_csv(forecast_path)
+        df_forecast = pd.read_parquet(forecast_path)
     
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     return df_quarter, df_year, df_forecast, keyitem

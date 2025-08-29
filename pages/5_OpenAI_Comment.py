@@ -35,8 +35,8 @@ load_dotenv()
 # Load your data (same as main file)
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def load_data():
-    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.csv'))
-    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.csv'))
+    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
+    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     bank_type = pd.read_excel(os.path.join(project_root, 'Data/Bank_Type.xlsx'))
     return df_quarter, df_year, keyitem, bank_type
@@ -80,7 +80,7 @@ with st.sidebar:
         st.rerun()
 
 # Check if comments cache exists
-comments_file = os.path.join(project_root, 'Data/banking_comments.xlsx')
+comments_file = os.path.join(project_root, 'Data/banking_comments.parquet')
 cache_exists = os.path.exists(comments_file)
 
 
