@@ -35,9 +35,6 @@ from utilities.sidebar_style import apply_sidebar_style
 apply_google_font()
 apply_sidebar_style()
 
-# Import the banking tool system
-from utilities.Banking_MCP import get_tool_system
-
 # Load environment variables
 load_dotenv()
 
@@ -57,6 +54,7 @@ if 'tool_executions' not in st.session_state:
 # Initialize tool system FIRST (before OpenAI client which might use it)
 if 'tool_system' not in st.session_state:
     try:
+        from utilities.Banking_MCP import get_tool_system
         st.session_state.tool_system = get_tool_system()
         st.session_state.tool_system_error = None
     except Exception as e:
