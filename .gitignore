@@ -50,9 +50,19 @@ tmp_*
 # *_TEST.py
 # Test_*.py
 
-# Data files (be careful with this - only if you don't want to track large data files)
-# *.csv
-# *.xlsx
+# Data files - exclude large CSV databases
+Data/*.csv
+Data/FA_Q_FULL.csv
+Data/BS_Bank.csv
+Data/IS_Bank.csv
+Data/Note_Bank.csv
+Data/FORECAST.csv
+Data/FORECAST_bank.csv
+Data/VALUATION.csv
+Data/IRIS_KEYCODE.csv
+
+# Keep Excel files as they're smaller and contain configurations
+# Data/*.xlsx
 
 # Jupyter Notebook
 .ipynb_checkpoints

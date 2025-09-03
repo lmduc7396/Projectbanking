@@ -27,7 +27,7 @@ bank_type_df = pd.read_excel(data_dir / 'Bank_Type.xlsx')
 print(f"Loaded {len(bank_type_df)} banks with type classifications")
 
 # Also get bank list from quarterly data as backup
-quarter_df = pd.read_csv(data_dir / 'dfsectorquarter.parquet')
+quarter_df = pd.read_parquet(data_dir / 'dfsectorquarter.parquet')
 all_bank_tickers = quarter_df[quarter_df['TICKER'].str.len() == 3]['TICKER'].unique()
 print(f"Found {len(all_bank_tickers)} bank tickers in quarterly data")
 
