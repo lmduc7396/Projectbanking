@@ -42,7 +42,7 @@ def Bankplot(df=None, keyitem=None):
         Z = st.multiselect(
         "Select Value Column(s) (Z):", 
         keyitem['Name'].tolist(),
-        default = ['NIM','Loan yield','NPL','GROUP 2','New NPL', 'New G2']
+        default = ['TOI','PBT','NIM','Loan yield','NPL','GROUP 2','New NPL', 'New G2']
     )
     
     #Setup subplot
