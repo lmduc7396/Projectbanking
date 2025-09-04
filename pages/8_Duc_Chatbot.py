@@ -670,7 +670,7 @@ def main():
         st.write("1. Be specific (e.g., ask for PB not just 'valuation', or PBT, not just 'earnings')")
         st.write("2. Available: historical, forecast, analysis, stock data, charting")
     with col2:
-        st.write("3. Sectors: SOCB, Private_1, Private_2, Private_3")
+        st.write("3. Sub-Sectors supported: SOCB, Private 1, Private 2, Private 3")
         st.write("4. Short conversation is supported")
     
     # Chat input
