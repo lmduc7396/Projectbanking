@@ -87,6 +87,70 @@ if db_option == "Quarterly":
         df_forecast_quarterly = df_forecast.copy()
         df_forecast_quarterly['Date_Quarter'] = df_forecast_quarterly['Year'].astype(str)
         
+        # Get forecast years dynamically
+        forecast_years = sorted(df_forecast_quarterly['Year'].unique())
+        
+        # Identify available quarters for each year in the quarterly data
+        # Parse year from Date_Quarter format (e.g., "2025-Q1" -> 2025)
+        df['Year_from_quarter'] = df['Date_Quarter'].str.extract(r'(\d{4})-Q', expand=False).astype(float)
+        
+        # For each forecast year, count available quarters
+        available_quarters = {}
+        for year in forecast_years:
+            year_int = int(year)
+            quarters_in_year = df[df['Year_from_quarter'] == year_int]['Date_Quarter'].nunique()
+            available_quarters[year] = quarters_in_year
+        
+        # Clean up temporary column
+        df = df.drop('Year_from_quarter', axis=1)
+        
+        # Define metrics that need quarterly adjustment (income/expense flow metrics)
+        income_expense_metrics = ['PBT', 'TOI', 'OPEX', 'PPOP', 'Provision expense', 
+                                  'NPATMI', 'Write-off', 'Fees Income']
+        
+        # For flow/formation metrics, divide annual values by 4 to get quarterly average
+        # This applies only to "New NPL" and "New G2" which are cumulative annual metrics
+        flow_metrics = ['New NPL', 'New G2']
+        
+        # Process adjustments for each ticker
+        for ticker in df_forecast_quarterly['TICKER'].unique():
+            ticker_mask = df_forecast_quarterly['TICKER'] == ticker
+            
+            for i, year in enumerate(forecast_years):
+                year_mask = ticker_mask & (df_forecast_quarterly['Year'] == year)
+                
+                if i == 0:  # First forecast year (e.g., 2025)
+                    # Calculate remaining quarters
+                    qtrs_available = available_quarters.get(year, 0)
+                    remaining_qtrs = max(4 - qtrs_available, 1)  # At least 1 to avoid division by 0
+                    
+                    # For income/expense metrics, calculate remaining quarter average
+                    for metric in income_expense_metrics:
+                        if metric in df_forecast_quarterly.columns:
+                            # Get YTD sum from quarterly data for this ticker and year
+                            year_int = int(year)
+                            ytd_mask = (df['TICKER'] == ticker) & \
+                                      (df['Date_Quarter'].str.contains(str(year_int)))
+                            ytd_sum = df.loc[ytd_mask, metric].sum() if metric in df.columns else 0
+                            
+                            # Adjust forecast value: (Annual - YTD) / remaining quarters
+                            annual_value = df_forecast_quarterly.loc[year_mask, metric].values
+                            if len(annual_value) > 0:
+                                adjusted_value = (annual_value[0] - ytd_sum) / remaining_qtrs
+                                df_forecast_quarterly.loc[year_mask, metric] = adjusted_value
+                else:  # Second forecast year (e.g., 2026)
+                    # Simply divide by 4 for quarterly average
+                    for metric in income_expense_metrics:
+                        if metric in df_forecast_quarterly.columns:
+                            df_forecast_quarterly.loc[year_mask, metric] = \
+                                df_forecast_quarterly.loc[year_mask, metric] / 4
+                
+                # Handle flow metrics (New NPL, New G2) - always divide by 4
+                for metric in flow_metrics:
+                    if metric in df_forecast_quarterly.columns:
+                        df_forecast_quarterly.loc[year_mask, metric] = \
+                            df_forecast_quarterly.loc[year_mask, metric] / 4
+        
         # Add is_forecast flag
         df['is_forecast'] = False
         df_forecast_quarterly['is_forecast'] = True
