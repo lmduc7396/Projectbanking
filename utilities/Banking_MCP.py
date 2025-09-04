@@ -213,6 +213,83 @@ class BankingToolSystem:
         # Tool 2: List All Banks (Deprecated - merged into get_bank_info)
         # Use get_bank_info() with no parameters instead
         
+        def normalize_metric_name(metric: str, available_columns: list) -> str:
+            """Find the best matching column name for a given metric
+            Handles underscores vs spaces, case variations, and common aliases"""
+            # Direct match first
+            if metric in available_columns:
+                return metric
+            
+            # Try case-insensitive match
+            metric_lower = metric.lower()
+            for col in available_columns:
+                if col.lower() == metric_lower:
+                    return col
+            
+            # Try with spaces replaced by underscores and vice versa
+            metric_with_space = metric.replace('_', ' ')
+            metric_with_underscore = metric.replace(' ', '_')
+            
+            for col in available_columns:
+                col_lower = col.lower()
+                if col_lower == metric_with_space.lower() or col_lower == metric_with_underscore.lower():
+                    return col
+            
+            # Common mappings for frequently used metrics
+            metric_aliases = {
+                # Yield metrics
+                'loan_yield': 'Loan yield',
+                'deposit_yield': 'Deposit yield',
+                
+                # Asset quality metrics
+                'npl_coverage': 'NPL Coverage ratio',
+                'npl_coverage_ratio': 'NPL Coverage ratio',
+                'new_npl': 'New NPL',
+                'new_g2': 'New G2',
+                'group_2': 'GROUP 2',
+                'provision_total_loan': 'Provision/ Total Loan',
+                'provision_on_bs': 'Provision on Balance Sheet',
+                'provision_on_balance_sheet': 'Provision on Balance Sheet',
+                
+                # Balance sheet metrics
+                'total_assets': 'Total Assets',
+                'total_equity': 'Total Equity',
+                'leverage_multiple': 'Leverage Multiple',
+                'overdue_loan': 'Overdue_loan',
+                
+                # Income statement metrics
+                'net_interest_income': 'Net Interest Income',
+                'provision_expense': 'Provision expense',
+                'provision': 'Provision expense',
+                
+                # Other metrics
+                'individual_percent': 'Individual %',
+                'individual_%': 'Individual %',
+                'fees_total_asset': 'Fees/ Total asset',
+                'fees_total_assets': 'Fees/ Total asset',
+            }
+            
+            # Check aliases
+            if metric.lower() in metric_aliases:
+                alias_col = metric_aliases[metric.lower()]
+                if alias_col in available_columns:
+                    return alias_col
+            
+            # Try removing common suffixes/prefixes
+            metric_variations = [
+                metric.replace('_ratio', ''),
+                metric.replace('ratio', ''),
+                metric + '_ratio',
+                metric + ' ratio'
+            ]
+            
+            for variation in metric_variations:
+                for col in available_columns:
+                    if col.lower() == variation.lower():
+                        return col
+            
+            return None  # No match found
+        
         # Tool 4: Query Historical Data (Universal - handles single or multiple)
         @self.tool(
             name="query_historical_data",
@@ -323,17 +400,23 @@ class BankingToolSystem:
             
             # Select metrics - single metric takes precedence over metric_group
             if metric:
-                # Query single metric for efficiency
-                if metric in df.columns:
+                # Query single metric for efficiency - normalize the metric name first
+                normalized_metric = normalize_metric_name(metric, df.columns.tolist())
+                if normalized_metric:
                     id_cols = ['TICKER', 'Year' if 'Year' in df.columns else 'Date_Quarter']
-                    df = df[id_cols + [metric]]
+                    df = df[id_cols + [normalized_metric]]
                 else:
-                    return {"error": f"Metric '{metric}' not found in data", "status": "failed"}
+                    # Provide helpful error with available similar columns
+                    similar_cols = [col for col in df.columns if metric.lower() in col.lower() or col.lower() in metric.lower()]
+                    if similar_cols:
+                        return {"error": f"Metric '{metric}' not found. Did you mean one of these: {similar_cols[:5]}", "status": "failed"}
+                    else:
+                        return {"error": f"Metric '{metric}' not found in data", "status": "failed"}
             elif metric_group != "all":
                 # Query metric group
                 metric_groups = {
-                    "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI"],
-                    "asset_quality": ["NPL", "New NPL", "NPL Coverage ratio", "GROUP 2"],
+                    "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI", "Loan yield", "Deposit yield"],
+                    "asset_quality": ["NPL", "New NPL", "NPL Coverage ratio", "GROUP 2", "Provision/ Total Loan"],
                     "growth": ["Loan", "Deposit", "Total Assets", "NPATMI", "PBT"]
                 }
                 metrics = metric_groups.get(metric_group, [])
