@@ -139,7 +139,7 @@ def Stock_price_plot(ticker: str):
         tickvals = list(range(0, len(df), tick_interval))
         ticktext = [df.iloc[i]['date_str'] for i in tickvals]
         
-        # Add candlestick chart using continuous index
+        # Add candlestick chart using continuous index with custom hover
         fig.add_trace(
             go.Candlestick(
                 x=df['x_index'].tolist(),  # Convert to list
@@ -149,7 +149,14 @@ def Stock_price_plot(ticker: str):
                 close=df['close'].tolist(),
                 name='Price',
                 increasing_line_color='green',
-                decreasing_line_color='red'
+                decreasing_line_color='red',
+                customdata=df['date_str'].tolist(),  # Add date strings as custom data
+                hovertemplate='<b>Date: %{customdata}</b><br>' +
+                             'Open: %{open:,.0f}<br>' +
+                             'High: %{high:,.0f}<br>' +
+                             'Low: %{low:,.0f}<br>' +
+                             'Close: %{close:,.0f}<br>' +
+                             '<extra></extra>'
             ),
             row=1, col=1
         )
@@ -162,7 +169,8 @@ def Stock_price_plot(ticker: str):
                 name='MA10',
                 line=dict(color='blue', width=1, dash='dash'),
                 mode='lines',
-                hovertemplate='MA10: %{y:,.0f}<extra></extra>'
+                customdata=df['date_str'].tolist(),
+                hovertemplate='<b>Date: %{customdata}</b><br>MA10: %{y:,.0f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -175,7 +183,8 @@ def Stock_price_plot(ticker: str):
                 name='MA50',
                 line=dict(color='orange', width=1, dash='dash'),
                 mode='lines',
-                hovertemplate='MA50: %{y:,.0f}<extra></extra>'
+                customdata=df['date_str'].tolist(),
+                hovertemplate='<b>Date: %{customdata}</b><br>MA50: %{y:,.0f}<extra></extra>'
             ),
             row=1, col=1
         )
@@ -191,7 +200,8 @@ def Stock_price_plot(ticker: str):
                 name='Volume',
                 marker_color=colors,
                 showlegend=False,
-                hovertemplate='Volume: %{y:,.0f}<extra></extra>'
+                customdata=df['date_str'].tolist(),
+                hovertemplate='<b>Date: %{customdata}</b><br>Volume: %{y:,.0f}<extra></extra>'
             ),
             row=2, col=1
         )

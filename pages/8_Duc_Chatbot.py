@@ -50,7 +50,7 @@ if 'tool_cache' not in st.session_state:
 if 'tool_executions' not in st.session_state:
     st.session_state.tool_executions = []
 if 'selected_model' not in st.session_state:
-    st.session_state.selected_model = "gpt-5"
+    st.session_state.selected_model = "gpt-5-mini"
 if 'pending_charts' not in st.session_state:
     st.session_state.pending_charts = []
 
@@ -659,7 +659,7 @@ def main():
         st.session_state.selected_model = st.selectbox(
             "Select AI Model:",
             options=["gpt-5", "gpt-5-mini"],
-            index=0 if st.session_state.selected_model == "gpt-5" else 1,
+            index=1 if st.session_state.selected_model == "gpt-5-mini" else 0,
             help="GPT-5: More capable, better reasoning | GPT-5-mini: Faster, more cost-effective"
         )
     
