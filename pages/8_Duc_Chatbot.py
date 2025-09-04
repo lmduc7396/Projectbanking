@@ -26,7 +26,6 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import plotly.graph_objects as go
 import plotly.express as px
-import tiktoken
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -82,35 +81,6 @@ if 'openai_client' not in st.session_state:
         st.session_state.openai_client = OpenAI(api_key=api_key)
     else:
         st.session_state.openai_client = None
-
-
-def count_tokens(text: str, model: str = "gpt-4") -> int:
-    """Count tokens in a text string using tiktoken"""
-    try:
-        # Use cl100k_base encoding for GPT-4 and GPT-3.5-turbo models
-        encoding = tiktoken.get_encoding("cl100k_base")
-        return len(encoding.encode(text))
-    except Exception:
-        # Fallback: rough estimate of 1 token per 4 characters
-        return len(text) // 4
-
-
-def count_messages_tokens(messages: List[Dict], model: str = "gpt-4") -> int:
-    """Count tokens in a list of messages"""
-    total = 0
-    for message in messages:
-        # Add tokens for message structure (role, content markers)
-        total += 4  # Every message has <|start|>{role}<|end|> tokens
-        
-        if isinstance(message.get("content"), str):
-            total += count_tokens(message["content"], model)
-        
-        # Handle tool calls
-        if "tool_calls" in message:
-            total += count_tokens(json.dumps(message["tool_calls"]), model)
-    
-    total += 2  # Every reply is primed with <|start|>assistant<|end|>
-    return total
 
 
 def calculate_cost(input_tokens: int, output_tokens: int, model: str) -> float:
@@ -336,9 +306,8 @@ def chat_with_ai_streaming(user_message: str):
     # Get tool system reference before async operations
     tool_system = st.session_state.tool_system
     
-    # Initialize token counters
-    total_input_tokens = 0
-    total_output_tokens = 0
+    # Initialize usage tracking
+    cumulative_usage = None  # Will accumulate usage across all rounds
     
     # Prepare messages
     messages = []
@@ -356,11 +325,6 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
     
     # Get tool schemas
     tools = tool_system.get_openai_tools()
-    
-    # Count initial input tokens
-    initial_messages_tokens = count_messages_tokens(messages, st.session_state.selected_model)
-    tools_tokens = count_tokens(json.dumps(tools), st.session_state.selected_model)
-    total_input_tokens += initial_messages_tokens + tools_tokens
     
     # Create containers for streaming
     typing_container = st.empty()  # Separate container for "Duc is typing"
@@ -384,13 +348,14 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
         rounds += 1
         
         try:
-            # Call OpenAI with streaming
+            # Call OpenAI with streaming and request usage stats
             stream = st.session_state.openai_client.chat.completions.create(
                 model=st.session_state.selected_model,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
-                stream=True
+                stream=True,
+                stream_options={"include_usage": True}  # Get exact token usage from OpenAI
             )
             
             # Process streaming response
@@ -399,6 +364,22 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             is_tool_call = False
             
             for chunk in stream:
+                # Check if this is the final chunk with usage data
+                if hasattr(chunk, 'usage') and chunk.usage is not None:
+                    # Accumulate usage across rounds
+                    if cumulative_usage is None:
+                        cumulative_usage = chunk.usage
+                    else:
+                        # Add to cumulative totals
+                        cumulative_usage.prompt_tokens += chunk.usage.prompt_tokens
+                        cumulative_usage.completion_tokens += chunk.usage.completion_tokens
+                        cumulative_usage.total_tokens += chunk.usage.total_tokens
+                    continue  # Final chunk has empty choices, skip processing
+                
+                # Skip chunks with no choices (safety check)
+                if not chunk.choices:
+                    continue
+                    
                 delta = chunk.choices[0].delta
                 
                 # Check for tool calls
@@ -426,7 +407,6 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                         typing_container.empty()
                     assistant_content += delta.content
                     accumulated_response += delta.content
-                    total_output_tokens += count_tokens(delta.content, st.session_state.selected_model)
                     # Stream the response to user
                     response_container.markdown(accumulated_response + "▌")
             
@@ -438,10 +418,6 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
             if current_tool_calls:
                 # Keep the typing indicator visible during tool execution
                 # (it's already shown at the start of the loop)
-                
-                # Count tokens for tool calls
-                tool_calls_tokens = count_tokens(json.dumps(current_tool_calls), st.session_state.selected_model)
-                total_output_tokens += tool_calls_tokens
                 
                 # Collect tool names for minimal display
                 tool_names = []
@@ -520,8 +496,6 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                 
                 for tool_call, result in zip(current_tool_calls, results):
                     tool_response = json.dumps(result, default=str)
-                    # Count tokens for tool responses (these become input for next round)
-                    total_input_tokens += count_tokens(tool_response, st.session_state.selected_model)
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call["id"],
@@ -549,15 +523,20 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     if tool_call_count > 0:
                         st.caption(f"_Used {tool_call_count} tool{'s' if tool_call_count > 1 else ''}_")
                     
-                    # Display token usage and cost estimation
-                    total_tokens = total_input_tokens + total_output_tokens
-                    estimated_cost = calculate_cost(total_input_tokens, total_output_tokens, st.session_state.selected_model)
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.caption(f"📊 Token Usage: {total_input_tokens:,} input + {total_output_tokens:,} output = {total_tokens:,} total")
-                    with col2:
-                        st.caption(f"💰 Estimated cost: ${estimated_cost:.4f}")
+                    # Display token usage and cost if available from OpenAI
+                    if cumulative_usage:
+                        # Use OpenAI's actual token counts (accumulated across all rounds)
+                        total_input_tokens = cumulative_usage.prompt_tokens
+                        total_output_tokens = cumulative_usage.completion_tokens
+                        total_tokens = cumulative_usage.total_tokens
+                        
+                        estimated_cost = calculate_cost(total_input_tokens, total_output_tokens, st.session_state.selected_model)
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.caption(f"📊 Token Usage: {total_input_tokens:,} input + {total_output_tokens:,} output = {total_tokens:,} total")
+                        with col2:
+                            st.caption(f"💰 Cost: ${estimated_cost:.4f}")
                     
                     # Render any pending charts
                     if st.session_state.pending_charts:

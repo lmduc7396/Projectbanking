@@ -7,4 +7,3 @@ tabulate
 python-dotenv
 numpy
 scipy
-tiktoken
