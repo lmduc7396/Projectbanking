@@ -56,25 +56,61 @@ def Bankplot(df=None, keyitem=None):
         subplot_titles=Z
     )
     
+    # Define metrics that should be displayed in billions
+    billion_scale_metrics = [
+        'TOI', 'PBT', 'OPEX', 'PPOP', 'Provision expense', 'NPATMI', 
+        'Write-off', 'Fees Income', 'Net Interest Income', 'Loan', 
+        'Deposit', 'Total Assets', 'Equity', 'Customer Deposit',
+        'Total Liabilities', 'Gross Loan', 'Net Loan', 'Cash',
+        'Interbank Assets', 'Securities', 'Other Income'
+    ]
+    
     #Draw chart
     
     for idx, z_name in enumerate(Z):
         # Use the name directly since columns already have descriptive names
         value_col = z_name
-        metric_values=df[value_col].dropna()
-        median_value=metric_values.median()
-        median_value=abs(median_value)
+        
+        # Check if this metric should be in billions
+        is_billion_metric = value_col in billion_scale_metrics
+        
+        # Create a copy of the data for this metric
+        if is_billion_metric:
+            # Convert to billions for display
+            df_display = df.copy()
+            df_display[value_col] = df_display[value_col] / 1e9
+            # Update subplot title to indicate billions
+            subplot_title = f"{z_name} (B VND)"
+        else:
+            df_display = df
+            subplot_title = z_name
+        
+        # Update the subplot title
+        if idx == 0:
+            fig.layout.annotations[idx].text = subplot_title
+        else:
+            if idx < len(fig.layout.annotations):
+                fig.layout.annotations[idx].text = subplot_title
+        
+        metric_values = df_display[value_col].dropna()
+        median_value = metric_values.median()
+        median_value = abs(median_value)
         row = idx // 2 + 1
         col = idx % 2 + 1
-        if median_value > 10:
-            tick_format = ",.2s"  # SI units: k, M, B
+        
+        # Adjusted formatting logic
+        if is_billion_metric:
+            # For billion-scale metrics, use comma formatting
+            tick_format = ",.0f"  # Show as whole numbers with commas
+        elif median_value > 10:
+            tick_format = ",.2s"  # SI units: k, M, B (for other large numbers)
         else:
             tick_format = ".2%"   # Percent
     
         for i, x in enumerate(X):
             show_legend = (idx == 0)
             if len(x) == 3:  # Stock ticker
-                matched_rows = df[df['TICKER'] == x]
+                matched_rows = df_display[df_display['TICKER'] == x]
                 if not matched_rows.empty:
                     df_temp = matched_rows.tail(Y)
                     
@@ -150,7 +186,7 @@ def Bankplot(df=None, keyitem=None):
                         
             else:  # Bank type
                 # For aggregated bank types, TICKER column contains the bank type name directly
-                matched_rows = df[df['TICKER'] == x]
+                matched_rows = df_display[df_display['TICKER'] == x]
                 if not matched_rows.empty:
                     df_temp = matched_rows.tail(Y)
                     
@@ -223,6 +259,9 @@ def Bankplot(df=None, keyitem=None):
                             row=row,
                             col=col
                         )
+        
+        # Update y-axis format for this subplot
+        fig.update_yaxes(tickformat=tick_format, row=row, col=col)
   
     fig.update_layout(
         width=1400,
@@ -246,6 +285,6 @@ def Bankplot(df=None, keyitem=None):
         tickvals=date_order
     )
 
-    for i in range(1, len(Z)+1):
-        fig.update_yaxes(tickformat=tick_format, row=(i-1)//2 + 1, col=(i-1)%2 + 1)    
+    # Update y-axis formatting for each subplot
+    # Note: tick_format is now specific to each metric
     st.plotly_chart(fig, use_container_width=True)
