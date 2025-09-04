@@ -1276,6 +1276,269 @@ class BankingToolSystem:
                 "status": "success"
             }
         
+        # Tool 12: Forecast Scenario Analysis
+        @self.tool(
+            name="forecast_scenario",
+            description="""Analyze PBT forecast impact from metric changes (NIM, NPL, loan growth, OPEX growth).
+            This tool performs what-if analysis to show how PBT changes when key metrics are adjusted.
+            
+            Example: "What will PBT be if VPB NIM increases by 10bps in 2025?"
+            Output: Original PBT forecast, new PBT forecast, percentage change
+            
+            Metric adjustment formats:
+            - NIM/NPL: Use basis points (e.g., 10 means +10bps = +0.1%)
+            - Loan/OPEX growth: Use percentage points (e.g., 5 means +5pp to growth rate)
+            """,
+            parameters={
+                "tickers": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Array of bank tickers (e.g., ['VCB']) or sectors (['SOCB', 'Private_1'])"
+                },
+                "metric": {
+                    "type": "string",
+                    "enum": ["NIM", "NPL", "loan_growth", "OPEX_growth", "NPL_coverage", "new_NPL"],
+                    "description": "Metric to adjust"
+                },
+                "adjustment": {
+                    "type": "number",
+                    "description": "Adjustment value (bps for NIM/NPL, pp for growth rates)"
+                },
+                "year": {
+                    "type": "integer",
+                    "description": "Forecast year (e.g., 2025 or 2026)"
+                }
+            }
+        )
+        def forecast_scenario(tickers: List[str], metric: str, adjustment: float, year: int) -> Dict:
+            """Calculate PBT impact from metric adjustments for multiple banks"""
+            
+            # Load required data
+            historical_year = self._load_historical_year()
+            forecast_data = self._load_forecast()
+            
+            # Process each ticker
+            results = {}
+            total_original_pbt = 0
+            total_new_pbt = 0
+            
+            for ticker in tickers:
+                # Validate ticker and get forecast data
+                if len(ticker) == 3:
+                    # Individual bank
+                    bank_forecast = forecast_data[(forecast_data['TICKER'] == ticker) & 
+                                                 (forecast_data['Year'] == str(year))]
+                    if bank_forecast.empty:
+                        results[ticker] = {
+                            "error": f"No forecast data for {ticker} in {year}",
+                            "status": "failed"
+                        }
+                        continue
+                    forecast_row = bank_forecast.iloc[0]
+                else:
+                    # Sector analysis
+                    if ticker == 'Sector':
+                        # Aggregate all banks with forecast
+                        banks = forecast_data[(forecast_data['Year'] == str(year)) & 
+                                             (forecast_data['TICKER'].str.len() == 3)]['TICKER'].unique()
+                        sector_data = forecast_data[(forecast_data['TICKER'].isin(banks)) & 
+                                                   (forecast_data['Year'] == str(year))]
+                    else:
+                        # Specific sector (SOCB, Private_1, etc.)
+                        sector_data = forecast_data[(forecast_data['TICKER'] == ticker) & 
+                                                   (forecast_data['Year'] == str(year))]
+                    
+                    if sector_data.empty:
+                        results[ticker] = {
+                            "error": f"No forecast data for {ticker} in {year}",
+                            "status": "failed"
+                        }
+                        continue
+                    
+                    # For sectors, aggregate or use pre-calculated values
+                    if ticker == 'Sector':
+                        # Aggregate metrics
+                        forecast_row = pd.Series({
+                            'PBT': sector_data['PBT'].sum(),
+                            'Net Interest Income': sector_data['Net Interest Income'].sum(),
+                            'OPEX': sector_data['OPEX'].sum(),
+                            'Provision expense': sector_data['Provision expense'].sum(),
+                            'Loan': sector_data['Loan'].sum(),
+                            'NIM': (sector_data['NIM'] * sector_data['Loan']).sum() / sector_data['Loan'].sum(),
+                            'NPL': (sector_data['NPL'] * sector_data['Loan']).sum() / sector_data['Loan'].sum(),
+                            'Provision on Balance Sheet': sector_data['Provision on Balance Sheet'].sum(),
+                            'New NPL': (sector_data.get('New NPL', 0) * sector_data['Loan']).sum() / sector_data['Loan'].sum() if 'New NPL' in sector_data.columns else 0
+                        })
+                    else:
+                        forecast_row = sector_data.iloc[0]
+                
+                # Get original values
+                original_pbt = forecast_row['PBT']
+                nii = forecast_row['Net Interest Income']
+                loan = forecast_row['Loan']
+                original_nim = forecast_row.get('NIM', 0)
+                original_npl = forecast_row.get('NPL', 0)
+                opex = forecast_row.get('OPEX', 0)
+                provision_expense = forecast_row.get('Provision expense', 0)
+                
+                # Get previous year data for growth calculations
+                prev_year = year - 1
+                if len(ticker) == 3:
+                    prev_data = historical_year[(historical_year['TICKER'] == ticker) & 
+                                               (historical_year['Year'] == str(prev_year))]
+                else:
+                    if ticker == 'Sector':
+                        banks = historical_year[(historical_year['Year'] == str(prev_year)) & 
+                                               (historical_year['TICKER'].str.len() == 3)]['TICKER'].unique()
+                        prev_data = historical_year[(historical_year['TICKER'].isin(banks)) & 
+                                                   (historical_year['Year'] == str(prev_year))]
+                        if not prev_data.empty:
+                            prev_data = pd.DataFrame([{
+                                'Loan': prev_data['Loan'].sum(),
+                                'OPEX': prev_data['OPEX'].sum()
+                            }])
+                    else:
+                        prev_data = historical_year[(historical_year['TICKER'] == ticker) & 
+                                                   (historical_year['Year'] == str(prev_year))]
+                
+                prev_loan = prev_data.iloc[0]['Loan'] if not prev_data.empty else loan * 0.85
+                prev_opex = prev_data.iloc[0]['OPEX'] if not prev_data.empty else opex * 0.9
+                
+                # Calculate PBT change based on metric
+                pbt_change = 0
+                new_value = None
+                original_value = None
+                
+                if metric == "NIM":
+                    # NIM change in basis points
+                    nim_change_ratio = adjustment / 10000  # Convert bps to ratio
+                    new_nim = original_nim + nim_change_ratio
+                    # PBT impact = NIM change * Loan
+                    pbt_change = nim_change_ratio * loan
+                    new_value = new_nim * 100  # Convert to percentage for display
+                    original_value = original_nim * 100
+                    
+                elif metric == "NPL":
+                    # NPL change in basis points
+                    npl_change_ratio = adjustment / 10000  # Convert bps to ratio
+                    new_npl = original_npl + npl_change_ratio
+                    # Simplified: Higher NPL increases provisions
+                    # Assume provision = NPL * Loan * Coverage ratio (simplified to 1.0)
+                    pbt_change = -(npl_change_ratio * loan)  # Higher NPL reduces PBT
+                    new_value = new_npl * 100
+                    original_value = original_npl * 100
+                    
+                elif metric == "loan_growth":
+                    # Loan growth change in percentage points
+                    original_growth = ((loan / prev_loan) - 1) * 100 if prev_loan != 0 else 15
+                    new_growth = original_growth + adjustment
+                    new_loan = prev_loan * (1 + new_growth / 100)
+                    loan_change = new_loan - loan
+                    # PBT impact from loan growth (simplified: assume NIM on new loans)
+                    pbt_change = (loan_change / loan) * nii if loan != 0 else 0
+                    new_value = new_growth
+                    original_value = original_growth
+                    
+                elif metric == "OPEX_growth":
+                    # OPEX growth change in percentage points
+                    # OPEX is negative in data (expense)
+                    opex_positive = abs(opex)
+                    prev_opex_positive = abs(prev_opex)
+                    original_growth = ((opex_positive / prev_opex_positive) - 1) * 100 if prev_opex_positive != 0 else 10
+                    new_growth = original_growth + adjustment
+                    new_opex = prev_opex_positive * (1 + new_growth / 100)
+                    opex_change = new_opex - opex_positive
+                    # Higher OPEX reduces PBT
+                    pbt_change = -opex_change
+                    new_value = new_growth
+                    original_value = original_growth
+                    
+                elif metric == "NPL_coverage":
+                    # NPL coverage change in percentage points
+                    npl_amount = original_npl * loan
+                    original_coverage = abs(forecast_row['Provision on Balance Sheet']) / npl_amount * 100 if npl_amount != 0 else 100
+                    new_coverage = original_coverage + adjustment
+                    # Higher coverage means more provisions
+                    coverage_change_ratio = adjustment / 100
+                    pbt_change = -(coverage_change_ratio * npl_amount)
+                    new_value = new_coverage
+                    original_value = original_coverage
+                    
+                elif metric == "new_NPL":
+                    # New NPL formation in basis points
+                    new_npl_change_ratio = adjustment / 10000
+                    # New NPL directly impacts provisions
+                    pbt_change = -(new_npl_change_ratio * loan)
+                    new_value = adjustment / 100  # Convert to percentage
+                    original_value = forecast_row.get('New NPL', 0) * 100
+                
+                else:
+                    results[ticker] = {
+                        "error": f"Unsupported metric: {metric}",
+                        "status": "failed"
+                    }
+                    continue
+                
+                # Calculate new PBT
+                new_pbt = original_pbt + pbt_change
+                pbt_change_percent = (pbt_change / original_pbt * 100) if original_pbt != 0 else 0
+                
+                # Store results for this ticker
+                results[ticker] = {
+                    "original_value": round(original_value, 2) if original_value is not None else None,
+                    "new_value": round(new_value, 2) if new_value is not None else None,
+                    "original_pbt": round(original_pbt / 1e12, 2),  # Convert to trillion
+                    "new_pbt": round(new_pbt / 1e12, 2),  # Convert to trillion
+                    "pbt_change": round(pbt_change / 1e12, 2),  # Convert to trillion
+                    "pbt_change_percent": round(pbt_change_percent, 1),
+                    "status": "success"
+                }
+                
+                # Accumulate totals
+                total_original_pbt += original_pbt
+                total_new_pbt += new_pbt
+            
+            # Return simplified format for single ticker
+            if len(tickers) == 1 and len(results) == 1:
+                result = results[tickers[0]]
+                if result.get("status") == "success":
+                    result.update({
+                        "ticker": tickers[0],
+                        "year": year,
+                        "metric": metric,
+                        "adjustment": adjustment,
+                        "unit": "trillion VND"
+                    })
+                return result
+            
+            # Return batch format for multiple tickers
+            successful_results = {k: v for k, v in results.items() if v.get("status") == "success"}
+            
+            # Calculate summary statistics if there are successful results
+            summary = None
+            if successful_results:
+                total_pbt_change = total_new_pbt - total_original_pbt
+                avg_change_percent = (total_pbt_change / total_original_pbt * 100) if total_original_pbt != 0 else 0
+                
+                summary = {
+                    "total_original_pbt": round(total_original_pbt / 1e12, 2),
+                    "total_new_pbt": round(total_new_pbt / 1e12, 2),
+                    "total_pbt_change": round(total_pbt_change / 1e12, 2),
+                    "average_change_percent": round(avg_change_percent, 1)
+                }
+            
+            return {
+                "year": year,
+                "metric": metric,
+                "adjustment": adjustment,
+                "unit": "trillion VND",
+                "results": results,
+                "summary": summary,
+                "requested": len(tickers),
+                "successful": len(successful_results),
+                "status": "success" if successful_results else "failed"
+            }
+        
     
     def execute_tool(self, tool_name: str, arguments: Dict = None) -> Dict:
         """Execute a tool by name with arguments"""

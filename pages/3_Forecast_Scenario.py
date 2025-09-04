@@ -57,14 +57,28 @@ st.title(' ')
 # Function to detect the last complete year from historical data
 @st.cache_data(ttl=3600)
 def get_last_historical_year():
-    """Detect the last complete year (LENGTHREPORT=5) from original historical data"""
-    # Read original IS data to find the last complete year
-    dfis = pd.read_csv(os.path.join(project_root, 'Data/IS_Bank.csv'))
-    # Find years that have LENGTHREPORT=5 (complete year data)
-    complete_years = dfis[dfis['LENGTHREPORT'] == 5]['YEARREPORT'].unique()
-    if len(complete_years) > 0:
-        return int(max(complete_years))
-    return None
+    """Detect the last complete year from historical parquet data"""
+    # Use the already-loaded year historical data from parquet
+    df_year_historical = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
+    
+    if df_year_historical.empty:
+        st.error("No historical data found in dfsectoryear.parquet")
+        st.stop()
+    
+    # Handle both string and numeric Year values
+    if df_year_historical['Year'].dtype == 'object':
+        # If Year is string, extract numeric year
+        years = df_year_historical['Year'].astype(str).str.extract(r'(\d{4})', expand=False)
+        years = years.dropna().astype(int)
+    else:
+        # If Year is already numeric
+        years = df_year_historical['Year']
+    
+    if len(years) == 0:
+        st.error("No valid years found in historical data")
+        st.stop()
+    
+    return int(years.max())
 
 # Load data
 @st.cache_data(ttl=3600)

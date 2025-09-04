@@ -185,6 +185,12 @@ print(results.head())
 
 ## Important Considerations
 
+### Deployment to Streamlit Cloud
+- **CSV files are NOT tracked in git** - The `.gitignore` excludes all CSV files in the Data directory
+- **Use parquet files instead of CSV** - All data processing should use the parquet files which ARE tracked
+- **Critical**: Never read from `Data/*.csv` files directly as they won't exist in cloud deployment
+- Example: `3_Forecast_Scenario.py` was updated to use `dfsectoryear.parquet` instead of `IS_Bank.csv`
+
 ### Rate Limiting
 - OpenAI API calls include `time.sleep(0.5)` between requests
 - Generators save progress every 10 items to prevent data loss
@@ -193,6 +199,7 @@ print(results.head())
 - Missing data files will raise FileNotFoundError with specific file paths
 - API failures are caught and logged but don't stop bulk processing
 - Incremental saves ensure partial progress is preserved
+- **No hardcoded fallbacks** - If data is missing, show clear error messages and stop execution
 
 ### Performance Optimization
 - Comments are cached in `banking_comments.xlsx` to avoid regeneration
