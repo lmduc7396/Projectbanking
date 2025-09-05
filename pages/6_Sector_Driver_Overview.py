@@ -212,8 +212,20 @@ if weight_choice == "Total Assets (from sector data)":
 elif weight_choice != "None" and weight_choice in base.columns:
     weight_col_name = weight_choice
 
-# Compute Type aggregates (bottom-up by sub-sector only; no overall sector row)
+# Compute Type aggregates (bottom-up by sub-sector); add All Banks row
 grouped = aggregate_by_type(base, use_cols, weight=weight_col_name, reducer=reducer).round(1)
+if not grouped.empty:
+    # All Banks roll-up computed bottom-up across banks (sector tickers excluded)
+    if weight_col_name and weight_col_name in base.columns:
+        w = base[weight_col_name]
+        overall = pd.Series({m: (base[m] * w).sum() / w.sum() if w.sum() != 0 else np.nan for m in use_cols})
+    else:
+        if scope == "Latest period":
+            overall = base[use_cols].mean(numeric_only=True)
+        else:
+            agg_func = np.median if reducer == "median" else np.mean
+            overall = base[use_cols].agg(agg_func)
+    grouped = pd.concat([grouped, pd.DataFrame([overall.round(1)], index=["All Banks"])])
 
 # Dominance table
 if not grouped.empty:
@@ -300,12 +312,20 @@ with st.expander("Sub-component Composition"):
 if scope == "Last N periods":
     st.subheader("Trend Heatmaps")
     # Select metric for heatmap
-    hm_metric = st.selectbox("Heatmap metric", [
-        ('Revenue (pp)', rev_col),
-        ('Cost (pp)', cost_col),
-        ('Non-Rec (pp)', nonrec_col),
-        ('Total (pp)', total_col)
-    ], format_func=lambda x: x[0])
+    # Offer only metrics that exist in the current dataframe
+    heatmap_options = []
+    if rev_col in df.columns:
+        heatmap_options.append(('Revenue (pp)', rev_col))
+    if cost_col in df.columns:
+        heatmap_options.append(('Cost (pp)', cost_col))
+    if nonrec_col in df.columns:
+        heatmap_options.append(('Non-Rec (pp)', nonrec_col))
+    if total_col in df.columns:
+        heatmap_options.append(('Total (pp)', total_col))
+    if not heatmap_options:
+        st.info("No impact columns available for heatmap in this selection.")
+        heatmap_options = [('Total (pp)', total_col)]  # placeholder; will be filtered below
+    hm_metric = st.selectbox("Heatmap metric", heatmap_options, format_func=lambda x: x[0])
     hm_col = hm_metric[1]
 
     # Build period window base
@@ -319,7 +339,10 @@ if scope == "Last N periods":
     win_base = win_base[~win_base['TICKER'].isin(sector_agg_tickers)]
 
     # Aggregate per Type per period (weighted if chosen)
-    if weight_choice == "Total Assets (from sector data)":
+    if hm_col not in win_base.columns:
+        st.warning("Selected heatmap metric is not available for this frequency/selection.")
+        agg = pd.DataFrame(columns=['Type', period_col, 'Impact'])
+    elif weight_choice == "Total Assets (from sector data)":
         try:
             if freq == "Quarterly":
                 wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
@@ -343,6 +366,7 @@ if scope == "Last N periods":
         except Exception:
             agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
     elif weight_choice != "None" and weight_choice in df.columns:
+        # If user chose a column like PBT for weighting, but it doesn't exist for this frequency, fall back gracefully
         wcol = weight_choice
         w_base = df[df[period_col].isin(window)][['Type', period_col, wcol, hm_col]].dropna(subset=['Type'])
         agg = (
@@ -353,10 +377,50 @@ if scope == "Last N periods":
     else:
         agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
 
-    # No All Banks roll-up in this view to avoid confusion
+    # Add All Banks roll-up per period for heatmap (bottom-up across banks)
+    if hm_col in win_base.columns:
+        if weight_choice == "Total Assets (from sector data)":
+            try:
+                if freq == "Quarterly":
+                    wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
+                    w_period = 'Date_Quarter'
+                else:
+                    wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
+                    w_period = 'Year'
+                if 'Total Assets' in wdf.columns:
+                    wdf2 = wdf[[w_period, 'TICKER', 'Total Assets']].rename(columns={w_period: period_col, 'Total Assets': 'WEIGHT_TOTAL_ASSETS'})
+                    wdf2 = wdf2[wdf2[period_col].isin(window)]
+                    temp = df.merge(wdf2, on=['TICKER', period_col], how='left')
+                    temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+                    wcol = 'WEIGHT_TOTAL_ASSETS'
+                    overall = (
+                        temp.groupby(period_col)
+                        .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                        .reset_index(name='Impact')
+                        .assign(Type='All Banks')
+                    )
+                else:
+                    overall = win_base.groupby(period_col, as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
+            except Exception:
+                overall = win_base.groupby(period_col, as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
+        elif weight_choice != "None" and weight_choice in df.columns:
+            wcol = weight_choice
+            temp = df[df[period_col].isin(window)][['TICKER', 'Type', period_col, wcol, hm_col]].copy()
+            temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+            overall = (
+                temp.groupby(period_col)
+                .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                .reset_index(name='Impact')
+                .assign(Type='All Banks')
+            )
+        else:
+            overall = win_base.groupby(period_col, as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
+        agg = pd.concat([agg, overall], ignore_index=True)
 
     # Pivot to matrix
-    mat = agg.pivot(index='Type', columns=period_col, values='Impact').round(1)
+    # Use string labels for periods to avoid float-like yearly labels (e.g., 2023.5)
+    agg['_period_str'] = agg[period_col].astype(str)
+    mat = agg.pivot(index='Type', columns='_period_str', values='Impact').round(1)
     # Set symmetric color bounds for green=good (positive), red=bad (negative)
     max_abs = np.nanmax(np.abs(mat.to_numpy())) if mat.size else 1
     fig_hm = px.imshow(mat, color_continuous_scale='RdYlGn', origin='lower', aspect='auto', zmin=-max_abs, zmax=max_abs)
