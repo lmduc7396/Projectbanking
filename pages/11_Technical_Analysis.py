@@ -471,6 +471,8 @@ def main():
         st.subheader("Score Breakdown")
         bdf = pd.DataFrame(result['breakdown'])
         bdf = bdf.sort_values('contribution', ascending=False).reset_index(drop=True)
+        # Hide internal 'meta' column from end users
+        bdf = bdf.drop(columns=['meta'], errors='ignore')
         st.dataframe(bdf, use_container_width=True)
         # Waterfall and narrative
         wf = score_waterfall(result)
