@@ -439,11 +439,18 @@ if scope == "Last N periods":
         label_map = {0: 'Revenue', 1: 'Cost', 2: 'Non-Rec'}
         base_dom['dom_code'] = base_dom[dom_cols].abs().idxmax(axis=1).map(code_map)
         dom_mat = base_dom.pivot(index='Type', columns=period_col, values='dom_code')
-        # Build custom colors
-        color_scale = [[0.0, '#398278'], [0.5, '#cc7c5e'], [1.0, '#e6a085']]
-        fig_cat = px.imshow(dom_mat, color_continuous_scale=color_scale, origin='lower', aspect='auto')
+        # Build piecewise-constant colors for distinct categories
+        rev_col_hex = '#2ca02c'   # green
+        cost_col_hex = '#d62728'  # red
+        nonrec_col_hex = '#1f77b4' # blue
+        color_scale = [
+            [0.0, rev_col_hex], [1/3 - 1e-6, rev_col_hex],
+            [1/3, cost_col_hex], [2/3 - 1e-6, cost_col_hex],
+            [2/3, nonrec_col_hex], [1.0, nonrec_col_hex]
+        ]
+        fig_cat = px.imshow(dom_mat, color_continuous_scale=color_scale, origin='lower', aspect='auto', zmin=-0.5, zmax=2.5)
         fig_cat.update_layout(height=420, coloraxis_showscale=False)
         st.plotly_chart(fig_cat, use_container_width=True)
-        st.caption("Colors: Revenue=#398278, Cost=#cc7c5e, Non-Rec=#e6a085")
+        st.caption("Legend: Revenue = green, Cost = red, Non‑Rec = blue")
     else:
         st.info("Dominance cannot be computed: required columns missing.")
