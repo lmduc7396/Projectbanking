@@ -316,9 +316,14 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
     fig.update_yaxes(title_text='Price (VND)', row=1, col=1, tickformat=',.0f')
     fig.update_yaxes(title_text='Volume', row=2, col=1, tickformat=',.0f')
     fig.update_yaxes(title_text='RSI', row=3, col=1, range=[0, 100])
-    fig.update_xaxes(title_text='Date', row=3, col=1, tickmode='array', tickvals=tickvals, ticktext=ticktext, tickangle=-45)
-    fig.update_xaxes(showticklabels=False, row=1, col=1)
-    fig.update_xaxes(showticklabels=False, row=2, col=1)
+    # Use categorical x-axes to remove gaps for weekends/holidays
+    fig.update_xaxes(title_text='Date', row=3, col=1, tickmode='array', tickvals=tickvals, ticktext=ticktext, tickangle=-45, type='category', categoryorder='category ascending')
+    fig.update_xaxes(showticklabels=False, row=1, col=1, type='category', categoryorder='category ascending')
+    fig.update_xaxes(showticklabels=False, row=2, col=1, type='category', categoryorder='category ascending')
+    if show_macd:
+        fig.update_xaxes(row=4 if not show_stoch else 4, col=1, type='category', categoryorder='category ascending')
+    if show_stoch:
+        fig.update_xaxes(row=5 if show_macd else 4, col=1, type='category', categoryorder='category ascending')
 
     st.plotly_chart(fig, use_container_width=True)
 

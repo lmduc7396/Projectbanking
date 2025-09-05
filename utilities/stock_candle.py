@@ -118,8 +118,8 @@ def Stock_price_plot(ticker: str):
         # Convert dates to strings for categorical x-axis (removes gaps)
         df['date_str'] = df['tradingDate'].dt.strftime('%Y-%m-%d')
         
-        # Use index for x-axis to ensure no gaps
-        df['x_index'] = range(len(df))
+        # Use categorical date strings as x to avoid gaps on weekends/holidays
+        df['x_index'] = df['date_str']
         
         # Calculate moving averages
         df['MA10'] = df['close'].rolling(window=10, min_periods=1).mean()
@@ -142,7 +142,7 @@ def Stock_price_plot(ticker: str):
         # Add candlestick chart using continuous index with custom hover
         fig.add_trace(
             go.Candlestick(
-                x=df['x_index'].tolist(),  # Convert to list
+                x=df['x_index'].tolist(),  # categorical dates remove gaps
                 open=df['open'].tolist(),
                 high=df['high'].tolist(),
                 low=df['low'].tolist(),
@@ -164,7 +164,7 @@ def Stock_price_plot(ticker: str):
         # Add MA10 line (dashed)
         fig.add_trace(
             go.Scatter(
-                x=df['x_index'].tolist(),  # Convert to list
+                x=df['x_index'].tolist(),
                 y=df['MA10'].tolist(),
                 name='MA10',
                 line=dict(color='blue', width=1, dash='dash'),
@@ -178,7 +178,7 @@ def Stock_price_plot(ticker: str):
         # Add MA50 line (dashed)
         fig.add_trace(
             go.Scatter(
-                x=df['x_index'].tolist(),  # Convert to list
+                x=df['x_index'].tolist(),
                 y=df['MA50'].tolist(),
                 name='MA50',
                 line=dict(color='orange', width=1, dash='dash'),
@@ -195,7 +195,7 @@ def Stock_price_plot(ticker: str):
         
         fig.add_trace(
             go.Bar(
-                x=df['x_index'].tolist(),  # Convert to list
+                x=df['x_index'].tolist(),
                 y=df['volume'].tolist(),
                 name='Volume',
                 marker_color=colors,
