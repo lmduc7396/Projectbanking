@@ -180,6 +180,8 @@ if scope == "Latest period":
     base = df[df[period_col] == latest_period][['TICKER', 'Type', period_col] + use_cols + sub_cols].copy()
     # Exclude sector aggregate rows to avoid double counting in All Banks averages
     base = base[~base['TICKER'].isin(sector_agg_tickers)]
+    # Additionally exclude any non-3-char tickers (synthetic aggregates)
+    base = base[base['TICKER'].astype(str).str.len() == 3]
     scope_label = f"Latest {period_col}: {latest_period}"
 else:
     all_periods = (
@@ -190,6 +192,7 @@ else:
     window = all_periods[-n_periods:]
     base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols + sub_cols].copy()
     base = base[~base['TICKER'].isin(sector_agg_tickers)]
+    base = base[base['TICKER'].astype(str).str.len() == 3]
     scope_label = f"Window: {window[0]} → {window[-1]} ({len(window)} periods)"
 
 st.markdown(f"#### {scope_label}")
@@ -361,6 +364,7 @@ if scope == "Last N periods":
     window = periods_sorted[-n_periods:]
     win_base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols].copy()
     win_base = win_base[~win_base['TICKER'].isin(sector_agg_tickers)]
+    win_base = win_base[win_base['TICKER'].astype(str).str.len() == 3]
 
     # Aggregate per Type per period (weighted + mean/median as selected)
     if hm_col not in win_base.columns:
@@ -379,6 +383,7 @@ if scope == "Last N periods":
                 wdf2 = wdf2[wdf2[period_col].isin(window)]
                 temp = df.merge(wdf2, on=['TICKER', period_col], how='left')
                 temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+                temp = temp[temp['TICKER'].astype(str).str.len() == 3]
                 wcol = 'WEIGHT_TOTAL_ASSETS'
                 if reducer == 'median':
                     agg = (
@@ -403,6 +408,7 @@ if scope == "Last N periods":
         wcol = weight_choice
         temp = df[df[period_col].isin(window)][['TICKER', 'Type', period_col, wcol, hm_col]].copy()
         temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+        temp = temp[temp['TICKER'].astype(str).str.len() == 3]
         if reducer == 'median':
             agg = (
                 temp.groupby(['Type', period_col])
@@ -436,6 +442,7 @@ if scope == "Last N periods":
                     wdf2 = wdf2[wdf2[period_col].isin(window)]
                     temp = df.merge(wdf2, on=['TICKER', period_col], how='left')
                     temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+                    temp = temp[temp['TICKER'].astype(str).str.len() == 3]
                     wcol = 'WEIGHT_TOTAL_ASSETS'
                     if reducer == 'median':
                         overall = (
@@ -459,6 +466,7 @@ if scope == "Last N periods":
             wcol = weight_choice
             temp = df[df[period_col].isin(window)][['TICKER', 'Type', period_col, wcol, hm_col]].copy()
             temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+            temp = temp[temp['TICKER'].astype(str).str.len() == 3]
             if reducer == 'median':
                 overall = (
                     temp.groupby(period_col)
