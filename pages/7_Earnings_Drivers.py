@@ -1,3 +1,4 @@
+#%%
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -526,53 +527,155 @@ if quarterly_df is not None and yearly_df is not None:
     
     # Page 3: Statistical Summary
     elif page == "Statistical Summary":
-        st.header("Statistical Summary")
-        
-        # Get latest period
-        latest_period = df_with_impacts[period_col].max()
-        latest_df = df_with_impacts[df_with_impacts[period_col] == latest_period].copy()
-        
-        st.subheader(f"Average Impacts by Bank Type ({latest_period})")
-        
-        # Get column names
-        if data_type == "Quarterly":
-            suffix = comparison_suffix
-            agg_dict = {
-                f'Top_Line_Impact{suffix}': 'mean',
-                f'Cost_Cutting_Impact{suffix}': 'mean',
-                f'Non_Recurring_Impact{suffix}': 'mean',
-                f'Total_Impact{suffix}': 'mean'
-            }
+        st.header("Sector & Sub‑Sector Drivers")
+
+        # Dynamic scope controls
+        scope = st.radio(
+            "Scope",
+            ["Latest period", "Last N periods"],
+            horizontal=True,
+            help="Aggregate impacts across the latest period or a rolling window"
+        )
+        if scope == "Last N periods":
+            n_periods = st.slider("Window size (periods)", min_value=2, max_value=12, value=4)
+            reducer = st.selectbox("Aggregation", ["mean", "median"], index=0)
         else:
-            agg_dict = {
-                'Top_Line_Impact': 'mean',
-                'Cost_Cutting_Impact': 'mean',
-                'Non_Recurring_Impact': 'mean',
-                'Total_Impact': 'mean'
-            }
-        
-        # Filter to existing columns
-        agg_dict = {k: v for k, v in agg_dict.items() if k in latest_df.columns}
-        
-        if agg_dict:
-            summary_by_type = latest_df.groupby('Type').agg(agg_dict).round(1)
-            st.dataframe(summary_by_type.style.format("{:.1f}pp"))
-        
-        # Top and bottom performers
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Top 10 Performers")
-            total_col = f'Total_Impact{comparison_suffix}' if data_type == "Quarterly" else 'Total_Impact'
-            if total_col in latest_df.columns:
-                top_df = latest_df.nlargest(10, total_col)[['TICKER', 'Type', total_col]]
-                st.dataframe(top_df.style.format({total_col: '{:.1f}pp'}))
-        
-        with col2:
-            st.subheader("Bottom 10 Performers")
-            if total_col in latest_df.columns:
-                bottom_df = latest_df.nsmallest(10, total_col)[['TICKER', 'Type', total_col]]
-                st.dataframe(bottom_df.style.format({total_col: '{:.1f}pp'}))
+            n_periods = None
+            reducer = "mean"
+
+        # Define columns based on frequency/suffix
+        if data_type == "Quarterly":
+            suf = comparison_suffix
+            rev_col = f'Top_Line_Impact{suf}'
+            cost_col = f'Cost_Cutting_Impact{suf}'
+            nonrec_col = f'Non_Recurring_Impact{suf}'
+            total_col = f'Total_Impact{suf}'
+            # Subcomponents
+            nii_col = f'NII_Impact{suf}'
+            fee_col = f'Fee_Impact{suf}'
+            opex_col = f'OPEX_Impact{suf}'
+            prov_col = f'Provision_Impact{suf}'
+            loan_col = f'Loan_Impact{suf}'
+            nim_col = f'NIM_Impact{suf}'
+        else:
+            rev_col = 'Top_Line_Impact'
+            cost_col = 'Cost_Cutting_Impact'
+            nonrec_col = 'Non_Recurring_Impact'
+            total_col = 'Total_Impact'
+            nii_col, fee_col, opex_col, prov_col, loan_col, nim_col = (
+                'NII_Impact', 'Fee_Impact', 'OPEX_Impact', 'Provision_Impact', 'Loan_Impact', 'NIM_Impact'
+            )
+
+        use_cols = [c for c in [rev_col, cost_col, nonrec_col, total_col, nii_col, fee_col, opex_col, prov_col, loan_col, nim_col] if c in df_with_impacts.columns]
+
+        # Select base slice
+        if scope == "Latest period":
+            latest_period = df_with_impacts[period_col].max()
+            base = df_with_impacts[df_with_impacts[period_col] == latest_period][['TICKER', 'Type', period_col] + use_cols].copy()
+            st.caption(f"Latest {period_col}: {latest_period}")
+        else:
+            periods_sorted = (
+                pd.Series(df_with_impacts[period_col].unique())
+                .sort_values(ascending=True)
+                .tolist()
+            )
+            window = periods_sorted[-n_periods:]
+            base = df_with_impacts[df_with_impacts[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols].copy()
+            st.caption(f"Window: {window[0]} → {window[-1]} ({len(window)} periods)")
+
+        # Aggregate by Type
+        if scope == "Latest period":
+            grouped = base.groupby('Type', as_index=True)[use_cols].mean(numeric_only=True)
+        else:
+            agg_func = np.median if reducer == "median" else np.mean
+            grouped = base.groupby('Type', as_index=True)[use_cols].agg(agg_func)
+
+        grouped = grouped.round(1)
+
+        # Dominant driver per Type
+        driver_cols = [c for c in [rev_col, cost_col, nonrec_col] if c in grouped.columns]
+        if driver_cols:
+            tmp = grouped[driver_cols].copy()
+            dominant_idx = tmp.abs().idxmax(axis=1)
+            dominant_val = tmp.lookup(tmp.index, dominant_idx) if hasattr(tmp, 'lookup') else tmp.to_numpy()[np.arange(len(tmp.index)), np.argmax(np.abs(tmp.to_numpy()), axis=1)]
+            dominance = pd.DataFrame({
+                'Type': tmp.index,
+                'Dominant Driver': dominant_idx.replace({rev_col: 'Revenue', cost_col: 'Cost', nonrec_col: 'Non-Rec'}).values,
+                'Value (pp)': np.round(dominant_val, 1)
+            }).set_index('Type')
+        else:
+            dominance = pd.DataFrame()
+
+        # Display overview table (drivers)
+        st.subheader("Average Impacts by Bank Type")
+        nice_cols = {
+            rev_col: 'Revenue (pp)',
+            cost_col: 'Cost (pp)',
+            nonrec_col: 'Non-Rec (pp)',
+            total_col: 'Total (pp)'
+        }
+        show_cols = [c for c in [rev_col, cost_col, nonrec_col, total_col] if c in grouped.columns]
+        if show_cols:
+            st.dataframe(grouped[show_cols].rename(columns=nice_cols).style.format("{:.1f}"), use_container_width=True)
+
+        # Dominance mini-table
+        if not dominance.empty:
+            st.subheader("Driver of the Period by Type")
+            st.dataframe(dominance, use_container_width=True)
+
+        # Stacked bar: drivers per Type
+        st.subheader("Driver Mix by Type")
+        plot_df = grouped[show_cols].rename(columns=nice_cols).reset_index().rename(columns={'index': 'Type'})
+        # Melt for stacked bars
+        melted = plot_df.melt(id_vars=['Type'], value_vars=[nice_cols.get(c, c) for c in show_cols], var_name='Driver', value_name='Impact')
+        # Order Types by Total impact if present
+        order_types = None
+        if total_col in grouped.columns:
+            order_types = grouped.sort_values(total_col, ascending=False).index.tolist()
+            melted['Type'] = pd.Categorical(melted['Type'], categories=order_types, ordered=True)
+        fig = px.bar(melted, x='Type', y='Impact', color='Driver', barmode='relative', color_discrete_map={
+            'Revenue (pp)': '#398278',
+            'Cost (pp)': '#cc7c5e',
+            'Non-Rec (pp)': '#e6a085',
+            'Total (pp)': '#5A8A7F'
+        })
+        fig.update_layout(height=420, hovermode='x unified')
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Optional: sub-component composition panels
+        with st.expander("Sub-component Composition (optional)"):
+            sub_avail = [c for c in [nii_col, fee_col, opex_col, prov_col, loan_col, nim_col] if c in grouped.columns]
+            if sub_avail:
+                comp_df = grouped[[c for c in sub_avail]].copy()
+                # Revenue breakdown: NII vs Fees
+                rev_parts = [c for c in [nii_col, fee_col] if c in comp_df.columns]
+                if rev_parts:
+                    rev_mix = comp_df[rev_parts].copy()
+                    rev_mix_sum = rev_mix.abs().sum(axis=1).replace(0, np.nan)
+                    rev_share = (rev_mix.abs().div(rev_mix_sum, axis=0) * 100).fillna(0).round(1)
+                    rev_share.columns = [c.replace(nii_col, 'NII').replace(fee_col, 'Fees') for c in rev_share.columns]
+                    st.markdown("#### Revenue Components (% of Revenue Impact by absolute contribution)")
+                    st.dataframe(rev_share, use_container_width=True)
+                # Cost breakdown: OPEX vs Provisions
+                cost_parts = [c for c in [opex_col, prov_col] if c in comp_df.columns]
+                if cost_parts:
+                    cost_mix = comp_df[cost_parts].copy()
+                    cost_mix_sum = cost_mix.abs().sum(axis=1).replace(0, np.nan)
+                    cost_share = (cost_mix.abs().div(cost_mix_sum, axis=0) * 100).fillna(0).round(1)
+                    cost_share.columns = [c.replace(opex_col, 'OPEX').replace(prov_col, 'Provisions') for c in cost_share.columns]
+                    st.markdown("#### Cost Components (% of Cost Impact by absolute contribution)")
+                    st.dataframe(cost_share, use_container_width=True)
+                # NII breakdown: Loan vs NIM
+                nii_parts = [c for c in [loan_col, nim_col] if c in comp_df.columns]
+                if nii_parts:
+                    nii_mix = comp_df[nii_parts].copy()
+                    nii_mix_sum = nii_mix.abs().sum(axis=1).replace(0, np.nan)
+                    nii_share = (nii_mix.abs().div(nii_mix_sum, axis=0) * 100).fillna(0).round(1)
+                    nii_share.columns = [c.replace(loan_col, 'Loan').replace(nim_col, 'NIM') for c in nii_share.columns]
+                    st.markdown("#### NII Breakdown (% of NII Impact by absolute contribution)")
+                    st.dataframe(nii_share, use_container_width=True)
+            else:
+                st.info("Sub-component columns not available for this selection.")
 
 else:
     st.error("Unable to load data files. Please ensure earnings_quality_quarterly.parquet and earnings_quality_yearly.parquet exist in the Data folder.")
