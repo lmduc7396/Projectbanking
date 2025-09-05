@@ -135,55 +135,78 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
 
     score = 50.0
     reasons = []
+    breakdown = []  # list of {component, contribution, detail}
     # Price vs MAs
     above_list = []
     below_list = []
     for w, mv in mas.items():
         if last > mv:
-            score += 3; above_list.append(str(w))
+            above_list.append(str(w))
         else:
-            score -= 3; below_list.append(str(w))
+            below_list.append(str(w))
+    ma_contrib = 3 * len(above_list) - 3 * len(below_list)
+    score += ma_contrib
+    breakdown.append({
+        "component": "Price vs MAs",
+        "contribution": round(ma_contrib, 1),
+        "detail": f"Above: {', '.join(above_list) if above_list else '—'}; Below: {', '.join(below_list) if below_list else '—'}"
+    })
     # MA stacking (bullish if shorter > longer)
     sorted_ws = sorted(ma_windows)
     stacked = all(mas[sorted_ws[i]] >= mas[sorted_ws[i+1]] for i in range(len(sorted_ws)-1))
     if stacked:
         score += 10; reasons.append(f"MA alignment bullish ({' > '.join(map(str, sorted_ws))})")
+        breakdown.append({"component": "MA alignment", "contribution": 10, "detail": "Shorter MAs above longer"})
     else:
         score -= 5; reasons.append("MA alignment not bullish")
+        breakdown.append({"component": "MA alignment", "contribution": -5, "detail": "Shorter MAs not above longer"})
     # Trend slope
     if slope_pct > 0:
-        score += min(10, slope_pct)
+        slope_contrib = float(min(10, slope_pct))
+        score += slope_contrib
         reasons.append(f"MA{w_mid} slope positive ({slope_pct:.2f}‰)")
     else:
-        score += max(-10, slope_pct); reasons.append(f"MA{w_mid} slope negative ({slope_pct:.2f}‰)")
+        slope_contrib = float(max(-10, slope_pct))
+        score += slope_contrib
+        reasons.append(f"MA{w_mid} slope negative ({slope_pct:.2f}‰)")
+    breakdown.append({"component": f"MA{w_mid} slope", "contribution": round(slope_contrib, 1), "detail": f"{slope_pct:.2f}‰ over {lookback} bars"})
     # RSI contribution
     if 50 <= rsi_last <= 70:
-        score += 5; reasons.append(f"RSI supportive ({rsi_last:.1f})")
+        rsi_contrib = 5; score += rsi_contrib; reasons.append(f"RSI supportive ({rsi_last:.1f})")
     elif rsi_last > 70:
-        score -= 5; reasons.append(f"RSI overbought ({rsi_last:.1f})")
+        rsi_contrib = -5; score += rsi_contrib; reasons.append(f"RSI overbought ({rsi_last:.1f})")
     elif 30 <= rsi_last < 50:
-        score -= 2; reasons.append(f"RSI weak ({rsi_last:.1f})")
+        rsi_contrib = -2; score += rsi_contrib; reasons.append(f"RSI weak ({rsi_last:.1f})")
     else:  # < 30
-        score += 5; reasons.append(f"RSI oversold ({rsi_last:.1f})")
+        rsi_contrib = 5; score += rsi_contrib; reasons.append(f"RSI oversold ({rsi_last:.1f})")
+    breakdown.append({"component": "RSI", "contribution": rsi_contrib, "detail": f"RSI={rsi_last:.1f}"})
     # Volume confirmation
-    if vol10 > vol50 * 1.1:
-        score += 5; reasons.append(f"Rising volume (10/50={vol10/vol50:.2f}x)")
-    elif vol10 < vol50 * 0.9:
-        score -= 3; reasons.append(f"Weak volume (10/50={vol10/vol50:.2f}x)")
+    vol_ratio = vol10 / vol50 if vol50 > 0 else np.nan
+    if vol50 > 0 and vol_ratio > 1.1:
+        vol_contrib = 5; score += vol_contrib; reasons.append(f"Rising volume (10/50={vol_ratio:.2f}x)")
+    elif vol50 > 0 and vol_ratio < 0.9:
+        vol_contrib = -3; score -= 3; reasons.append(f"Weak volume (10/50={vol_ratio:.2f}x)")
+    else:
+        vol_contrib = 0
+    breakdown.append({"component": "Volume", "contribution": vol_contrib, "detail": f"10/50={vol_ratio:.2f}x" if vol50 > 0 else "N/A"})
 
     # MACD contribution
     if macd_last > 0:
-        score += 5; reasons.append("MACD above signal")
+        macd_contrib = 5; score += macd_contrib; reasons.append("MACD above signal")
     else:
-        score -= 3; reasons.append("MACD below signal")
+        macd_contrib = -3; score -= 3; reasons.append("MACD below signal")
+    breakdown.append({"component": "MACD", "contribution": macd_contrib, "detail": f"Δ={macd_last:.2f}"})
 
     # Stochastic contribution
     if k_last > d_last and 20 < k_last < 80:
-        score += 4; reasons.append(f"Stoch bullish (%K={k_last:.1f} > %D={d_last:.1f})")
+        stoch_contrib = 4; score += stoch_contrib; reasons.append(f"Stoch bullish (%K={k_last:.1f} > %D={d_last:.1f})")
     elif k_last >= 80:
-        score -= 3; reasons.append(f"Stoch overbought (%K={k_last:.1f})")
+        stoch_contrib = -3; score -= 3; reasons.append(f"Stoch overbought (%K={k_last:.1f})")
     elif k_last <= 20:
-        score += 2; reasons.append(f"Stoch oversold (%K={k_last:.1f})")
+        stoch_contrib = 2; score += 2; reasons.append(f"Stoch oversold (%K={k_last:.1f})")
+    else:
+        stoch_contrib = 0
+    breakdown.append({"component": "Stochastic", "contribution": stoch_contrib, "detail": f"%K={k_last:.1f}, %D={d_last:.1f}"})
 
     score = max(0, min(100, round(score, 1)))
     if above_list or below_list:
@@ -191,7 +214,7 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
             reasons.insert(0, f"Price above MAs: {', '.join(above_list)}")
         if below_list:
             reasons.insert(1 if above_list else 0, f"Price below MAs: {', '.join(below_list)}")
-    return {"score": score, "rationale": reasons, "rsi": round(rsi_last, 1)}
+    return {"score": max(0, min(100, round(score, 1))), "rationale": reasons, "rsi": round(rsi_last, 1), "breakdown": breakdown}
 
 
 def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[int], rsi_len: int,
@@ -366,6 +389,13 @@ def main():
             st.write("Reasons:")
             for r in result['rationale']:
                 st.write(f"• {r}")
+
+    # Score breakdown table
+    if result.get('breakdown'):
+        st.subheader("Score Breakdown")
+        bdf = pd.DataFrame(result['breakdown'])
+        bdf = bdf.sort_values('contribution', ascending=False).reset_index(drop=True)
+        st.dataframe(bdf, use_container_width=True)
 
     # Watchlist comparison
     st.markdown("---")
