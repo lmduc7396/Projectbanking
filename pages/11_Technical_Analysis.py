@@ -194,6 +194,11 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
     dfx = df.copy()
     dfx['date'] = pd.to_datetime(dfx['tradingDate'])
     dfx['date_str'] = dfx['date'].dt.strftime('%Y-%m-%d')
+    # Ensure numeric OHLC and drop rows with missing OHLC to avoid Plotly errors
+    for c in ['open', 'high', 'low', 'close', 'volume']:
+        if c in dfx.columns:
+            dfx[c] = pd.to_numeric(dfx[c], errors='coerce')
+    dfx = dfx.dropna(subset=['open', 'high', 'low', 'close']).reset_index(drop=True)
     dfx['x'] = np.arange(len(dfx))
 
     # MAs
@@ -231,7 +236,21 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
     fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=row_heights, subplot_titles=tuple(titles))
 
     # Candle
-    fig.add_trace(go.Candlestick(x=dfx['x'], open=dfx['open'], high=dfx['high'], low=dfx['low'], close=dfx['close'], name='Price', increasing_line_color='#398278', decreasing_line_color='#cc7c5e', customdata=dfx['date_str'], hovertemplate='<b>%{customdata}</b><br>O:%{open:,.0f} H:%{high:,.0f}<br>L:%{low:,.0f} C:%{close:,.0f}<extra></extra>'), row=1, col=1)
+    fig.add_trace(
+        go.Candlestick(
+            x=dfx['x'].tolist(),
+            open=dfx['open'].tolist(),
+            high=dfx['high'].tolist(),
+            low=dfx['low'].tolist(),
+            close=dfx['close'].tolist(),
+            name='Price',
+            increasing=dict(line=dict(color="#398278")),
+            decreasing=dict(line=dict(color="#cc7c5e")),
+            customdata=dfx['date_str'].tolist(),
+            hovertemplate='<b>%{customdata}</b><br>O:%{open:,.0f} H:%{high:,.0f}<br>L:%{low:,.0f} C:%{close:,.0f}<extra></extra>'
+        ),
+        row=1, col=1
+    )
 
     # MAs
     palette = ['#5A8A7F', '#e6a085', '#2D5E52', '#b5694f', '#619BF7']
@@ -240,17 +259,17 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
 
     # Bollinger
     if show_bbands:
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['BB_UP'], name='BB Upper', line=dict(color='rgba(97,155,247,0.6)', width=1), hoverinfo='skip'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['BB_MA'], name='BB MA', line=dict(color='rgba(97,155,247,0.8)', width=1), hoverinfo='skip'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['BB_LO'], name='BB Lower', line=dict(color='rgba(97,155,247,0.6)', width=1), hoverinfo='skip'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['BB_UP'].tolist(), name='BB Upper', line=dict(color='rgba(97,155,247,0.6)', width=1), hoverinfo='skip'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['BB_MA'].tolist(), name='BB MA', line=dict(color='rgba(97,155,247,0.8)', width=1), hoverinfo='skip'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['BB_LO'].tolist(), name='BB Lower', line=dict(color='rgba(97,155,247,0.6)', width=1), hoverinfo='skip'), row=1, col=1)
 
     # Volume
     colors = np.where(dfx['close'] >= dfx['open'], '#398278', '#cc7c5e')
-    fig.add_trace(go.Bar(x=dfx['x'], y=dfx['volume'], name='Volume', marker_color=colors, showlegend=False), row=2, col=1)
+    fig.add_trace(go.Bar(x=dfx['x'].tolist(), y=dfx['volume'].tolist(), name='Volume', marker_color=colors, showlegend=False), row=2, col=1)
 
     # RSI lines
     rsi_row = 3
-    fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['RSI'], name=f'RSI{rsi_len}', line=dict(color='#619BF7', width=1.5)), row=rsi_row, col=1)
+    fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['RSI'].tolist(), name=f'RSI{rsi_len}', line=dict(color='#619BF7', width=1.5)), row=rsi_row, col=1)
     for lvl, col in [(30, 'rgba(204,124,94,0.25)'), (50, 'rgba(90,138,127,0.2)'), (70, 'rgba(204,124,94,0.25)')]:
         fig.add_hrect(y0=lvl-1, y1=lvl+1, line_width=0, fillcolor=col, row=rsi_row, col=1)
 
@@ -258,15 +277,15 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
     # MACD panel
     if show_macd:
         next_row += 1
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['MACD'], name='MACD', line=dict(color='#5A8A7F', width=1.3)), row=next_row, col=1)
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['MACD_SIG'], name='Signal', line=dict(color='#cc7c5e', width=1)), row=next_row, col=1)
-        fig.add_trace(go.Bar(x=dfx['x'], y=dfx['MACD_HIST'], name='Hist', marker_color=np.where(dfx['MACD_HIST']>=0, 'rgba(57,130,120,0.6)', 'rgba(204,124,94,0.6)'), showlegend=False), row=next_row, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['MACD'].tolist(), name='MACD', line=dict(color='#5A8A7F', width=1.3)), row=next_row, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['MACD_SIG'].tolist(), name='Signal', line=dict(color='#cc7c5e', width=1)), row=next_row, col=1)
+        fig.add_trace(go.Bar(x=dfx['x'].tolist(), y=dfx['MACD_HIST'].tolist(), name='Hist', marker_color=np.where(dfx['MACD_HIST']>=0, 'rgba(57,130,120,0.6)', 'rgba(204,124,94,0.6)'), showlegend=False), row=next_row, col=1)
         fig.update_yaxes(title_text='MACD', row=next_row, col=1)
     # Stochastic panel
     if show_stoch:
         next_row += 1
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['STO_K'], name=f'%K{stoch_k}', line=dict(color='#398278', width=1.2)), row=next_row, col=1)
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx['STO_D'], name=f'%D{stoch_d}', line=dict(color='#619BF7', width=1.2)), row=next_row, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['STO_K'].tolist(), name=f'%K{stoch_k}', line=dict(color='#398278', width=1.2)), row=next_row, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['STO_D'].tolist(), name=f'%D{stoch_d}', line=dict(color='#619BF7', width=1.2)), row=next_row, col=1)
         for lvl, col in [(20, 'rgba(57,130,120,0.15)'), (80, 'rgba(204,124,94,0.15)')]:
             fig.add_hrect(y0=lvl-1, y1=lvl+1, line_width=0, fillcolor=col, row=next_row, col=1)
         fig.update_yaxes(title_text='Stoch', row=next_row, col=1, range=[0, 100])
