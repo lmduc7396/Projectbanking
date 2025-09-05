@@ -149,9 +149,13 @@ nim_col = f'NIM_Impact{suffix}' if suffix else 'NIM_Impact'
 sub_cols = [c for c in [nii_col, fee_col, opex_col, prov_col, loan_col, nim_col] if c in df.columns]
 
 # Slice base
+sector_agg_tickers = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+
 if scope == "Latest period":
     latest_period = df[period_col].max()
     base = df[df[period_col] == latest_period][['TICKER', 'Type', period_col] + use_cols + sub_cols].copy()
+    # Exclude sector aggregate rows to avoid double counting in All Banks averages
+    base = base[~base['TICKER'].isin(sector_agg_tickers)]
     scope_label = f"Latest {period_col}: {latest_period}"
 else:
     all_periods = (
@@ -161,6 +165,7 @@ else:
     )
     window = all_periods[-n_periods:]
     base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols + sub_cols].copy()
+    base = base[~base['TICKER'].isin(sector_agg_tickers)]
     scope_label = f"Window: {window[0]} → {window[-1]} ({len(window)} periods)"
 
 st.markdown(f"#### {scope_label}")
@@ -207,20 +212,8 @@ if weight_choice == "Total Assets (from sector data)":
 elif weight_choice != "None" and weight_choice in base.columns:
     weight_col_name = weight_choice
 
-# Compute Type aggregates and All Banks row
+# Compute Type aggregates (bottom-up by sub-sector only; no overall sector row)
 grouped = aggregate_by_type(base, use_cols, weight=weight_col_name, reducer=reducer).round(1)
-if not grouped.empty:
-    # All Banks row (overall average with same weighting scheme)
-    if weight_col_name and weight_col_name in base.columns:
-        w = base[weight_col_name]
-        overall = pd.Series({m: (base[m] * w).sum() / w.sum() if w.sum() != 0 else np.nan for m in use_cols})
-    else:
-        if scope == "Latest period":
-            overall = base[use_cols].mean(numeric_only=True)
-        else:
-            agg_func = np.median if reducer == "median" else np.mean
-            overall = base[use_cols].agg(agg_func)
-    grouped = pd.concat([grouped, pd.DataFrame([overall.round(1)], index=["All Banks"])])
 
 # Dominance table
 if not grouped.empty:
@@ -323,6 +316,7 @@ if scope == "Last N periods":
     )
     window = periods_sorted[-n_periods:]
     win_base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols].copy()
+    win_base = win_base[~win_base['TICKER'].isin(sector_agg_tickers)]
 
     # Aggregate per Type per period (weighted if chosen)
     if weight_choice == "Total Assets (from sector data)":
@@ -359,13 +353,7 @@ if scope == "Last N periods":
     else:
         agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
 
-    # Add All Banks row
-    overall = (
-        win_base.groupby([period_col], as_index=False)[hm_col].mean(numeric_only=True)
-        .assign(Type='All Banks')
-        .rename(columns={hm_col: 'Impact'})
-    )
-    agg = pd.concat([agg, overall], ignore_index=True)
+    # No All Banks roll-up in this view to avoid confusion
 
     # Pivot to matrix
     mat = agg.pivot(index='Type', columns=period_col, values='Impact').round(1)
