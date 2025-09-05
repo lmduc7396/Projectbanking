@@ -325,12 +325,35 @@ if scope == "Last N periods":
     win_base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols].copy()
 
     # Aggregate per Type per period (weighted if chosen)
-    if weight_col != "None" and weight_col in df.columns:
-        w_base = df[df[period_col].isin(window)][['Type', period_col, weight_col, hm_col]].dropna(subset=['Type'])
-        # Weighted mean by period & type
+    if weight_choice == "Total Assets (from sector data)":
+        try:
+            if freq == "Quarterly":
+                wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
+                w_period = 'Date_Quarter'
+            else:
+                wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
+                w_period = 'Year'
+            if 'Total Assets' in wdf.columns:
+                wdf2 = wdf[[w_period, 'TICKER', 'Total Assets']].rename(columns={w_period: period_col, 'Total Assets': 'WEIGHT_TOTAL_ASSETS'})
+                wdf2 = wdf2[wdf2[period_col].isin(window)]
+                temp = df.merge(wdf2, on=['TICKER', period_col], how='left')
+                wcol = 'WEIGHT_TOTAL_ASSETS'
+                w_base = temp[['Type', period_col, wcol, hm_col]].dropna(subset=['Type'])
+                agg = (
+                    w_base.groupby(['Type', period_col])
+                    .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                    .reset_index(name='Impact')
+                )
+            else:
+                raise ValueError('Total Assets column not found')
+        except Exception:
+            agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
+    elif weight_choice != "None" and weight_choice in df.columns:
+        wcol = weight_choice
+        w_base = df[df[period_col].isin(window)][['Type', period_col, wcol, hm_col]].dropna(subset=['Type'])
         agg = (
             w_base.groupby(['Type', period_col])
-            .apply(lambda g: (g[hm_col] * g[weight_col]).sum() / g[weight_col].sum() if g[weight_col].sum() != 0 else np.nan)
+            .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
             .reset_index(name='Impact')
         )
     else:
