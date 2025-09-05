@@ -80,6 +80,18 @@ if qdf is None or ydf is None:
 st.title("Sector & Sub‑Sector Driver Overview")
 st.caption("Big-picture attribution of profit growth by driver with sector and sub‑sector breakdowns")
 
+# Cross-link back to the parent page
+col_link, _ = st.columns([1, 6])
+with col_link:
+    try:
+        st.page_link("pages/7_Earnings_Drivers.py", label="← Back to Earnings Drivers")
+    except Exception:
+        if st.button("← Back to Earnings Drivers"):
+            try:
+                st.switch_page("pages/7_Earnings_Drivers.py")
+            except Exception:
+                pass
+
 with st.sidebar:
     st.header("Data Selection")
     freq = st.radio("Frequency", ["Quarterly", "Yearly"], index=0, horizontal=True)
@@ -111,7 +123,13 @@ with st.sidebar:
 
     st.header("Weighting (optional)")
     weight_candidates = _available_numeric_weights(df.columns)
-    weight_col = st.selectbox("Weight by", ["None"] + weight_candidates, index=0, help="Weights for Type averages; if None, all banks equal weight")
+    weight_options = ["None"] + weight_candidates + ["Total Assets (from sector data)"]
+    weight_choice = st.selectbox(
+        "Weight by",
+        weight_options,
+        index=0,
+        help="Weights for Type averages; choose None for equal-weight or Total Assets from sector datasets"
+    )
 
 
 # Build columns
@@ -133,7 +151,7 @@ sub_cols = [c for c in [nii_col, fee_col, opex_col, prov_col, loan_col, nim_col]
 # Slice base
 if scope == "Latest period":
     latest_period = df[period_col].max()
-    base = df[df[period_col] == latest_period][['TICKER', 'Type', period_col] + use_cols + sub_cols + ([weight_col] if weight_col != "None" else [])].copy()
+    base = df[df[period_col] == latest_period][['TICKER', 'Type', period_col] + use_cols + sub_cols].copy()
     scope_label = f"Latest {period_col}: {latest_period}"
 else:
     all_periods = (
@@ -142,7 +160,7 @@ else:
         .tolist()
     )
     window = all_periods[-n_periods:]
-    base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols + sub_cols + ([weight_col] if weight_col != "None" else [])].copy()
+    base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols + sub_cols].copy()
     scope_label = f"Window: {window[0]} → {window[-1]} ({len(window)} periods)"
 
 st.markdown(f"#### {scope_label}")
@@ -168,12 +186,33 @@ def aggregate_by_type(frame: pd.DataFrame, measures: List[str], weight: str = No
     return out
 
 
+# Attach weights if chosen
+weight_col_name = None
+if weight_choice == "Total Assets (from sector data)":
+    # Load sector datasets for weights
+    try:
+        if freq == "Quarterly":
+            wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
+            w_period = 'Date_Quarter'
+        else:
+            wdf = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
+            w_period = 'Year'
+        if 'Total Assets' in wdf.columns:
+            wdf2 = wdf[['TICKER', w_period, 'Total Assets']].copy()
+            wdf2 = wdf2.rename(columns={w_period: period_col, 'Total Assets': 'WEIGHT_TOTAL_ASSETS'})
+            base = base.merge(wdf2, on=['TICKER', period_col], how='left')
+            weight_col_name = 'WEIGHT_TOTAL_ASSETS'
+    except Exception:
+        weight_col_name = None
+elif weight_choice != "None" and weight_choice in base.columns:
+    weight_col_name = weight_choice
+
 # Compute Type aggregates and All Banks row
-grouped = aggregate_by_type(base, use_cols, weight=None if weight_col == "None" else weight_col, reducer=reducer).round(1)
+grouped = aggregate_by_type(base, use_cols, weight=weight_col_name, reducer=reducer).round(1)
 if not grouped.empty:
     # All Banks row (overall average with same weighting scheme)
-    if weight_col != "None" and weight_col in base.columns:
-        w = base[weight_col]
+    if weight_col_name and weight_col_name in base.columns:
+        w = base[weight_col_name]
         overall = pd.Series({m: (base[m] * w).sum() / w.sum() if w.sum() != 0 else np.nan for m in use_cols})
     else:
         if scope == "Latest period":
@@ -307,7 +346,9 @@ if scope == "Last N periods":
 
     # Pivot to matrix
     mat = agg.pivot(index='Type', columns=period_col, values='Impact').round(1)
-    fig_hm = px.imshow(mat, color_continuous_scale='RdBu', origin='lower', aspect='auto')
+    # Set symmetric color bounds for green=good (positive), red=bad (negative)
+    max_abs = np.nanmax(np.abs(mat.to_numpy())) if mat.size else 1
+    fig_hm = px.imshow(mat, color_continuous_scale='RdYlGn', origin='lower', aspect='auto', zmin=-max_abs, zmax=max_abs)
     fig_hm.update_layout(height=420, coloraxis_colorbar_title='pp')
     st.plotly_chart(fig_hm, use_container_width=True)
 
@@ -331,4 +372,3 @@ if scope == "Last N periods":
         st.caption("Colors: Revenue=#398278, Cost=#cc7c5e, Non-Rec=#e6a085")
     else:
         st.info("Dominance cannot be computed: required columns missing.")
-
