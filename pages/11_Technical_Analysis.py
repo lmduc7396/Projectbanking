@@ -136,54 +136,61 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
     score = 50.0
     reasons = []
     # Price vs MAs
+    above_list = []
+    below_list = []
     for w, mv in mas.items():
         if last > mv:
-            score += 3
+            score += 3; above_list.append(str(w))
         else:
-            score -= 3
+            score -= 3; below_list.append(str(w))
     # MA stacking (bullish if shorter > longer)
     sorted_ws = sorted(ma_windows)
     stacked = all(mas[sorted_ws[i]] >= mas[sorted_ws[i+1]] for i in range(len(sorted_ws)-1))
     if stacked:
-        score += 10; reasons.append("Bullish MA alignment")
+        score += 10; reasons.append(f"MA alignment bullish ({' > '.join(map(str, sorted_ws))})")
     else:
-        score -= 5
+        score -= 5; reasons.append("MA alignment not bullish")
     # Trend slope
     if slope_pct > 0:
         score += min(10, slope_pct)
-        reasons.append("Positive MA slope")
+        reasons.append(f"MA{w_mid} slope positive ({slope_pct:.2f}‰)")
     else:
-        score += max(-10, slope_pct)
+        score += max(-10, slope_pct); reasons.append(f"MA{w_mid} slope negative ({slope_pct:.2f}‰)")
     # RSI contribution
     if 50 <= rsi_last <= 70:
-        score += 5; reasons.append("RSI supportive")
+        score += 5; reasons.append(f"RSI supportive ({rsi_last:.1f})")
     elif rsi_last > 70:
-        score -= 5; reasons.append("RSI overbought risk")
+        score -= 5; reasons.append(f"RSI overbought ({rsi_last:.1f})")
     elif 30 <= rsi_last < 50:
-        score -= 2
+        score -= 2; reasons.append(f"RSI weak ({rsi_last:.1f})")
     else:  # < 30
-        score += 5; reasons.append("RSI oversold (potential rebound)")
+        score += 5; reasons.append(f"RSI oversold ({rsi_last:.1f})")
     # Volume confirmation
     if vol10 > vol50 * 1.1:
-        score += 5; reasons.append("Rising volume")
+        score += 5; reasons.append(f"Rising volume (10/50={vol10/vol50:.2f}x)")
     elif vol10 < vol50 * 0.9:
-        score -= 3
+        score -= 3; reasons.append(f"Weak volume (10/50={vol10/vol50:.2f}x)")
 
     # MACD contribution
     if macd_last > 0:
-        score += 5; reasons.append("MACD bullish")
+        score += 5; reasons.append("MACD above signal")
     else:
-        score -= 3
+        score -= 3; reasons.append("MACD below signal")
 
     # Stochastic contribution
     if k_last > d_last and 20 < k_last < 80:
-        score += 4; reasons.append("Stoch %K>%D in range")
+        score += 4; reasons.append(f"Stoch bullish (%K={k_last:.1f} > %D={d_last:.1f})")
     elif k_last >= 80:
-        score -= 3; reasons.append("Stoch overbought")
+        score -= 3; reasons.append(f"Stoch overbought (%K={k_last:.1f})")
     elif k_last <= 20:
-        score += 2; reasons.append("Stoch oversold")
+        score += 2; reasons.append(f"Stoch oversold (%K={k_last:.1f})")
 
     score = max(0, min(100, round(score, 1)))
+    if above_list or below_list:
+        if above_list:
+            reasons.insert(0, f"Price above MAs: {', '.join(above_list)}")
+        if below_list:
+            reasons.insert(1 if above_list else 0, f"Price below MAs: {', '.join(below_list)}")
     return {"score": score, "rationale": reasons, "rsi": round(rsi_last, 1)}
 
 
@@ -199,7 +206,8 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
         if c in dfx.columns:
             dfx[c] = pd.to_numeric(dfx[c], errors='coerce')
     dfx = dfx.dropna(subset=['open', 'high', 'low', 'close']).reset_index(drop=True)
-    dfx['x'] = np.arange(len(dfx))
+    # Use string date for categorical x-axis to avoid gaps and show real dates in tooltip
+    dfx['x'] = dfx['date_str']
 
     # MAs
     ma_func = compute_sma if ma_type == 'SMA' else compute_ema
@@ -236,22 +244,12 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
     fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=row_heights, subplot_titles=tuple(titles))
 
     # Candle
-    fig.add_trace(
-        go.Candlestick(
-            x=dfx['x'].tolist(),
-            open=dfx['open'].tolist(),
-            high=dfx['high'].tolist(),
-            low=dfx['low'].tolist(),
-            close=dfx['close'].tolist(),
-            name='Price'
-        ),
-        row=1, col=1
-    )
+    fig.add_trace(go.Candlestick(x=dfx['x'].tolist(), open=dfx['open'].tolist(), high=dfx['high'].tolist(), low=dfx['low'].tolist(), close=dfx['close'].tolist(), name='Price'), row=1, col=1)
 
     # MAs
     palette = ['#5A8A7F', '#e6a085', '#2D5E52', '#b5694f', '#619BF7']
     for idx, w in enumerate(ma_windows):
-        fig.add_trace(go.Scatter(x=dfx['x'], y=dfx[f'{ma_type}{w}'], name=f'{ma_type}{w}', line=dict(color=palette[idx % len(palette)], width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx[f'{ma_type}{w}'].tolist(), name=f'{ma_type}{w}', line=dict(color=palette[idx % len(palette)], width=1.5)), row=1, col=1)
 
     # Bollinger
     if show_bbands:
@@ -288,10 +286,10 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
 
     # Layout
     tick_interval = max(1, len(dfx)//20)
-    tickvals = list(range(0, len(dfx), tick_interval))
-    ticktext = [dfx.iloc[i]['date_str'] for i in tickvals]
+    tickvals = [dfx['x'].iloc[i] for i in range(0, len(dfx), tick_interval)]
+    ticktext = tickvals
 
-    fig.update_layout(height=900 if (show_macd or show_stoch) else 760, showlegend=True, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1), hovermode='x unified')
+    fig.update_layout(height=900 if (show_macd or show_stoch) else 760, showlegend=True, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1), hovermode='x unified', xaxis_rangeslider_visible=False)
     fig.update_yaxes(title_text='Price (VND)', row=1, col=1, tickformat=',.0f')
     fig.update_yaxes(title_text='Volume', row=2, col=1, tickformat=',.0f')
     fig.update_yaxes(title_text='RSI', row=3, col=1, range=[0, 100])
