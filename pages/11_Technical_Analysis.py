@@ -149,17 +149,18 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
     breakdown.append({
         "component": "Price vs MAs",
         "contribution": round(ma_contrib, 1),
-        "detail": f"Above: {', '.join(above_list) if above_list else '—'}; Below: {', '.join(below_list) if below_list else '—'}"
+        "detail": f"Above: {', '.join(above_list) if above_list else '—'}; Below: {', '.join(below_list) if below_list else '—'}",
+        "meta": {"above": above_list, "below": below_list, "points_per_ma": 3, "total_mas": len(ma_windows)}
     })
     # MA stacking (bullish if shorter > longer)
     sorted_ws = sorted(ma_windows)
     stacked = all(mas[sorted_ws[i]] >= mas[sorted_ws[i+1]] for i in range(len(sorted_ws)-1))
     if stacked:
         score += 10; reasons.append(f"MA alignment bullish ({' > '.join(map(str, sorted_ws))})")
-        breakdown.append({"component": "MA alignment", "contribution": 10, "detail": "Shorter MAs above longer"})
+        breakdown.append({"component": "MA alignment", "contribution": 10, "detail": "Shorter MAs above longer", "meta": {"stack": sorted_ws}})
     else:
         score -= 5; reasons.append("MA alignment not bullish")
-        breakdown.append({"component": "MA alignment", "contribution": -5, "detail": "Shorter MAs not above longer"})
+        breakdown.append({"component": "MA alignment", "contribution": -5, "detail": "Shorter MAs not above longer", "meta": {"stack": sorted_ws}})
     # Trend slope
     if slope_pct > 0:
         slope_contrib = float(min(10, slope_pct))
@@ -169,7 +170,7 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
         slope_contrib = float(max(-10, slope_pct))
         score += slope_contrib
         reasons.append(f"MA{w_mid} slope negative ({slope_pct:.2f}‰)")
-    breakdown.append({"component": f"MA{w_mid} slope", "contribution": round(slope_contrib, 1), "detail": f"{slope_pct:.2f}‰ over {lookback} bars"})
+    breakdown.append({"component": f"MA{w_mid} slope", "contribution": round(slope_contrib, 1), "detail": f"{slope_pct:.2f}‰ over {lookback} bars", "meta": {"slope_ppm": slope_pct, "lookback": lookback}})
     # RSI contribution
     if 50 <= rsi_last <= 70:
         rsi_contrib = 5; score += rsi_contrib; reasons.append(f"RSI supportive ({rsi_last:.1f})")
@@ -179,7 +180,7 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
         rsi_contrib = -2; score += rsi_contrib; reasons.append(f"RSI weak ({rsi_last:.1f})")
     else:  # < 30
         rsi_contrib = 5; score += rsi_contrib; reasons.append(f"RSI oversold ({rsi_last:.1f})")
-    breakdown.append({"component": "RSI", "contribution": rsi_contrib, "detail": f"RSI={rsi_last:.1f}"})
+    breakdown.append({"component": "RSI", "contribution": rsi_contrib, "detail": f"RSI={rsi_last:.1f}", "meta": {"rsi": rsi_last}})
     # Volume confirmation
     vol_ratio = vol10 / vol50 if vol50 > 0 else np.nan
     if vol50 > 0 and vol_ratio > 1.1:
@@ -188,14 +189,14 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
         vol_contrib = -3; score -= 3; reasons.append(f"Weak volume (10/50={vol_ratio:.2f}x)")
     else:
         vol_contrib = 0
-    breakdown.append({"component": "Volume", "contribution": vol_contrib, "detail": f"10/50={vol_ratio:.2f}x" if vol50 > 0 else "N/A"})
+    breakdown.append({"component": "Volume", "contribution": vol_contrib, "detail": f"10/50={vol_ratio:.2f}x" if vol50 > 0 else "N/A", "meta": {"ratio": vol_ratio}})
 
     # MACD contribution
     if macd_last > 0:
         macd_contrib = 5; score += macd_contrib; reasons.append("MACD above signal")
     else:
         macd_contrib = -3; score -= 3; reasons.append("MACD below signal")
-    breakdown.append({"component": "MACD", "contribution": macd_contrib, "detail": f"Δ={macd_last:.2f}"})
+    breakdown.append({"component": "MACD", "contribution": macd_contrib, "detail": f"Δ={macd_last:.2f}", "meta": {"delta": macd_last}})
 
     # Stochastic contribution
     if k_last > d_last and 20 < k_last < 80:
@@ -206,7 +207,7 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
         stoch_contrib = 2; score += 2; reasons.append(f"Stoch oversold (%K={k_last:.1f})")
     else:
         stoch_contrib = 0
-    breakdown.append({"component": "Stochastic", "contribution": stoch_contrib, "detail": f"%K={k_last:.1f}, %D={d_last:.1f}"})
+    breakdown.append({"component": "Stochastic", "contribution": stoch_contrib, "detail": f"%K={k_last:.1f}, %D={d_last:.1f}", "meta": {"k": k_last, "d": d_last}})
 
     score = max(0, min(100, round(score, 1)))
     if above_list or below_list:
@@ -215,6 +216,76 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
         if below_list:
             reasons.insert(1 if above_list else 0, f"Price below MAs: {', '.join(below_list)}")
     return {"score": max(0, min(100, round(score, 1))), "rationale": reasons, "rsi": round(rsi_last, 1), "breakdown": breakdown}
+
+
+def explain_score(ticker: str, result: dict, ma_windows: List[int]) -> str:
+    """Build an intuitive explanation of how the technical score was computed."""
+    base = 50
+    lines = [f"Score starts at base {base}."]
+    # Price vs MAs
+    b_ma = next((b for b in result['breakdown'] if b['component'] == 'Price vs MAs'), None)
+    if b_ma:
+        above = b_ma.get('meta', {}).get('above', [])
+        below = b_ma.get('meta', {}).get('below', [])
+        per = b_ma.get('meta', {}).get('points_per_ma', 3)
+        lines.append(f"Price vs MAs: +{per} for each MA above, -{per} for each below. Above {len(above)}/{len(ma_windows)} ({', '.join(above) or '–'}), Below {len(below)} ({', '.join(below) or '–'}) -> {b_ma['contribution']:+.1f}.")
+    # MA alignment
+    b_align = next((b for b in result['breakdown'] if b['component'] == 'MA alignment'), None)
+    if b_align:
+        lines.append(f"MA alignment ({' > '.join(map(str, b_align.get('meta', {}).get('stack', ma_windows)))}) -> {b_align['contribution']:+.1f}.")
+    # MA slope
+    b_slope = next((b for b in result['breakdown'] if b['component'].startswith('MA') and 'slope' in b['component']), None)
+    if b_slope:
+        lines.append(f"{b_slope['component']}: slope {b_slope.get('meta', {}).get('slope_ppm', 0):+.2f}‰ over {b_slope.get('meta', {}).get('lookback', 0)} bars -> {b_slope['contribution']:+.1f}.")
+    # RSI
+    b_rsi = next((b for b in result['breakdown'] if b['component'] == 'RSI'), None)
+    if b_rsi:
+        lines.append(f"RSI {b_rsi.get('meta', {}).get('rsi', 0):.1f} -> {b_rsi['contribution']:+.1f}.")
+    # Volume
+    b_vol = next((b for b in result['breakdown'] if b['component'] == 'Volume'), None)
+    if b_vol:
+        ratio = b_vol.get('meta', {}).get('ratio', np.nan)
+        lines.append(f"Volume 10/50 = {ratio:.2f}x -> {b_vol['contribution']:+.1f}.")
+    # MACD
+    b_macd = next((b for b in result['breakdown'] if b['component'] == 'MACD'), None)
+    if b_macd:
+        lines.append(f"MACD delta (line - signal) {b_macd.get('meta', {}).get('delta', 0):+.2f} -> {b_macd['contribution']:+.1f}.")
+    # Stochastic
+    b_sto = next((b for b in result['breakdown'] if b['component'] == 'Stochastic'), None)
+    if b_sto:
+        lines.append(f"Stochastic %K/%D = {b_sto.get('meta', {}).get('k', 0):.1f}/{b_sto.get('meta', {}).get('d', 0):.1f} -> {b_sto['contribution']:+.1f}.")
+    lines.append(f"Final score for {ticker}: {result['score']}.")
+    return "\n".join(lines)
+
+
+def score_waterfall(result: dict):
+    """Return a Plotly Waterfall figure showing the addends from base to final score."""
+    import plotly.graph_objects as go
+    base = 50
+    measures = ['absolute']
+    x = ['Base']
+    y = [base]
+    text = ['Base 50']
+    for b in result.get('breakdown', []):
+        measures.append('relative')
+        x.append(b['component'])
+        y.append(b['contribution'])
+        text.append(b['detail'])
+    measures.append('total')
+    x.append('Final')
+    y.append(0)
+    text.append(f"{result['score']}")
+    fig = go.Figure(go.Waterfall(
+        name="Score",
+        orientation="v",
+        measure=measures,
+        x=x,
+        text=text,
+        y=y,
+        connector={'line': {'color': 'rgba(0,0,0,0.2)'}}
+    ))
+    fig.update_layout(height=360, showlegend=False)
+    return fig
 
 
 def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[int], rsi_len: int,
@@ -401,6 +472,11 @@ def main():
         bdf = pd.DataFrame(result['breakdown'])
         bdf = bdf.sort_values('contribution', ascending=False).reset_index(drop=True)
         st.dataframe(bdf, use_container_width=True)
+        # Waterfall and narrative
+        wf = score_waterfall(result)
+        st.plotly_chart(wf, use_container_width=True)
+        st.subheader("How this score was computed")
+        st.text(explain_score(ticker, result, ma_windows))
 
     # Watchlist comparison
     st.markdown("---")
