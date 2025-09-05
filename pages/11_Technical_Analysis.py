@@ -243,11 +243,7 @@ def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[i
             high=dfx['high'].tolist(),
             low=dfx['low'].tolist(),
             close=dfx['close'].tolist(),
-            name='Price',
-            increasing=dict(line=dict(color="#398278")),
-            decreasing=dict(line=dict(color="#cc7c5e")),
-            customdata=dfx['date_str'].tolist(),
-            hovertemplate='<b>%{customdata}</b><br>O:%{open:,.0f} H:%{high:,.0f}<br>L:%{low:,.0f} C:%{close:,.0f}<extra></extra>'
+            name='Price'
         ),
         row=1, col=1
     )
