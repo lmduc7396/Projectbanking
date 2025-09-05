@@ -492,8 +492,14 @@ if scope == "Last N periods":
     # Use string labels for periods to avoid float-like yearly labels (e.g., 2023.5)
     agg['_period_str'] = agg[period_col].astype(str)
     mat = agg.pivot(index='Type', columns='_period_str', values='Impact').round(1)
-    # Set symmetric color bounds for green=good (positive), red=bad (negative)
-    max_abs = np.nanmax(np.abs(mat.to_numpy())) if mat.size else 1
+    # Set robust symmetric color bounds to reduce the impact of extreme cells
+    vals = mat.to_numpy().astype(float)
+    vals = vals[np.isfinite(vals)]
+    if vals.size:
+        lo, hi = np.percentile(vals, [5, 95])
+        max_abs = float(max(abs(lo), abs(hi)))
+    else:
+        max_abs = 1.0
     fig_hm = px.imshow(mat, color_continuous_scale='RdYlGn', origin='lower', aspect='auto', zmin=-max_abs, zmax=max_abs)
     fig_hm.update_layout(height=420, coloraxis_colorbar_title='pp')
     st.plotly_chart(fig_hm, use_container_width=True)
