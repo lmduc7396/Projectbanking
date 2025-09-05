@@ -44,8 +44,11 @@ def calculate_valuation_metrics(ticker_or_sector: str,
     if not os.path.exists(data_path):
         return {'error': f'Data file not found: {data_path}'}
     
-    # Load data
-    df = pd.read_csv(data_path)
+    # Load data (Parquet primary)
+    if data_path.endswith('.parquet'):
+        df = pd.read_parquet(data_path)
+    else:
+        df = pd.read_csv(data_path)
     df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
     df = df.sort_values(['TICKER', 'TRADE_DATE'])
     
@@ -183,7 +186,7 @@ def calculate_valuation_metrics(ticker_or_sector: str,
 #%% Function to get historical statistics
 def get_valuation_statistics(ticker_or_sector: str, 
                             metric: str = 'PB',
-                            data_path: str = 'Data/Valuation_banking.csv') -> Dict[str, Any]:
+                            data_path: str = 'Data/Valuation_banking.parquet') -> Dict[str, Any]:
     """
     Get detailed statistics for a specific valuation metric
     
@@ -196,8 +199,11 @@ def get_valuation_statistics(ticker_or_sector: str,
         Dictionary with detailed statistics
     """
     
-    # Load data
-    df = pd.read_csv(data_path)
+    # Load data (Parquet primary)
+    if data_path.endswith('.parquet'):
+        df = pd.read_parquet(data_path)
+    else:
+        df = pd.read_csv(data_path)
     df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
     
     # Filter data
@@ -254,8 +260,11 @@ def calculate_valuation_metrics_batch(tickers: List[str],
     if not os.path.exists(data_path):
         return {'error': f'Data file not found: {data_path}'}
     
-    # Load data once
-    df = pd.read_csv(data_path)
+    # Load data once (Parquet primary)
+    if data_path.endswith('.parquet'):
+        df = pd.read_parquet(data_path)
+    else:
+        df = pd.read_csv(data_path)
     df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
     df = df.sort_values(['TICKER', 'TRADE_DATE'])
     

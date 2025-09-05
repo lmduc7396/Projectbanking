@@ -52,20 +52,18 @@ color_sequence = px.colors.qualitative.Bold
 # Function to detect the last complete year from historical data
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def get_last_historical_year():
-    """Detect the last complete year (LENGTHREPORT=5) from original historical data"""
+    """Detect the last completed historical year from prepared Parquet data (flexible, data-driven)."""
     try:
-        # Read original IS data to find the last complete year
-        dfis = pd.read_csv(os.path.join(project_root, 'Data/IS_Bank.csv'))
-        # Find years that have LENGTHREPORT=5 (complete year data)
-        complete_years = dfis[dfis['LENGTHREPORT'] == 5]['YEARREPORT'].unique()
-        if len(complete_years) > 0:
-            return int(max(complete_years))
-        else:
-            # Fallback: use 2024 if no complete year data found
-            return 2024
-    except:
-        # Fallback if file reading fails
-        return 2024
+        return int(pd.to_numeric(df_year['Year']).max())
+    except Exception:
+        # Derive from quarterly data if yearly not available
+        try:
+            years = pd.to_numeric(df_quarter['Date_Quarter'].str.extract(r'(\d{4})')[0])
+            return int(years.max())
+        except Exception:
+            # Fallback to current year - 1 as a flexible heuristic
+            from datetime import datetime
+            return datetime.now().year - 1
 
 # Get the last historical year
 last_historical_year = get_last_historical_year()

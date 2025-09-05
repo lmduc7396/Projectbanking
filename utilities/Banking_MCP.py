@@ -1,3 +1,4 @@
+#%%
 """
 Banking MCP Tool System
 Provides modular tools for OpenAI to access and analyze banking data
@@ -14,6 +15,7 @@ from scipy import stats
 import requests
 from datetime import datetime, timedelta
 from functools import lru_cache
+import os
 
 
 class BankingToolSystem:
@@ -32,6 +34,12 @@ class BankingToolSystem:
         self.tool_schemas = []
         self.data = {}
         self._data_loaded = {}  # Track which data files are loaded
+        # Result cache (per-tool) with TTL
+        self.result_cache: Dict[str, Dict[str, Any]] = {}
+        self.RESULT_TTL_SECONDS = int(os.getenv("MCP_RESULT_TTL", "300"))
+        # External API cache (e.g., stock performance)
+        self._stock_cache: Dict[str, Dict[str, Any]] = {}
+        self.STOCK_CACHE_TTL_SECONDS = int(os.getenv("MCP_STOCK_TTL", "1800"))  # 30 minutes default
         
         # Don't load data upfront - use lazy loading instead
         # self._load_data()  # REMOVED - now lazy loaded
@@ -46,7 +54,19 @@ class BankingToolSystem:
             self.data['historical_year'] = pd.read_parquet(self.data_dir / 'dfsectoryear.parquet')
             self._data_loaded['historical_year'] = True
         return self.data['historical_year']
-    
+
+    @lru_cache(maxsize=32)
+    def _load_historical_year_cols(self, columns_key: str):
+        """Projected read of yearly data for specific columns.
+        columns_key is a JSON-encoded, sorted list of column names.
+        """
+        cols = json.loads(columns_key)
+        path = self.data_dir / 'dfsectoryear.parquet'
+        try:
+            return pd.read_parquet(path, columns=cols)
+        except Exception:
+            return pd.read_parquet(path)
+
     @lru_cache(maxsize=1)
     def _load_historical_quarter(self):
         """Lazy load historical quarter data"""
@@ -54,7 +74,19 @@ class BankingToolSystem:
             self.data['historical_quarter'] = pd.read_parquet(self.data_dir / 'dfsectorquarter.parquet')
             self._data_loaded['historical_quarter'] = True
         return self.data['historical_quarter']
-    
+
+    @lru_cache(maxsize=32)
+    def _load_historical_quarter_cols(self, columns_key: str):
+        """Projected read of quarterly data for specific columns.
+        columns_key is a JSON-encoded, sorted list of column names.
+        """
+        cols = json.loads(columns_key)
+        path = self.data_dir / 'dfsectorquarter.parquet'
+        try:
+            return pd.read_parquet(path, columns=cols)
+        except Exception:
+            return pd.read_parquet(path)
+
     @lru_cache(maxsize=1)
     def _load_forecast(self):
         """Lazy load forecast data"""
@@ -331,14 +363,38 @@ class BankingToolSystem:
             """Query historical data for one or multiple banks"""
             # Check if YTD format is being used - force quarterly if so
             has_ytd = (period and "YTD" in period) or (periods and any("YTD" in str(p) for p in periods if p))
-            
-            # Determine if quarterly or yearly based on frequency parameter
-            # Override to quarterly if YTD is detected
-            if has_ytd:
-                is_quarterly = True  # Force quarterly for YTD queries
-                df = self._load_historical_quarter()
+
+            # Determine frequency (YTD implies quarterly)
+            is_quarterly = True if has_ytd else (frequency == "quarterly")
+
+            # Minimal required columns
+            id_col = 'Date_Quarter' if is_quarterly else 'Year'
+            required_cols = ['TICKER', id_col]
+
+            # Decide projected vs full load
+            df = None
+            normalized_metric = None
+            if metric:
+                # Need to normalize against full column list once
+                df_full = self._load_historical_quarter() if is_quarterly else self._load_historical_year()
+                normalized_metric = normalize_metric_name(metric, df_full.columns.tolist())
+                if normalized_metric:
+                    cols = sorted(set(required_cols + [normalized_metric]))
+                    key = json.dumps(cols, sort_keys=True)
+                    df = self._load_historical_quarter_cols(key) if is_quarterly else self._load_historical_year_cols(key)
+                else:
+                    # Fallback to full for better error message downstream
+                    df = df_full
+            elif metric_group and metric_group != "all":
+                group_map = {
+                    "profitability": ["ROA", "ROE", "NIM", "CIR", "PBT", "TOI", "Loan yield", "Deposit yield"],
+                    "asset_quality": ["NPL", "New NPL", "NPL Coverage ratio", "GROUP 2", "Provision/ Total Loan"],
+                    "growth": ["Loan", "Deposit", "Total Assets", "NPATMI", "PBT"]
+                }
+                cols = sorted(set(required_cols + group_map.get(metric_group, [])))
+                key = json.dumps(cols, sort_keys=True)
+                df = self._load_historical_quarter_cols(key) if is_quarterly else self._load_historical_year_cols(key)
             else:
-                is_quarterly = (frequency == "quarterly")
                 df = self._load_historical_quarter() if is_quarterly else self._load_historical_year()
             
             # Apply ticker filter if specified
@@ -361,26 +417,14 @@ class BankingToolSystem:
             
             # Handle YTD format in period
             if period and "YTD" in period and is_quarterly:
+                # Data-driven YTD: include all available quarters for that year in the dataset
                 year = period.split("-")[0]
-                # Get current date to determine which quarters to include
-                from datetime import datetime
-                current_month = datetime.now().month
-                current_year = datetime.now().year
-                
-                # Determine quarters to include based on current date
-                if int(year) == current_year:
-                    # For current year, only include completed quarters
-                    if current_month >= 10:
-                        periods = [f"{year}-Q1", f"{year}-Q2", f"{year}-Q3"]
-                    elif current_month >= 7:
-                        periods = [f"{year}-Q1", f"{year}-Q2"]
-                    elif current_month >= 4:
-                        periods = [f"{year}-Q1"]
-                    else:
-                        periods = []  # No completed quarters yet
-                else:
-                    # For past years, get all available quarters
-                    periods = [f"{year}-Q1", f"{year}-Q2", f"{year}-Q3", f"{year}-Q4"]
+                mask = df['Date_Quarter'].astype(str).str.startswith(f"{year}-Q")
+                periods = (
+                    pd.Series(df.loc[mask, 'Date_Quarter'].astype(str).unique())
+                    .sort_values()
+                    .tolist()
+                )
             
             
             # Handle multiple periods
@@ -401,7 +445,7 @@ class BankingToolSystem:
             # Select metrics - single metric takes precedence over metric_group
             if metric:
                 # Query single metric for efficiency - normalize the metric name first
-                normalized_metric = normalize_metric_name(metric, df.columns.tolist())
+                normalized_metric = normalized_metric or normalize_metric_name(metric, df.columns.tolist())
                 if normalized_metric:
                     id_cols = ['TICKER', 'Year' if 'Year' in df.columns else 'Date_Quarter']
                     df = df[id_cols + [normalized_metric]]
@@ -853,6 +897,12 @@ class BankingToolSystem:
             
             def fetch_single_stock(ticker):
                 """Helper function to fetch single stock data"""
+                # In-memory cache per ticker/date range
+                cache_key = f"{ticker}|{start_date}|{end_date}"
+                now_ts = datetime.now().timestamp()
+                cached = self._stock_cache.get(cache_key)
+                if cached and (now_ts - cached.get('ts', 0)) <= self.STOCK_CACHE_TTL_SECONDS:
+                    return ticker, cached['result']
                 return ticker, get_stock_performance_single(ticker, start_date, end_date)
             
             results = {}
@@ -875,6 +925,9 @@ class BankingToolSystem:
                             "end_price": result["end_price"],
                             "performance_pct": result["performance_pct"]
                         })
+                    # Update cache
+                    cache_key = f"{ticker}|{start_date}|{end_date}"
+                    self._stock_cache[cache_key] = {"result": result, "ts": datetime.now().timestamp()}
             
             # Sort by performance
             performance_comparison = sorted(performance_comparison, 
@@ -1556,9 +1609,23 @@ class BankingToolSystem:
         for param_name in sig.parameters:
             if param_name != 'self' and arguments and param_name in arguments:
                 filtered_args[param_name] = arguments[param_name]
-        
+        # Build cache key
+        try:
+            cache_key = f"{tool_name}:{json.dumps(filtered_args, sort_keys=True)}"
+        except Exception:
+            cache_key = f"{tool_name}:{str(filtered_args)}"
+
+        # Result cache check
+        now_ts = datetime.now().timestamp()
+        cached = self.result_cache.get(cache_key)
+        if cached and (now_ts - cached.get('ts', 0)) <= self.RESULT_TTL_SECONDS:
+            return cached['result']
+
         try:
             result = tool_func(**filtered_args)
+            # Cache only successful results
+            if isinstance(result, dict) and result.get('status') == 'success':
+                self.result_cache[cache_key] = {"result": result, "ts": now_ts}
             return result
         except Exception as e:
             return {"error": f"Error executing {tool_name}: {str(e)}", "status": "failed"}

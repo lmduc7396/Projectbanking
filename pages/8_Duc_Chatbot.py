@@ -1,3 +1,4 @@
+#%%
 """
 MCP Model - AI Banking Analysis Assistant
 Streamlit interface for OpenAI-powered banking analysis with tool execution
@@ -53,22 +54,24 @@ if 'selected_model' not in st.session_state:
     st.session_state.selected_model = "gpt-5-mini"
 if 'pending_charts' not in st.session_state:
     st.session_state.pending_charts = []
+if 'developer_mode' not in st.session_state:
+    st.session_state.developer_mode = False
+if 'tool_cache_ttl' not in st.session_state:
+    # Cache TTL for per-call cache in UI layer (seconds)
+    st.session_state.tool_cache_ttl = int(os.getenv("UI_TOOL_CACHE_TTL", "300"))
+if 'max_tool_concurrency' not in st.session_state:
+    # Bound tool parallelism to avoid oversubscription
+    default_workers = max(2, min(8, (os.cpu_count() or 4) * 2))
+    st.session_state.max_tool_concurrency = int(os.getenv("MAX_TOOL_CONCURRENCY", str(default_workers)))
 
-# Initialize tool system FIRST (before OpenAI client which might use it)
-# Force reload to get latest schema changes
-if 'tool_system' in st.session_state:
-    del st.session_state.tool_system
-
-# Clear module cache to ensure fresh import
+# Initialize tool system (respect developer mode for reloads)
 import importlib
-if 'utilities.Banking_MCP' in sys.modules:
-    importlib.reload(sys.modules['utilities.Banking_MCP'])
-
 try:
-    from utilities.Banking_MCP import get_tool_system
-    # Create fresh instance (don't use cached singleton)
+    if st.session_state.developer_mode and 'utilities.Banking_MCP' in sys.modules:
+        importlib.reload(sys.modules['utilities.Banking_MCP'])
     from utilities.Banking_MCP import BankingToolSystem
-    st.session_state.tool_system = BankingToolSystem()
+    if 'tool_system' not in st.session_state or st.session_state.developer_mode:
+        st.session_state.tool_system = BankingToolSystem()
     st.session_state.tool_system_error = None
 except Exception as e:
     st.session_state.tool_system = None
@@ -130,14 +133,171 @@ async def execute_tool_async(tool_name: str, arguments: Dict, tool_system) -> Di
 
 async def execute_parallel_tools(tool_calls: List[Dict], tool_system) -> List[Dict]:
     """Execute multiple tools in parallel"""
-    tasks = []
-    for tool_call in tool_calls:
-        function_name = tool_call['function']['name']
-        function_args = json.loads(tool_call['function']['arguments'])
-        tasks.append(execute_tool_async(function_name, function_args, tool_system))
-    
-    results = await asyncio.gather(*tasks)
-    return results
+    # Fallback async executor using threads under the hood
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=st.session_state.max_tool_concurrency) as pool:
+        tasks = []
+        for tool_call in tool_calls:
+            function_name = tool_call['function']['name']
+            function_args = json.loads(tool_call['function']['arguments'])
+            tasks.append(loop.run_in_executor(pool, execute_tool_call_sync, function_name, function_args, tool_system))
+        results = await asyncio.gather(*tasks)
+        # unwrap (result, cache_key)
+        return [r[0] for r in results]
+
+
+def _cache_get(cache_key: str):
+    item = st.session_state.tool_cache.get(cache_key)
+    if not item:
+        return None
+    ts = item.get('timestamp')
+    if not ts:
+        return None
+    if (datetime.now() - ts).total_seconds() > st.session_state.tool_cache_ttl:
+        return None
+    return item['result']
+
+
+def _cache_set(cache_key: str, result: Dict):
+    st.session_state.tool_cache[cache_key] = {
+        'result': result,
+        'timestamp': datetime.now()
+    }
+
+
+def compact_tool_result_for_llm(result: Dict, max_rows: int = None) -> Dict:
+    """Trim large payloads before sending to the LLM to reduce tokens."""
+    try:
+        max_rows = max_rows or int(os.getenv("LLM_TOOL_MAX_ROWS", "200"))
+    except Exception:
+        max_rows = 200
+    if not isinstance(result, dict):
+        return result
+    out = dict(result)
+    data = out.get('data')
+    if isinstance(data, list) and len(data) > max_rows:
+        head_n = max(5, min(20, int(os.getenv("LLM_TOOL_HEAD_ROWS", "10"))))
+        tail_n = max(0, min(10, int(os.getenv("LLM_TOOL_TAIL_ROWS", "5"))))
+        out['data_head'] = data[:head_n]
+        out['data_tail'] = data[-tail_n:] if tail_n else []
+        out['data'] = []
+    return out
+
+
+def _normalize_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def batch_tool_calls(tool_calls: List[Dict]):
+    """Batch compatible tool calls by merging tickers where args match.
+    Returns (batched_calls, batch_meta) where batch_meta aligns to batched_calls and holds mapping to original indices and original args.
+    """
+    groups = {}
+    meta = {}
+    for idx, tc in enumerate(tool_calls):
+        name = tc['function']['name']
+        args = json.loads(tc['function']['arguments']) if isinstance(tc['function']['arguments'], str) else tc['function']['arguments']
+        key = None
+        if name == 'query_historical_data':
+            key = (
+                name,
+                args.get('frequency'),
+                tuple(sorted(_normalize_list(args.get('periods')))) if args.get('periods') else args.get('period'),
+                args.get('metric'),
+                args.get('metric_group', 'all'),
+            )
+        elif name == 'get_valuation_analysis':
+            key = (name, args.get('metric', 'PB'))
+        elif name == 'query_forecast_data':
+            key = (name,)
+        elif name == 'get_earnings_drivers':
+            key = (name, args.get('period'), args.get('timeframe', 'QoQ'), args.get('frequency', 'quarterly'))
+        elif name == 'get_commentary':
+            key = (name, args.get('quarter'))
+        elif name == 'get_stock_performance':
+            key = (name, args.get('start_date'), args.get('end_date'))
+        else:
+            key = (name, json.dumps({k: v for k, v in args.items() if k != 'tickers'}, sort_keys=True))
+
+        if key not in groups:
+            groups[key] = {
+                'name': name,
+                'args': {k: v for k, v in args.items() if k != 'tickers'},
+                'tickers': set(_normalize_list(args.get('tickers')))
+            }
+            meta[key] = {'originals': [{'index': idx, 'args': args}]}
+        else:
+            groups[key]['tickers'].update(_normalize_list(args.get('tickers')))
+            meta[key]['originals'].append({'index': idx, 'args': args})
+
+    batched_calls = []
+    batch_meta = []
+    for key, payload in groups.items():
+        batched_args = dict(payload['args'])
+        if payload['tickers']:
+            batched_args['tickers'] = sorted(list(payload['tickers']))
+        batched_call = {
+            'id': None,
+            'type': 'function',
+            'function': {
+                'name': payload['name'],
+                'arguments': json.dumps(batched_args, sort_keys=True)
+            }
+        }
+        batched_calls.append(batched_call)
+        batch_meta.append({'key': key, 'originals': meta[key]['originals']})
+    return batched_calls, batch_meta
+
+
+def _subset_query_historical_data(batched_result: Dict, orig_args: Dict) -> Dict:
+    tickers = set(_normalize_list(orig_args.get('tickers')))
+    if not tickers:
+        return batched_result
+    data = batched_result.get('data', [])
+    subset = [row for row in data if row.get('TICKER') in tickers]
+    out = dict(batched_result)
+    out['data'] = subset
+    out['records'] = len(subset)
+    return out
+
+
+def _subset_map_dict(batched_result: Dict, key_field: str, subset_keys: List[str], single_when_one: bool = False, extra_fields: List[str] = None, constant_fields: Dict = None) -> Dict:
+    extra_fields = extra_fields or []
+    constant_fields = constant_fields or {}
+    # Generic helper to subset mapping results like {'results': {ticker: {...}}}
+    if 'results' in batched_result and isinstance(batched_result['results'], dict):
+        results = {k: v for k, v in batched_result['results'].items() if k in subset_keys}
+        if single_when_one and len(results) == 1:
+            return list(results.values())[0]
+        out = {**{f: batched_result.get(f) for f in extra_fields}, 'results': results, **constant_fields}
+        out['requested'] = len(subset_keys)
+        out['found'] = len(results)
+        out['status'] = 'success' if results else 'failed'
+        return out
+    # Valuation specific: detailed_results dict
+    if 'detailed_results' in batched_result and isinstance(batched_result['detailed_results'], dict):
+        details = {k: v for k, v in batched_result['detailed_results'].items() if k in subset_keys}
+        if single_when_one and len(details) == 1:
+            t = list(details.keys())[0]
+            single = details[t].copy()
+            single['ticker'] = t
+            single['metric'] = batched_result.get('metric')
+            single['status'] = 'success'
+            return single
+        out = {
+            'metric': batched_result.get('metric'),
+            'detailed_results': details,
+            'comparison': [c for c in batched_result.get('comparison', []) if c.get('ticker') in subset_keys]
+        }
+        out['requested'] = len(subset_keys)
+        out['found'] = len(details)
+        out['status'] = 'success' if details else 'failed'
+        return out
+    return batched_result
 
 
 def create_plotly_chart(chart_spec: Dict) -> go.Figure:
@@ -419,33 +579,132 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                 # Keep the typing indicator visible during tool execution
                 # (it's already shown at the start of the loop)
                 
-                # Collect tool names for minimal display
+                # Collect tool names for minimal display and build cache-aware plan
                 tool_names = []
+                planned_calls = []  # (index, tool_call, cache_key, cached_result_or_None)
                 for i, tool_call in enumerate(current_tool_calls):
                     tool_name = tool_call['function']['name']
+                    args = json.loads(tool_call['function']['arguments'])
+                    cache_key = f"{tool_name}_{json.dumps(args, sort_keys=True)}"
+                    cached = _cache_get(cache_key)
+                    planned_calls.append((i, tool_call, cache_key, cached))
                     tool_calls_made.append(tool_name)
                     tool_names.append(tool_name)
                     tool_call_count += 1
                 
-                # Execute tools in parallel (background)
+                # Execute only misses in parallel (background)
                 start_time = time.time()
                 
-                # Run async execution in background
-                try:
-                    # Create new event loop for async execution
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    # Pass tool_system to avoid accessing session state from async
-                    results = loop.run_until_complete(
-                        execute_parallel_tools(current_tool_calls, tool_system)
-                    )
-                finally:
-                    loop.close()
+                # Prepare misses and batch them
+                miss_indices = [i for i, pc in enumerate(planned_calls) if pc[3] is None]
+                misses = [planned_calls[i][1] for i in miss_indices]
+                if misses:
+                    batched_calls, batch_meta = batch_tool_calls(misses)
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        batched_results = loop.run_until_complete(
+                            execute_parallel_tools(batched_calls, tool_system)
+                        )
+                    finally:
+                        loop.close()
+                    # Split batched results back to each miss
+                    miss_results_by_local_index = {}
+                    batched_call_names = [bc['function']['name'] for bc in batched_calls]
+                    for idx_b, (batched_res, meta_entry) in enumerate(zip(batched_results, batch_meta)):
+                        name = batched_call_names[idx_b]
+                        for orig in meta_entry['originals']:
+                            orig_args = orig['args']
+                            # Split by tool type
+                            if name == 'query_historical_data':
+                                piece = _subset_query_historical_data(batched_res, orig_args)
+                            elif name == 'get_earnings_drivers':
+                                tickers = _normalize_list(orig_args.get('tickers'))
+                                piece = _subset_map_dict(batched_res, 'ticker', tickers, single_when_one=True, extra_fields=['period', 'timeframe', 'frequency'])
+                            elif name == 'get_commentary':
+                                tickers = _normalize_list(orig_args.get('tickers'))
+                                piece = _subset_map_dict(batched_res, 'ticker', tickers, single_when_one=True)
+                            elif name == 'get_valuation_analysis':
+                                tickers = _normalize_list(orig_args.get('tickers'))
+                                piece = _subset_map_dict(batched_res, 'ticker', tickers, single_when_one=True)
+                            elif name == 'get_stock_performance':
+                                # Rebuild a subset summary
+                                tickers = set(_normalize_list(orig_args.get('tickers')))
+                                if len(tickers) == 1:
+                                    t = list(tickers)[0]
+                                    piece = batched_res.get('detailed_results', {}).get(t, batched_res)
+                                else:
+                                    ranking = [r for r in batched_res.get('ranking', []) if r.get('ticker') in tickers]
+                                    summary = None
+                                    if ranking:
+                                        perfs = [r['performance_pct'] for r in ranking]
+                                        summary = {
+                                            'best_performer': ranking[0]['ticker'],
+                                            'worst_performer': ranking[-1]['ticker'],
+                                            'average_performance': round(sum(perfs)/len(perfs), 2),
+                                            'median_performance': round(sorted(perfs)[len(perfs)//2], 2)
+                                        }
+                                    piece = {
+                                        'period': batched_res.get('period'),
+                                        'detailed_results': {t: batched_res.get('detailed_results', {}).get(t) for t in tickers},
+                                        'ranking': ranking,
+                                        'summary': summary,
+                                        'requested': len(tickers),
+                                        'successful': len(ranking),
+                                        'status': 'success' if ranking else 'failed'
+                                    }
+                            elif name == 'query_forecast_data':
+                                # Filter actual and forecast data to requested tickers
+                                req = _normalize_list(orig_args.get('tickers'))
+                                if not req:
+                                    piece = batched_res
+                                else:
+                                    req_set = set(req)
+                                    piece = dict(batched_res)
+                                    # Adjust requested_tickers field
+                                    piece['requested_tickers'] = req
+                                    # Filter actual_data
+                                    if isinstance(piece.get('actual_data'), dict):
+                                        ad = piece['actual_data']
+                                        ad_data = ad.get('data', [])
+                                        ad_f = [r for r in ad_data if r.get('TICKER') in req_set]
+                                        piece['actual_data'] = {
+                                            'year': ad.get('year'),
+                                            'records': len(ad_f),
+                                            'data': ad_f
+                                        }
+                                    # Filter forecast_data
+                                    if isinstance(piece.get('forecast_data'), dict):
+                                        fd = piece['forecast_data']
+                                        fd_data = fd.get('data', [])
+                                        fd_f = [r for r in fd_data if r.get('TICKER') in req_set]
+                                        piece['forecast_data'] = {
+                                            'years': fd.get('years'),
+                                            'records': len(fd_f),
+                                            'data': fd_f
+                                        }
+                            else:
+                                piece = batched_res
+                            miss_results_by_local_index[orig['index']] = piece
+                else:
+                    miss_results_by_local_index = {}
+
+                # Reassemble results preserving order, using cache hits when available
+                ordered_results = []
+                for global_idx, (i, tool_call, cache_key, cached) in enumerate(planned_calls):
+                    if cached is not None:
+                        ordered_results.append(cached)
+                    else:
+                        # Map from global planned_calls index to its local miss index position
+                        local_index = miss_indices.index(global_idx)
+                        res = miss_results_by_local_index.get(local_index)
+                        ordered_results.append(res)
+                        _cache_set(cache_key, res)
                 
                 execution_time = time.time() - start_time
                 
                 # Update cache and execution log in main thread
-                for tool_call, result in zip(current_tool_calls, results):
+                for tool_call, result in zip(current_tool_calls, ordered_results):
                     function_name = tool_call['function']['name']
                     function_args = json.loads(tool_call['function']['arguments'])
                     cache_key = f"{function_name}_{json.dumps(function_args, sort_keys=True)}"
@@ -456,10 +715,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                             st.session_state.pending_charts.append(result["chart_spec"])
                     
                     # Update cache in session state (main thread)
-                    st.session_state.tool_cache[cache_key] = {
-                        'result': result,
-                        'timestamp': datetime.now()
-                    }
+                    _cache_set(cache_key, result)
                     
                     # Log execution
                     st.session_state.tool_executions.append({
@@ -475,7 +731,7 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                 # Show minimal tool summary (small captions below)
                 with tool_status_container:
                     # Show one line per tool with status icon
-                    for tool_name, result in zip(tool_names, results):
+                    for tool_name, result in zip(tool_names, ordered_results):
                         if result.get("status") == "success":
                             st.caption(f"✓ {tool_name}")
                         else:
@@ -494,8 +750,9 @@ Tickers must be arrays: ["VCB"] for single, ["VCB", "ACB"] for multiple."""
                     ]
                 })
                 
-                for tool_call, result in zip(current_tool_calls, results):
-                    tool_response = json.dumps(result, default=str)
+                for tool_call, result in zip(current_tool_calls, ordered_results):
+                    compacted = compact_tool_result_for_llm(result)
+                    tool_response = json.dumps(compacted, default=str)
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call["id"],
@@ -625,6 +882,11 @@ def main():
     # Sidebar configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
+        # Developer mode toggle (controls MCP reload)
+        dev = st.toggle("Developer Mode (reload tools)", value=st.session_state.developer_mode, help="Reload Banking_MCP on each run to pick up code changes")
+        if dev != st.session_state.developer_mode:
+            st.session_state.developer_mode = dev
+            st.rerun()
         
         # Show available tools
         with st.expander("📋 Available Tools", expanded=False):

@@ -2,7 +2,7 @@
 
 A comprehensive banking analysis dashboard with AI-powered insights using OpenAI's API.
 
-## 📁 Project Structure
+## 📁 Project Structure (Parquet-first)
 
 ```
 .
@@ -10,13 +10,17 @@ A comprehensive banking analysis dashboard with AI-powered insights using OpenAI
 ├── requirements.txt           # Python dependencies
 ├── .env                      # Environment variables (not in repo)
 │
-├── Data/                     # Data files and datasets
-│   ├── dfsectorquarter.csv
-│   ├── dfsectoryear.csv
-│   ├── Key_items.xlsx
-│   ├── Bank_Type.xlsx
-│   ├── banking_comments.xlsx
-│   └── ...
+├── Data/                     # Data files and datasets (primary: Parquet)
+│   ├── dfsectorquarter.parquet
+│   ├── dfsectoryear.parquet
+│   ├── dfsectorforecast.parquet
+│   ├── Valuation_banking.parquet
+│   ├── earnings_quality_quarterly.parquet
+│   ├── earnings_quality_yearly.parquet
+│   ├── banking_comments.parquet
+│   ├── quarterly_analysis_results.parquet
+│   ├── Bank_Type.xlsx        # Reference (kept as Excel)
+│   └── Key_items.xlsx        # Reference (kept as Excel)
 │
 ├── generators/               # Bulk generation scripts
 │   ├── bulk_comment_generator.py      # Generate AI comments for all banks/quarters
@@ -30,8 +34,10 @@ A comprehensive banking analysis dashboard with AI-powered insights using OpenAI
 │   └── 5_Quarterly_Analysis.py       # Quarterly sector analysis
 │
 ├── scripts/                  # Utility scripts
-│   ├── run_bulk_generator.py         # Script to run bulk comment generation
-│   └── prepare_data.py              # Data preparation utilities
+│   ├── run_generators.py            # Unified runner for generators
+│   ├── prepare_data.py              # Prepares core datasets → Parquet
+│   ├── Prepare_earnings_driver.py   # Prepares earnings driver datasets → Parquet
+│   └── prepare_valuation.py         # Prepares valuation dataset → Parquet
 │
 └── utilities/               # Reusable utility modules
     ├── __init__.py
@@ -81,11 +87,19 @@ streamlit run streamlit_app.py
 
 #### Bulk Comment Generation
 ```bash
+# Recommended unified runner
+python scripts/run_generators.py
+
+# Or run specific generator directly
 python generators/bulk_comment_generator.py
 ```
 
 #### Quarterly Analysis Generation
 ```bash
+# Recommended unified runner
+python scripts/run_generators.py
+
+# Or run specific generator directly
 python generators/bulk_quarterly_analysis_generator.py
 ```
 
@@ -144,13 +158,18 @@ python generators/bulk_quarterly_analysis_generator.py
 - `generate_banking_comment_prompt()`: Create analysis prompts
 - `generate_quarterly_analysis_prompt()`: Create quarterly prompts
 
-## 📝 Data Files
+## 📝 Data Files (Primary)
 
-- `dfsectorquarter.csv`: Quarterly banking sector data
-- `dfsectoryear.csv`: Yearly banking sector data
-- `Key_items.xlsx`: Key item code mappings
-- `Bank_Type.xlsx`: Bank type classifications
-- `banking_comments.xlsx`: Generated AI comments cache
+- `dfsectorquarter.parquet`: Quarterly banking sector data
+- `dfsectoryear.parquet`: Yearly banking sector data
+- `dfsectorforecast.parquet`: Forecasts (e.g., 2025–2026)
+- `Valuation_banking.parquet`: Valuation time series
+- `earnings_quality_quarterly.parquet` and `earnings_quality_yearly.parquet`: Driver datasets
+- `banking_comments.parquet`: Generated AI comments cache
+- `quarterly_analysis_results.parquet`: Sector analysis cache
+- Reference (Excel, unchanged): `Bank_Type.xlsx`, `Key_items.xlsx`
+
+First-time setup: run `python scripts/prepare_data.py`, `python scripts/Prepare_earnings_driver.py`, and `python scripts/prepare_valuation.py` to generate all Parquet files.
 
 ## 🔧 Configuration
 
@@ -163,6 +182,26 @@ C:\Users\ducle\OneDrive\Work-related\VS - Code project
 
 ### Mac/Linux Path
 Current working directory structure
+
+## 🔗 Dependency Map (Pages → Utilities)
+
+- `pages/1_Banking_Plot.py`:
+  - Uses: `utilities.quarter_utils`, `utilities.banking_analysis`, `utilities.plot_chart`, `utilities.path_utils`
+- `pages/2_Company_Table.py`:
+  - Uses: `utilities.banking_table`, `utilities.quarter_utils`, `utilities.path_utils`
+- `pages/3_OpenAI_Comment.py`:
+  - Uses: `utilities.openai_utils`, `utilities.openai_comments`, `utilities.path_utils`
+- `pages/4_Comment_Management.py`:
+  - Uses: `utilities.openai_utils`, `utilities.path_utils`
+- `pages/5_Quarterly_Analysis.py`:
+  - Uses: `utilities.openai_utils`, `utilities.openai_comments`, `utilities.banking_analysis`, `utilities.path_utils`
+- `streamlit_app.py` (entry):
+  - Orchestrates multipage app; initializes shared state; delegates to pages.
+
+Utilities common patterns:
+- `utilities/Banking_MCP.py`: MCP tools with lazy loading + 5-minute result TTL.
+- `utilities/path_utils.py`: Cross-platform project/data path resolution.
+- `utilities/quarter_utils.py`: Quarter parsing/sorting and conversion.
 
 ## 📄 License
 

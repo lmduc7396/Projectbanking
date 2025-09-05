@@ -575,7 +575,7 @@ if quarterly_df is not None and yearly_df is not None:
                 st.dataframe(bottom_df.style.format({total_col: '{:.1f}pp'}))
 
 else:
-    st.error("Unable to load data files. Please ensure earnings_quality_quarterly.csv and earnings_quality_yearly.csv exist in the Data folder.")
+    st.error("Unable to load data files. Please ensure earnings_quality_quarterly.parquet and earnings_quality_yearly.parquet exist in the Data folder.")
     st.info("Run the scripts/Prepare_earnings_driver.py script first to generate the required data files.")
 
 # Footer

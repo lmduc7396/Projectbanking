@@ -195,7 +195,7 @@ def show_comment_management():
                 
                 # Load original data to check coverage
                 data_path = get_data_path()
-                df_quarter = pd.read_csv(os.path.join(data_path, "dfsectorquarter.parquet"))
+                df_quarter = pd.read_parquet(os.path.join(data_path, "dfsectorquarter.parquet"))
                 all_banks = df_quarter[df_quarter['TICKER'].str.len() == 3]['TICKER'].unique()
                 all_quarters = df_quarter['Date_Quarter'].unique()
                 

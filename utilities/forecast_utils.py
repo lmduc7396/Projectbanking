@@ -20,32 +20,34 @@ def get_forecast_years(dfcompaniesyear: pd.DataFrame = None) -> Tuple[int, int, 
     """
     
     if dfcompaniesyear is None:
-        # Try to load BS_Bank data to find most recent full year
+        # Load prepared Parquet data to determine most recent historical year
         try:
-            # Get the path to Data folder
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(current_dir)
-            bs_bank_path = os.path.join(project_root, 'Data', 'BS_Bank.csv')
-            
-            if os.path.exists(bs_bank_path):
-                bs_bank = pd.read_csv(bs_bank_path)
-                # Filter for full year data (LENGTHREPORT=5)
-                full_year_data = bs_bank[bs_bank['LENGTHREPORT'] == 5]
-                years_with_full_data = full_year_data['YEARREPORT'].unique()
-                years_with_full_data = sorted(years_with_full_data)
+            year_path = os.path.join(project_root, 'Data', 'dfsectoryear.parquet')
+            if os.path.exists(year_path):
+                df_year = pd.read_parquet(year_path)
+                years = pd.to_numeric(df_year['Year'], errors='coerce').dropna().astype(int)
+                years_with_full_data = sorted(years.unique())
             else:
-                # Default fallback
-                years_with_full_data = [2024]
+                quarter_path = os.path.join(project_root, 'Data', 'dfsectorquarter.parquet')
+                df_quarter = pd.read_parquet(quarter_path)
+                years = pd.to_numeric(df_quarter['Date_Quarter'].astype(str).str.extract(r'(\d{4})')[0], errors='coerce').dropna().astype(int)
+                years_with_full_data = sorted(years.unique())
         except Exception:
-            # Default fallback
-            years_with_full_data = [2024]
+            # Flexible fallback: current year - 1
+            from datetime import datetime
+            years_with_full_data = [datetime.now().year - 1]
     else:
-        # Use provided dataframe
-        years_with_full_data = dfcompaniesyear['Date_Quarter'].astype(int).unique()
-        years_with_full_data = sorted(years_with_full_data)
-    
-    # Get most recent full year
-    most_recent_full_year = years_with_full_data[-1] if years_with_full_data else 2024
+        # Use provided dataframe: expect a yearly DataFrame with a 'Year' column
+        if 'Year' in dfcompaniesyear.columns:
+            years = pd.to_numeric(dfcompaniesyear['Year'], errors='coerce').dropna().astype(int)
+        else:
+            years = pd.to_numeric(dfcompaniesyear.astype(str).str.extract(r'(\d{4})')[0], errors='coerce').dropna().astype(int)
+        years_with_full_data = sorted(years.unique())
+
+    # Get most recent full year from available data
+    most_recent_full_year = years_with_full_data[-1]
     
     # Calculate forecast years as +1 and +2
     forecast_year_1 = most_recent_full_year + 1
@@ -84,8 +86,22 @@ def get_historical_years_range() -> str:
         String like "2018-2024" representing the historical data range
     """
     most_recent, _, _ = get_forecast_years()
-    # Assuming historical data starts from 2018 based on the data
-    return f"2018-{most_recent}"
+    # Derive start year from available Parquet if possible
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        year_path = os.path.join(project_root, 'Data', 'dfsectoryear.parquet')
+        if os.path.exists(year_path):
+            df_year = pd.read_parquet(year_path)
+            start = int(pd.to_numeric(df_year['Year'], errors='coerce').dropna().astype(int).min())
+        else:
+            quarter_path = os.path.join(project_root, 'Data', 'dfsectorquarter.parquet')
+            df_quarter = pd.read_parquet(quarter_path)
+            years = pd.to_numeric(df_quarter['Date_Quarter'].astype(str).str.extract(r'(\d{4})')[0], errors='coerce').dropna().astype(int)
+            start = int(years.min())
+    except Exception:
+        start = most_recent - 6  # flexible 7-year default window
+    return f"{start}-{most_recent}"
 
 def get_forecast_years_range() -> str:
     """
