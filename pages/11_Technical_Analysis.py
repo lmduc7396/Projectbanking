@@ -137,6 +137,12 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
     reasons = []
     breakdown = []  # list of {component, contribution, detail}
     # Price vs MAs
+    # Tuning weights (reduced MA influence)
+    MA_POINTS_PER = 2.0         # was 3.0
+    MA_ALIGN_POS = 6.0          # was +10
+    MA_ALIGN_NEG = -3.0         # was -5
+    MA_SLOPE_MAX = 6.0          # was 10 (cap for slope contribution)
+
     above_list = []
     below_list = []
     for w, mv in mas.items():
@@ -144,43 +150,57 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
             above_list.append(str(w))
         else:
             below_list.append(str(w))
-    ma_contrib = 3 * len(above_list) - 3 * len(below_list)
+    ma_contrib = MA_POINTS_PER * len(above_list) - MA_POINTS_PER * len(below_list)
     score += ma_contrib
     breakdown.append({
         "component": "Price vs MAs",
         "contribution": round(ma_contrib, 1),
         "detail": f"Above: {', '.join(above_list) if above_list else '—'}; Below: {', '.join(below_list) if below_list else '—'}",
-        "meta": {"above": above_list, "below": below_list, "points_per_ma": 3, "total_mas": len(ma_windows)}
+        "meta": {"above": above_list, "below": below_list, "points_per_ma": MA_POINTS_PER, "total_mas": len(ma_windows)}
     })
     # MA stacking (bullish if shorter > longer)
     sorted_ws = sorted(ma_windows)
     stacked = all(mas[sorted_ws[i]] >= mas[sorted_ws[i+1]] for i in range(len(sorted_ws)-1))
     if stacked:
-        score += 10; reasons.append(f"MA alignment bullish ({' > '.join(map(str, sorted_ws))})")
-        breakdown.append({"component": "MA alignment", "contribution": 10, "detail": "Shorter MAs above longer", "meta": {"stack": sorted_ws}})
+        score += MA_ALIGN_POS; reasons.append(f"MA alignment bullish ({' > '.join(map(str, sorted_ws))})")
+        breakdown.append({"component": "MA alignment", "contribution": MA_ALIGN_POS, "detail": "Shorter MAs above longer", "meta": {"stack": sorted_ws}})
     else:
-        score -= 5; reasons.append("MA alignment not bullish")
-        breakdown.append({"component": "MA alignment", "contribution": -5, "detail": "Shorter MAs not above longer", "meta": {"stack": sorted_ws}})
+        score += MA_ALIGN_NEG; reasons.append("MA alignment not bullish")
+        breakdown.append({"component": "MA alignment", "contribution": MA_ALIGN_NEG, "detail": "Shorter MAs not above longer", "meta": {"stack": sorted_ws}})
     # Trend slope
     if slope_pct > 0:
-        slope_contrib = float(min(10, slope_pct))
+        slope_contrib = float(min(MA_SLOPE_MAX, slope_pct))
         score += slope_contrib
         reasons.append(f"MA{w_mid} slope positive ({slope_pct:.2f}‰)")
     else:
-        slope_contrib = float(max(-10, slope_pct))
+        slope_contrib = float(max(-MA_SLOPE_MAX, slope_pct))
         score += slope_contrib
         reasons.append(f"MA{w_mid} slope negative ({slope_pct:.2f}‰)")
     breakdown.append({"component": f"MA{w_mid} slope", "contribution": round(slope_contrib, 1), "detail": f"{slope_pct:.2f}‰ over {lookback} bars", "meta": {"slope_ppm": slope_pct, "lookback": lookback}})
     # RSI contribution
-    if 50 <= rsi_last <= 70:
-        rsi_contrib = 5; score += rsi_contrib; reasons.append(f"RSI supportive ({rsi_last:.1f})")
-    elif rsi_last > 70:
-        rsi_contrib = -5; score += rsi_contrib; reasons.append(f"RSI overbought ({rsi_last:.1f})")
-    elif 30 <= rsi_last < 50:
-        rsi_contrib = -2; score += rsi_contrib; reasons.append(f"RSI weak ({rsi_last:.1f})")
-    else:  # < 30
-        rsi_contrib = 5; score += rsi_contrib; reasons.append(f"RSI oversold ({rsi_last:.1f})")
-    breakdown.append({"component": "RSI", "contribution": rsi_contrib, "detail": f"RSI={rsi_last:.1f}", "meta": {"rsi": rsi_last}})
+    # RSI scoring per spec -> map RSI to 0..100 buckets, then to 0..10 scale, then center to contribution around 0
+    # 0 points for RSI 0-30 and 80-100.
+    # 25 points for RSI 30-40 and 70-80.
+    # 50 points for RSI 40-45 and 65-70.
+    # 75 points for RSI 45-50 and 60-65.
+    # 100 points for RSI 50-60.
+    rsi_pts_100 = 0
+    if 50 <= rsi_last <= 60:
+        rsi_pts_100 = 100
+    elif (45 <= rsi_last < 50) or (60 < rsi_last <= 65):
+        rsi_pts_100 = 75
+    elif (40 <= rsi_last < 45) or (65 < rsi_last <= 70):
+        rsi_pts_100 = 50
+    elif (30 <= rsi_last < 40) or (70 < rsi_last < 80):
+        rsi_pts_100 = 25
+    else:  # 0-30 or 80-100
+        rsi_pts_100 = 0
+    rsi_score_10 = rsi_pts_100 / 10.0
+    # Convert to centered contribution around 0 (so 5 is neutral)
+    rsi_contrib = round(rsi_score_10 - 5.0, 1)
+    score += rsi_contrib
+    reasons.append(f"RSI {rsi_last:.1f} → bucket {rsi_pts_100} → {rsi_contrib:+.1f}")
+    breakdown.append({"component": "RSI", "contribution": rsi_contrib, "detail": f"RSI={rsi_last:.1f}, bucket={rsi_pts_100}", "meta": {"rsi": rsi_last, "bucket": rsi_pts_100, "score10": rsi_score_10}})
     # Volume confirmation
     vol_ratio = vol10 / vol50 if vol50 > 0 else np.nan
     if vol50 > 0 and vol_ratio > 1.1:
