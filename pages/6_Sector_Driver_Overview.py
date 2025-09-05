@@ -72,6 +72,30 @@ def _dominant_driver_row(row: pd.Series, rev_col: str, cost_col: str, nonrec_col
     return max(vals, key=vals.get)
 
 
+def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
+    """Compute weighted median (50th percentile) for 1D arrays.
+    Returns NaN if arrays are empty or total weight is zero.
+    """
+    try:
+        mask = np.isfinite(values) & np.isfinite(weights)
+        v = values[mask]
+        w = weights[mask]
+        if v.size == 0:
+            return np.nan
+        order = np.argsort(v)
+        v_sorted = v[order]
+        w_sorted = w[order]
+        cw = np.cumsum(w_sorted)
+        cutoff = 0.5 * cw[-1]
+        if cw[-1] == 0:
+            return np.nan
+        idx = np.searchsorted(cw, cutoff, side='left')
+        idx = int(min(max(idx, 0), len(v_sorted) - 1))
+        return float(v_sorted[idx])
+    except Exception:
+        return np.nan
+
+
 qdf, ydf = load_driver_data()
 if qdf is None or ydf is None:
     st.error("Unable to load earnings driver Parquet files. Please run scripts/Prepare_earnings_driver.py.")
@@ -338,7 +362,7 @@ if scope == "Last N periods":
     win_base = df[df[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols].copy()
     win_base = win_base[~win_base['TICKER'].isin(sector_agg_tickers)]
 
-    # Aggregate per Type per period (weighted if chosen)
+    # Aggregate per Type per period (weighted + mean/median as selected)
     if hm_col not in win_base.columns:
         st.warning("Selected heatmap metric is not available for this frequency/selection.")
         agg = pd.DataFrame(columns=['Type', period_col, 'Impact'])
@@ -354,28 +378,48 @@ if scope == "Last N periods":
                 wdf2 = wdf[[w_period, 'TICKER', 'Total Assets']].rename(columns={w_period: period_col, 'Total Assets': 'WEIGHT_TOTAL_ASSETS'})
                 wdf2 = wdf2[wdf2[period_col].isin(window)]
                 temp = df.merge(wdf2, on=['TICKER', period_col], how='left')
+                temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
                 wcol = 'WEIGHT_TOTAL_ASSETS'
-                w_base = temp[['Type', period_col, wcol, hm_col]].dropna(subset=['Type'])
-                agg = (
-                    w_base.groupby(['Type', period_col])
-                    .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
-                    .reset_index(name='Impact')
-                )
+                if reducer == 'median':
+                    agg = (
+                        temp.groupby(['Type', period_col])
+                        .apply(lambda g: _weighted_median(g[hm_col].to_numpy(), g[wcol].to_numpy()))
+                        .reset_index(name='Impact')
+                    )
+                else:
+                    agg = (
+                        temp.groupby(['Type', period_col])
+                        .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                        .reset_index(name='Impact')
+                    )
             else:
                 raise ValueError('Total Assets column not found')
         except Exception:
-            agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
+            if reducer == 'median':
+                agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].median(numeric_only=True).rename(columns={hm_col: 'Impact'})
+            else:
+                agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
     elif weight_choice != "None" and weight_choice in df.columns:
-        # If user chose a column like PBT for weighting, but it doesn't exist for this frequency, fall back gracefully
         wcol = weight_choice
-        w_base = df[df[period_col].isin(window)][['Type', period_col, wcol, hm_col]].dropna(subset=['Type'])
-        agg = (
-            w_base.groupby(['Type', period_col])
-            .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
-            .reset_index(name='Impact')
-        )
+        temp = df[df[period_col].isin(window)][['TICKER', 'Type', period_col, wcol, hm_col]].copy()
+        temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
+        if reducer == 'median':
+            agg = (
+                temp.groupby(['Type', period_col])
+                .apply(lambda g: _weighted_median(g[hm_col].to_numpy(), g[wcol].to_numpy()))
+                .reset_index(name='Impact')
+            )
+        else:
+            agg = (
+                temp.groupby(['Type', period_col])
+                .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                .reset_index(name='Impact')
+            )
     else:
-        agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
+        if reducer == 'median':
+            agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].median(numeric_only=True).rename(columns={hm_col: 'Impact'})
+        else:
+            agg = win_base.groupby(['Type', period_col], as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'})
 
     # Add All Banks roll-up per period for heatmap (bottom-up across banks)
     if hm_col in win_base.columns:
@@ -393,12 +437,20 @@ if scope == "Last N periods":
                     temp = df.merge(wdf2, on=['TICKER', period_col], how='left')
                     temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
                     wcol = 'WEIGHT_TOTAL_ASSETS'
-                    overall = (
-                        temp.groupby(period_col)
-                        .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
-                        .reset_index(name='Impact')
-                        .assign(Type='All Banks')
-                    )
+                    if reducer == 'median':
+                        overall = (
+                            temp.groupby(period_col)
+                            .apply(lambda g: _weighted_median(g[hm_col].to_numpy(), g[wcol].to_numpy()))
+                            .reset_index(name='Impact')
+                            .assign(Type='All Banks')
+                        )
+                    else:
+                        overall = (
+                            temp.groupby(period_col)
+                            .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                            .reset_index(name='Impact')
+                            .assign(Type='All Banks')
+                        )
                 else:
                     overall = win_base.groupby(period_col, as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
             except Exception:
@@ -407,14 +459,25 @@ if scope == "Last N periods":
             wcol = weight_choice
             temp = df[df[period_col].isin(window)][['TICKER', 'Type', period_col, wcol, hm_col]].copy()
             temp = temp[~temp['TICKER'].isin(sector_agg_tickers)]
-            overall = (
-                temp.groupby(period_col)
-                .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
-                .reset_index(name='Impact')
-                .assign(Type='All Banks')
-            )
+            if reducer == 'median':
+                overall = (
+                    temp.groupby(period_col)
+                    .apply(lambda g: _weighted_median(g[hm_col].to_numpy(), g[wcol].to_numpy()))
+                    .reset_index(name='Impact')
+                    .assign(Type='All Banks')
+                )
+            else:
+                overall = (
+                    temp.groupby(period_col)
+                    .apply(lambda g: (g[hm_col] * g[wcol]).sum() / g[wcol].sum() if g[wcol].sum() != 0 else np.nan)
+                    .reset_index(name='Impact')
+                    .assign(Type='All Banks')
+                )
         else:
-            overall = win_base.groupby(period_col, as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
+            if reducer == 'median':
+                overall = win_base.groupby(period_col, as_index=False)[hm_col].median(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
+            else:
+                overall = win_base.groupby(period_col, as_index=False)[hm_col].mean(numeric_only=True).rename(columns={hm_col: 'Impact'}).assign(Type='All Banks')
         agg = pd.concat([agg, overall], ignore_index=True)
 
     # Pivot to matrix
@@ -439,10 +502,11 @@ if scope == "Last N periods":
         label_map = {0: 'Revenue', 1: 'Cost', 2: 'Non-Rec'}
         base_dom['dom_code'] = base_dom[dom_cols].abs().idxmax(axis=1).map(code_map)
         dom_mat = base_dom.pivot(index='Type', columns=period_col, values='dom_code')
-        # Build piecewise-constant colors for distinct categories
-        rev_col_hex = '#2ca02c'   # green
-        cost_col_hex = '#d62728'  # red
-        nonrec_col_hex = '#1f77b4' # blue
+        # Brand-aligned, distinct colors (match app palette)
+        # Revenue = teal, Cost = terracotta, Non-Rec = muted green/teal
+        rev_col_hex = '#398278'
+        cost_col_hex = '#cc7c5e'
+        nonrec_col_hex = '#5A8A7F'
         color_scale = [
             [0.0, rev_col_hex], [1/3 - 1e-6, rev_col_hex],
             [1/3, cost_col_hex], [2/3 - 1e-6, cost_col_hex],
@@ -451,6 +515,6 @@ if scope == "Last N periods":
         fig_cat = px.imshow(dom_mat, color_continuous_scale=color_scale, origin='lower', aspect='auto', zmin=-0.5, zmax=2.5)
         fig_cat.update_layout(height=420, coloraxis_showscale=False)
         st.plotly_chart(fig_cat, use_container_width=True)
-        st.caption("Legend: Revenue = green, Cost = red, Non‑Rec = blue")
+        st.caption("Legend: Revenue = teal (#398278), Cost = terracotta (#cc7c5e), Non‑Rec = muted green (#5A8A7F)")
     else:
         st.info("Dominance cannot be computed: required columns missing.")

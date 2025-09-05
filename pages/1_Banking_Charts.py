@@ -164,8 +164,9 @@ else:
         df_forecast['is_forecast'] = True
         df = pd.concat([df, df_forecast], ignore_index=True)
     else:
-        # Filter out any forecast years if not including forecast
-        df = df[df['Year'] <= last_historical_year]
+        # Filter out any forecast years if not including forecast (coerce Year to numeric)
+        year_num = pd.to_numeric(df['Year'], errors='coerce')
+        df = df[year_num <= last_historical_year]
         df['is_forecast'] = False
 
 # Make the data available globally for the Bankplot function
