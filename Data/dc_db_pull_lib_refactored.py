@@ -246,7 +246,7 @@ if __name__ == "__main__":
     #full_refresh_banks()
     
     # 3. Full refresh specific query
-    full_refresh('FORECAST')
+    full_refresh('VALUATION')
 
     # 4. Incremental update with date filter
     # incremental_update('VALUATION', '2025-07-15')  # Daily data from this date
