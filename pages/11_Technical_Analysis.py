@@ -239,9 +239,9 @@ def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len:
 
 
 def explain_score(ticker: str, result: dict, ma_windows: List[int]) -> str:
-    """Build an intuitive explanation of how the technical score was computed."""
-    base = 50
-    lines = [f"Score starts at base {base}."]
+    """Build an intuitive explanation of how the technical score was computed (signed scale)."""
+    base = 0
+    lines = [f"Net score starts at {base} (neutral)."]
     # Price vs MAs
     b_ma = next((b for b in result['breakdown'] if b['component'] == 'Price vs MAs'), None)
     if b_ma:
@@ -274,18 +274,20 @@ def explain_score(ticker: str, result: dict, ma_windows: List[int]) -> str:
     b_sto = next((b for b in result['breakdown'] if b['component'] == 'Stochastic'), None)
     if b_sto:
         lines.append(f"Stochastic %K/%D = {b_sto.get('meta', {}).get('k', 0):.1f}/{b_sto.get('meta', {}).get('d', 0):.1f} -> {b_sto['contribution']:+.1f}.")
-    lines.append(f"Final score for {ticker}: {result['score']}.")
+    # Compute final net score (centered around 0)
+    net_final = float(result.get('score', 50)) - 50.0
+    lines.append(f"Final net score for {ticker}: {net_final:+.1f}.")
     return "\n".join(lines)
 
 
 def score_waterfall(result: dict):
-    """Return a Plotly Waterfall figure showing the addends from base to final score."""
+    """Return a Plotly Waterfall (signed): contributions from 0 to final net score."""
     import plotly.graph_objects as go
-    base = 50
+    base = 0
     measures = ['absolute']
     x = ['Base']
     y = [base]
-    text = ['Base 50']
+    text = ['Base 0']
     for b in result.get('breakdown', []):
         measures.append('relative')
         x.append(b['component'])
@@ -293,8 +295,10 @@ def score_waterfall(result: dict):
         text.append(b['detail'])
     measures.append('total')
     x.append('Final')
+    # show final net score (score centered around 0)
+    net_final = float(result.get('score', 50)) - 50.0
     y.append(0)
-    text.append(f"{result['score']}")
+    text.append(f"{net_final:+.1f}")
     fig = go.Figure(go.Waterfall(
         name="Score",
         orientation="v",
@@ -478,7 +482,9 @@ def main():
     result = rating_score(df, ma_type, ma_windows, rsi_len, macd_fast, macd_slow, macd_signal, stoch_k, stoch_d)
     col1, col2 = st.columns([1, 3])
     with col1:
-        st.metric("Technical Score", f"{result['score']}/100")
+        signed = float(result.get('score', 50)) - 50.0
+        st.metric("Technical Score", f"{signed:+.1f}")
+        st.caption("Negative = bearish, Positive = bullish; Neutral = 0")
         st.caption(f"RSI: {result.get('rsi', '—')}")
     with col2:
         if result.get('rationale'):
@@ -502,7 +508,7 @@ def main():
 
     # Watchlist comparison
     st.markdown("---")
-    st.subheader("Watchlist Scores")
+    st.subheader("Watchlist Scores (signed)")
     watchlist = st.multiselect("Select additional tickers", options=[t for t in load_bank_tickers() if t != ticker], default=[], help="Compare scores using the same settings")
     if st.button("Compute Watchlist") and watchlist:
         rows = []
@@ -510,7 +516,7 @@ def main():
             dfi = get_cached_stock_data(t, days)
             if dfi is not None and not dfi.empty:
                 res = rating_score(dfi, ma_type, ma_windows, rsi_len, macd_fast, macd_slow, macd_signal, stoch_k, stoch_d)
-                rows.append({"Ticker": t, "Score": res['score'], "RSI": res.get('rsi', np.nan)})
+                rows.append({"Ticker": t, "Score": float(res.get('score', 50)) - 50.0, "RSI": res.get('rsi', np.nan)})
         if rows:
             table = pd.DataFrame(rows).sort_values("Score", ascending=False).reset_index(drop=True)
             st.dataframe(table, use_container_width=True)
