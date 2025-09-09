@@ -36,6 +36,212 @@ except Exception:
 from utilities.stock_candle import get_cached_stock_data
 
 
+# -------- Trend & OB/OS scoring per spec --------
+def _linreg_slope(series: pd.Series, lookback: int) -> float:
+    """Return least-squares slope per bar over the last N points (float)."""
+    s = pd.Series(series).dropna()
+    if len(s) < max(3, lookback):
+        return 0.0
+    y = s.iloc[-lookback:]
+    x = np.arange(len(y), dtype=float)
+    x_mean = x.mean(); y_mean = y.mean()
+    denom = ((x - x_mean) ** 2).sum()
+    if denom == 0:
+        return 0.0
+    return float(((x - x_mean) * (y - y_mean)).sum() / denom)
+
+
+def _scale_slope_to_weight(series: pd.Series, lookback: int, weight: float, threshold_ppm: float) -> float:
+    """
+    Map slope to [-weight, weight] using a per-bar slope normalized by price level.
+    threshold_ppm defines how many basis points per bar correspond to full weight.
+    """
+    slope = _linreg_slope(series, lookback)
+    avg_price = float(pd.Series(series).iloc[-lookback:].mean()) if len(series) >= lookback else float(pd.Series(series).iloc[-1])
+    if avg_price <= 0:
+        return 0.0
+    # per-bar change as parts-per-10k (basis points) to be scale-invariant
+    ppm = (slope / avg_price) * 10000.0
+    ratio = ppm / max(1e-6, threshold_ppm)
+    ratio = float(np.clip(ratio, -1.0, 1.0))
+    return ratio * float(weight)
+
+
+def _ema_rising(series: pd.Series, lookback: int = 3) -> bool:
+    s = pd.Series(series).dropna()
+    if len(s) < lookback:
+        return False
+    return bool(s.iloc[-1] > s.iloc[-lookback])
+
+
+def _detect_structure(high: pd.Series, low: pd.Series, window: int = 3, max_lookback: int = 80) -> int:
+    """
+    Very simple swing structure via 3-bar fractals.
+    Returns +1 for HH/HL, -1 for LH/LL, 0 otherwise.
+    """
+    h = pd.Series(high).astype(float)
+    l = pd.Series(low).astype(float)
+    if len(h) < window * 2 + 1:
+        return 0
+    # Find fractal swing highs/lows in the last max_lookback bars
+    start = max(0, len(h) - max_lookback)
+    idx = range(start + window, len(h) - window)
+    swing_highs = []
+    swing_lows = []
+    for i in idx:
+        if h.iloc[i] == h.iloc[i - window:i + window + 1].max():
+            swing_highs.append((i, h.iloc[i]))
+        if l.iloc[i] == l.iloc[i - window:i + window + 1].min():
+            swing_lows.append((i, l.iloc[i]))
+    if len(swing_highs) < 2 or len(swing_lows) < 2:
+        return 0
+    # last two swings (most recent at end)
+    h1, h2 = swing_highs[-1][1], swing_highs[-2][1]
+    l1, l2 = swing_lows[-1][1], swing_lows[-2][1]
+    if (h1 > h2) and (l1 > l2):
+        return +1
+    if (h1 < h2) and (l1 < l2):
+        return -1
+    return 0
+
+
+def compute_short_trend(df: pd.DataFrame) -> dict:
+    """
+    Short-term trend score [-100, 100]
+    Components: MA alignment (EMA20 vs EMA50), slope(EMA20), price position vs EMA20, structure(HH/HL vs LH/LL).
+    Weights: +40, +30, +20, +10 respectively.
+    """
+    if df is None or df.empty:
+        return {"score": 0, "components": {}, "regime": "n/a"}
+    close = pd.to_numeric(df['close'], errors='coerce')
+    high = pd.to_numeric(df.get('high', close), errors='coerce')
+    low = pd.to_numeric(df.get('low', close), errors='coerce')
+    ema20 = compute_ema(close, 20)
+    ema50 = compute_ema(close, 50)
+
+    # Tuned weights for VN short-term behavior (reduce MA dominance, increase structure)
+    # MA alignment
+    ma_align = 30.0 if float(ema20.iloc[-1]) > float(ema50.iloc[-1]) else -30.0 if float(ema20.iloc[-1]) < float(ema50.iloc[-1]) else 0.0
+    # Slope of EMA20 -> tighter threshold 8 ppm per bar => full score 25
+    slope = _scale_slope_to_weight(ema20, lookback=min(20, len(ema20)), weight=25.0, threshold_ppm=8.0)
+    # Price position vs EMA20 and EMA20 rising/falling
+    price_pos = 0.0
+    if float(close.iloc[-1]) > float(ema20.iloc[-1]) and _ema_rising(ema20, 3):
+        price_pos = 25.0
+    elif float(close.iloc[-1]) < float(ema20.iloc[-1]) and not _ema_rising(ema20, 3):
+        price_pos = -25.0
+    # Structure
+    structure_flag = _detect_structure(high, low, window=3, max_lookback=80)
+    structure = 20.0 if structure_flag > 0 else -20.0 if structure_flag < 0 else 0.0
+
+    score = float(np.clip(ma_align + slope + price_pos + structure, -100.0, 100.0))
+    regime = "Uptrend" if score >= 20 else "Downtrend" if score <= -20 else "Range"
+    return {
+        "score": round(score, 1),
+        "regime": regime,
+        "components": {
+            "ma_align": ma_align,
+            "slope": round(float(slope), 1),
+            "price_pos": price_pos,
+            "structure": structure,
+        }
+    }
+
+
+def compute_long_trend(df: pd.DataFrame) -> dict:
+    """
+    Long-term trend score [-100, 100]
+    Components: MA alignment (EMA50 vs SMA200), slope(SMA200), price vs SMA200, EMA50 slope confirmation.
+    Weights: +40, +30, +30, +10 respectively.
+    """
+    if df is None or df.empty:
+        return {"score": 0, "components": {}, "regime": "n/a"}
+    close = pd.to_numeric(df['close'], errors='coerce')
+    ema50 = compute_ema(close, 50)
+    sma200 = compute_sma(close, 200)
+
+    # Tuned weights for VN long-term: emphasize price relative to SMA200
+    # MA alignment
+    ma_align = 30.0 if float(ema50.iloc[-1]) > float(sma200.iloc[-1]) else -30.0 if float(ema50.iloc[-1]) < float(sma200.iloc[-1]) else 0.0
+    # Slope of SMA200 -> slightly looser threshold 1.5 ppm per bar => full 25
+    slope = _scale_slope_to_weight(sma200, lookback=min(100, len(sma200)), weight=25.0, threshold_ppm=1.5)
+    # Price vs SMA200
+    price_pos = 35.0 if float(close.iloc[-1]) > float(sma200.iloc[-1]) else -35.0 if float(close.iloc[-1]) < float(sma200.iloc[-1]) else 0.0
+    # EMA50 slope confirmation
+    ema50_conf = 10.0 if _ema_rising(ema50, 5) else -10.0
+
+    score = float(np.clip(ma_align + slope + price_pos + ema50_conf, -100.0, 100.0))
+    regime = "Uptrend" if score >= 20 else "Downtrend" if score <= -20 else "Range"
+    return {
+        "score": round(score, 1),
+        "regime": regime,
+        "components": {
+            "ma_align": ma_align,
+            "slope": round(float(slope), 1),
+            "price_pos": price_pos,
+            "ema50_slope": ema50_conf,
+        }
+    }
+
+
+def _rsi_core_score(rsi_value: float) -> float:
+    """Piecewise map RSI to [-60, +60] emphasizing <20 and >80 as extremes."""
+    r = float(rsi_value)
+    if r <= 20:
+        return 60.0
+    if r >= 80:
+        return -60.0
+    if 20 < r <= 40:
+        # 20->60 down to 40->20 (linear)
+        return 60.0 - (r - 20.0) * (40.0 / 20.0)
+    if 40 < r < 60:
+        # 40->20 down to 60->-20
+        return 20.0 - (r - 40.0) * (40.0 / 20.0)
+    if 60 <= r < 80:
+        # 60->-20 down to 80->-60
+        return -20.0 - (r - 60.0) * (40.0 / 20.0)
+    # Fallback neutral
+    return 0.0
+
+
+def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9) -> dict:
+    """
+    Overbought/Oversold score [-100, 100]
+    - RSI core mapped to [-70, +70]
+    - MACD shift adds +/-30 when confirming turns (rising hist or recent cross)
+    """
+    if df is None or df.empty:
+        return {"score": 0, "components": {}, "labels": []}
+    close = pd.to_numeric(df['close'], errors='coerce')
+    rsi = compute_rsi(close, rsi_len)
+    rsi_last = float(rsi.iloc[-1]) if len(rsi) else 50.0
+    macd_line, macd_sig, macd_hist = compute_macd(close, macd_fast, macd_slow, macd_signal)
+    labels = []
+
+    rsi_core = _rsi_core_score(rsi_last)
+    macd_shift = 0.0
+    # MACD conditions
+    hist_rising = len(macd_hist) >= 4 and all(macd_hist.iloc[-i] > macd_hist.iloc[-i-1] for i in range(1, 4))
+    hist_falling = len(macd_hist) >= 4 and all(macd_hist.iloc[-i] < macd_hist.iloc[-i-1] for i in range(1, 4))
+    recent_cross_up = any(macd_line.iloc[-i] > macd_sig.iloc[-i] and macd_line.iloc[-i-1] <= macd_sig.iloc[-i-1] for i in range(1, min(4, len(macd_line))))
+    recent_cross_dn = any(macd_line.iloc[-i] < macd_sig.iloc[-i] and macd_line.iloc[-i-1] >= macd_sig.iloc[-i-1] for i in range(1, min(4, len(macd_line))))
+    if (rsi_last < 40 and (hist_rising or recent_cross_up)):
+        macd_shift = 20.0
+        labels.append("MACD bullish shift")
+    elif (rsi_last > 60 and (hist_falling or recent_cross_dn)):
+        macd_shift = -20.0
+        labels.append("MACD bearish shift")
+
+    score = float(np.clip(rsi_core + macd_shift, -100.0, 100.0))
+    regime = "Bullish OS" if score >= 40 else "Bearish OB" if score <= -40 else "Neutral"
+    return {
+        "score": round(score, 1),
+        "regime": regime,
+        "components": {"rsi_core": round(rsi_core, 1), "macd_shift": macd_shift, "rsi": round(rsi_last, 1)},
+        "labels": labels,
+    }
+
+
 @st.cache_data(ttl=1800)
 def load_bank_tickers() -> List[str]:
     """Load bank tickers from reference file (exclude aggregate sector tickers)."""
@@ -91,262 +297,59 @@ def compute_stochastic(high: pd.Series, low: pd.Series, close: pd.Series, k_len:
     return k.clip(0, 100), d.clip(0, 100)
 
 
-def rating_score(df: pd.DataFrame, ma_type: str, ma_windows: List[int], rsi_len: int,
-                 macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9,
-                 stoch_k: int = 14, stoch_d: int = 3) -> dict:
-    """Compute a simple 0-100 technical score with rationale."""
-    if df.empty:
-        return {"score": 0, "rationale": ["No data" ]}
-    close = df['close']
-    last = close.iloc[-1]
-    # MAs
-    ma_func = compute_sma if ma_type == 'SMA' else compute_ema
-    mas = {w: ma_func(close, w).iloc[-1] for w in ma_windows}
-    # Trend strength via slope of medium MA (use median window)
-    w_mid = int(np.median(ma_windows))
-    mid_series = ma_func(close, w_mid)
-    # slope over last 10 points normalized by price
-    lookback = min(10, len(mid_series) - 1)
-    slope = 0.0
-    if lookback > 1:
-        y = mid_series.iloc[-lookback:]
-        x = np.arange(len(y))
-        # least squares slope
-        x_mean = x.mean(); y_mean = y.mean()
-        denom = ((x - x_mean)**2).sum()
-        slope = float(((x - x_mean) * (y - y_mean)).sum() / denom) if denom != 0 else 0.0
-        slope_pct = (slope / max(1.0, last)) * 1000  # scale
-    else:
-        slope_pct = 0.0
-    # RSI
-    rsi_series = compute_rsi(close, rsi_len)
-    rsi_last = float(rsi_series.iloc[-1])
-    # Volume pressure (10d vs 50d)
-    vol = df['volume'].astype(float)
-    vol10 = float(vol.rolling(10, min_periods=1).mean().iloc[-1])
-    vol50 = float(vol.rolling(50, min_periods=1).mean().iloc[-1])
-
-    # MACD
-    macd_line, macd_sig, macd_hist = compute_macd(close, macd_fast, macd_slow, macd_signal)
-    macd_last = float(macd_line.iloc[-1] - macd_sig.iloc[-1])  # positive when bullish
-    # Stochastic
-    k, d = compute_stochastic(df['high'].astype(float), df['low'].astype(float), close, stoch_k, stoch_d)
-    k_last, d_last = float(k.iloc[-1]), float(d.iloc[-1])
-
-    score = 50.0
-    reasons = []
-    breakdown = []  # list of {component, contribution, detail}
-    # Price vs MAs
-    # Tuning weights (reduced MA influence)
-    MA_POINTS_PER = 2.0         # was 3.0
-    MA_ALIGN_POS = 6.0          # was +10
-    MA_ALIGN_NEG = -3.0         # was -5
-    MA_SLOPE_MAX = 6.0          # was 10 (cap for slope contribution)
-
-    above_list = []
-    below_list = []
-    for w, mv in mas.items():
-        if last > mv:
-            above_list.append(str(w))
-        else:
-            below_list.append(str(w))
-    ma_contrib = MA_POINTS_PER * len(above_list) - MA_POINTS_PER * len(below_list)
-    score += ma_contrib
-    breakdown.append({
-        "component": "Price vs MAs",
-        "contribution": round(ma_contrib, 1),
-        "detail": f"Above: {', '.join(above_list) if above_list else '—'}; Below: {', '.join(below_list) if below_list else '—'}",
-        "meta": {"above": above_list, "below": below_list, "points_per_ma": MA_POINTS_PER, "total_mas": len(ma_windows)}
-    })
-    # MA stacking (bullish if shorter > longer)
-    sorted_ws = sorted(ma_windows)
-    stacked = all(mas[sorted_ws[i]] >= mas[sorted_ws[i+1]] for i in range(len(sorted_ws)-1))
-    if stacked:
-        score += MA_ALIGN_POS; reasons.append(f"MA alignment bullish ({' > '.join(map(str, sorted_ws))})")
-        breakdown.append({"component": "MA alignment", "contribution": MA_ALIGN_POS, "detail": "Shorter MAs above longer", "meta": {"stack": sorted_ws}})
-    else:
-        score += MA_ALIGN_NEG; reasons.append("MA alignment not bullish")
-        breakdown.append({"component": "MA alignment", "contribution": MA_ALIGN_NEG, "detail": "Shorter MAs not above longer", "meta": {"stack": sorted_ws}})
-    # Trend slope
-    if slope_pct > 0:
-        slope_contrib = float(min(MA_SLOPE_MAX, slope_pct))
-        score += slope_contrib
-        reasons.append(f"MA{w_mid} slope positive ({slope_pct:.2f}‰)")
-    else:
-        slope_contrib = float(max(-MA_SLOPE_MAX, slope_pct))
-        score += slope_contrib
-        reasons.append(f"MA{w_mid} slope negative ({slope_pct:.2f}‰)")
-    breakdown.append({"component": f"MA{w_mid} slope", "contribution": round(slope_contrib, 1), "detail": f"{slope_pct:.2f}‰ over {lookback} bars", "meta": {"slope_ppm": slope_pct, "lookback": lookback}})
-    # RSI contribution
-    # RSI scoring per spec -> map RSI to 0..100 buckets, then to 0..10 scale, then center to contribution around 0
-    # 0 points for RSI 0-30 and 80-100.
-    # 25 points for RSI 30-40 and 70-80.
-    # 50 points for RSI 40-45 and 65-70.
-    # 75 points for RSI 45-50 and 60-65.
-    # 100 points for RSI 50-60.
-    rsi_pts_100 = 0
-    if 50 <= rsi_last <= 60:
-        rsi_pts_100 = 100
-    elif (45 <= rsi_last < 50) or (60 < rsi_last <= 65):
-        rsi_pts_100 = 75
-    elif (40 <= rsi_last < 45) or (65 < rsi_last <= 70):
-        rsi_pts_100 = 50
-    elif (30 <= rsi_last < 40) or (70 < rsi_last < 80):
-        rsi_pts_100 = 25
-    else:  # 0-30 or 80-100
-        rsi_pts_100 = 0
-    rsi_score_10 = rsi_pts_100 / 10.0
-    # Convert to centered contribution around 0 (so 5 is neutral)
-    rsi_contrib = round(rsi_score_10 - 5.0, 1)
-    score += rsi_contrib
-    reasons.append(f"RSI {rsi_last:.1f} → bucket {rsi_pts_100} → {rsi_contrib:+.1f}")
-    breakdown.append({"component": "RSI", "contribution": rsi_contrib, "detail": f"RSI={rsi_last:.1f}, bucket={rsi_pts_100}", "meta": {"rsi": rsi_last, "bucket": rsi_pts_100, "score10": rsi_score_10}})
-    # Volume confirmation
-    vol_ratio = vol10 / vol50 if vol50 > 0 else np.nan
-    if vol50 > 0 and vol_ratio > 1.1:
-        vol_contrib = 5; score += vol_contrib; reasons.append(f"Rising volume (10/50={vol_ratio:.2f}x)")
-    elif vol50 > 0 and vol_ratio < 0.9:
-        vol_contrib = -3; score -= 3; reasons.append(f"Weak volume (10/50={vol_ratio:.2f}x)")
-    else:
-        vol_contrib = 0
-    breakdown.append({"component": "Volume", "contribution": vol_contrib, "detail": f"10/50={vol_ratio:.2f}x" if vol50 > 0 else "N/A", "meta": {"ratio": vol_ratio}})
-
-    # MACD contribution
-    if macd_last > 0:
-        macd_contrib = 5; score += macd_contrib; reasons.append("MACD above signal")
-    else:
-        macd_contrib = -3; score -= 3; reasons.append("MACD below signal")
-    breakdown.append({"component": "MACD", "contribution": macd_contrib, "detail": f"Δ={macd_last:.2f}", "meta": {"delta": macd_last}})
-
-    # Stochastic contribution
-    if k_last > d_last and 20 < k_last < 80:
-        stoch_contrib = 4; score += stoch_contrib; reasons.append(f"Stoch bullish (%K={k_last:.1f} > %D={d_last:.1f})")
-    elif k_last >= 80:
-        stoch_contrib = -3; score -= 3; reasons.append(f"Stoch overbought (%K={k_last:.1f})")
-    elif k_last <= 20:
-        stoch_contrib = 2; score += 2; reasons.append(f"Stoch oversold (%K={k_last:.1f})")
-    else:
-        stoch_contrib = 0
-    breakdown.append({"component": "Stochastic", "contribution": stoch_contrib, "detail": f"%K={k_last:.1f}, %D={d_last:.1f}", "meta": {"k": k_last, "d": d_last}})
-
-    score = max(0, min(100, round(score, 1)))
-    if above_list or below_list:
-        if above_list:
-            reasons.insert(0, f"Price above MAs: {', '.join(above_list)}")
-        if below_list:
-            reasons.insert(1 if above_list else 0, f"Price below MAs: {', '.join(below_list)}")
-    return {"score": max(0, min(100, round(score, 1))), "rationale": reasons, "rsi": round(rsi_last, 1), "breakdown": breakdown}
+# Legacy technical score functions removed in favor of STS/LTS/OBOS scoring
 
 
-def explain_score(ticker: str, result: dict, ma_windows: List[int]) -> str:
-    """Build an intuitive explanation of how the technical score was computed (signed scale)."""
-    base = 0
-    lines = [f"Net score starts at {base} (neutral)."]
-    # Price vs MAs
-    b_ma = next((b for b in result['breakdown'] if b['component'] == 'Price vs MAs'), None)
-    if b_ma:
-        above = b_ma.get('meta', {}).get('above', [])
-        below = b_ma.get('meta', {}).get('below', [])
-        per = b_ma.get('meta', {}).get('points_per_ma', 3)
-        lines.append(f"Price vs MAs: +{per} for each MA above, -{per} for each below. Above {len(above)}/{len(ma_windows)} ({', '.join(above) or '–'}), Below {len(below)} ({', '.join(below) or '–'}) -> {b_ma['contribution']:+.1f}.")
-    # MA alignment
-    b_align = next((b for b in result['breakdown'] if b['component'] == 'MA alignment'), None)
-    if b_align:
-        lines.append(f"MA alignment ({' > '.join(map(str, b_align.get('meta', {}).get('stack', ma_windows)))}) -> {b_align['contribution']:+.1f}.")
-    # MA slope
-    b_slope = next((b for b in result['breakdown'] if b['component'].startswith('MA') and 'slope' in b['component']), None)
-    if b_slope:
-        lines.append(f"{b_slope['component']}: slope {b_slope.get('meta', {}).get('slope_ppm', 0):+.2f}‰ over {b_slope.get('meta', {}).get('lookback', 0)} bars -> {b_slope['contribution']:+.1f}.")
-    # RSI
-    b_rsi = next((b for b in result['breakdown'] if b['component'] == 'RSI'), None)
-    if b_rsi:
-        lines.append(f"RSI {b_rsi.get('meta', {}).get('rsi', 0):.1f} -> {b_rsi['contribution']:+.1f}.")
-    # Volume
-    b_vol = next((b for b in result['breakdown'] if b['component'] == 'Volume'), None)
-    if b_vol:
-        ratio = b_vol.get('meta', {}).get('ratio', np.nan)
-        lines.append(f"Volume 10/50 = {ratio:.2f}x -> {b_vol['contribution']:+.1f}.")
-    # MACD
-    b_macd = next((b for b in result['breakdown'] if b['component'] == 'MACD'), None)
-    if b_macd:
-        lines.append(f"MACD delta (line - signal) {b_macd.get('meta', {}).get('delta', 0):+.2f} -> {b_macd['contribution']:+.1f}.")
-    # Stochastic
-    b_sto = next((b for b in result['breakdown'] if b['component'] == 'Stochastic'), None)
-    if b_sto:
-        lines.append(f"Stochastic %K/%D = {b_sto.get('meta', {}).get('k', 0):.1f}/{b_sto.get('meta', {}).get('d', 0):.1f} -> {b_sto['contribution']:+.1f}.")
-    # Compute final net score (centered around 0)
-    net_final = float(result.get('score', 50)) - 50.0
-    lines.append(f"Final net score for {ticker}: {net_final:+.1f}.")
-    return "\n".join(lines)
-
-
-def score_waterfall(result: dict):
-    """Return a Plotly Waterfall (signed): contributions from 0 to final net score."""
-    import plotly.graph_objects as go
-    base = 0
-    measures = ['absolute']
-    x = ['Base']
-    y = [base]
-    text = ['Base 0']
-    for b in result.get('breakdown', []):
-        measures.append('relative')
-        x.append(b['component'])
-        y.append(b['contribution'])
-        text.append(b['detail'])
-    measures.append('total')
-    x.append('Final')
-    # show final net score (score centered around 0)
-    net_final = float(result.get('score', 50)) - 50.0
-    y.append(0)
-    text.append(f"{net_final:+.1f}")
-    fig = go.Figure(go.Waterfall(
-        name="Score",
-        orientation="v",
-        measure=measures,
-        x=x,
-        text=text,
-        y=y,
-        connector={'line': {'color': 'rgba(0,0,0,0.2)'}}
-    ))
-    fig.update_layout(height=360, showlegend=False)
-    return fig
-
-
-def render_chart(df: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[int], rsi_len: int,
+def render_chart(df_display: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[int], rsi_len: int,
                  show_bbands: bool, show_macd: bool, macd_fast: int, macd_slow: int, macd_signal: int,
-                 show_stoch: bool, stoch_k: int, stoch_d: int):
-    # Prepare
-    dfx = df.copy()
-    dfx['date'] = pd.to_datetime(dfx['tradingDate'])
-    dfx['date_str'] = dfx['date'].dt.strftime('%Y-%m-%d')
-    # Ensure numeric OHLC and drop rows with missing OHLC to avoid Plotly errors
+                 show_stoch: bool, stoch_k: int, stoch_d: int, df_calc=None):
+    """Render chart using display window but compute indicators on a longer calc window if provided."""
+    # Prepare display frame
+    dfd = df_display.copy()
+    dfd['date'] = pd.to_datetime(dfd['tradingDate'])
+    dfd['date_str'] = dfd['date'].dt.strftime('%Y-%m-%d')
     for c in ['open', 'high', 'low', 'close', 'volume']:
-        if c in dfx.columns:
-            dfx[c] = pd.to_numeric(dfx[c], errors='coerce')
-    dfx = dfx.dropna(subset=['open', 'high', 'low', 'close']).reset_index(drop=True)
-    # Use string date for categorical x-axis to avoid gaps and show real dates in tooltip
-    dfx['x'] = dfx['date_str']
+        if c in dfd.columns:
+            dfd[c] = pd.to_numeric(dfd[c], errors='coerce')
+    dfd = dfd.dropna(subset=['open', 'high', 'low', 'close']).reset_index(drop=True)
+    dfd['x'] = dfd['date_str']
 
-    # MAs
+    # Choose calc frame (longer history) for indicators
+    dfc = df_calc.copy() if df_calc is not None else dfd.copy()
+    dfc['date'] = pd.to_datetime(dfc['tradingDate'])
+    for c in ['open', 'high', 'low', 'close', 'volume']:
+        if c in dfc.columns:
+            dfc[c] = pd.to_numeric(dfc[c], errors='coerce')
+    dfc = dfc.dropna(subset=['open', 'high', 'low', 'close']).reset_index(drop=True)
+
+    # Compute indicators on calc frame
     ma_func = compute_sma if ma_type == 'SMA' else compute_ema
+    ind_cols = {}
     for w in ma_windows:
-        dfx[f'{ma_type}{w}'] = ma_func(dfx['close'], w)
-
-    # RSI
-    dfx['RSI'] = compute_rsi(dfx['close'], rsi_len)
-    # MACD
+        col = f'{ma_type}{w}'
+        dfc[col] = ma_func(dfc['close'], w)
+        ind_cols[col] = col
+    dfc['RSI'] = compute_rsi(dfc['close'], rsi_len)
     if show_macd:
-        macd_line, macd_sig, macd_hist = compute_macd(dfx['close'], macd_fast, macd_slow, macd_signal)
-        dfx['MACD'] = macd_line; dfx['MACD_SIG'] = macd_sig; dfx['MACD_HIST'] = macd_hist
-    # Stochastic
+        macd_line, macd_sig, macd_hist = compute_macd(dfc['close'], macd_fast, macd_slow, macd_signal)
+        dfc['MACD'] = macd_line; dfc['MACD_SIG'] = macd_sig; dfc['MACD_HIST'] = macd_hist
     if show_stoch:
-        k, d = compute_stochastic(dfx['high'], dfx['low'], dfx['close'], stoch_k, stoch_d)
-        dfx['STO_K'] = k; dfx['STO_D'] = d
-
-    # Bollinger
+        k, d = compute_stochastic(dfc['high'], dfc['low'], dfc['close'], stoch_k, stoch_d)
+        dfc['STO_K'] = k; dfc['STO_D'] = d
     if show_bbands:
-        bb_ma, bb_up, bb_lo = compute_bollinger(dfx['close'])
-        dfx['BB_MA'] = bb_ma; dfx['BB_UP'] = bb_up; dfx['BB_LO'] = bb_lo
+        bb_ma, bb_up, bb_lo = compute_bollinger(dfc['close'])
+        dfc['BB_MA'] = bb_ma; dfc['BB_UP'] = bb_up; dfc['BB_LO'] = bb_lo
+
+    # Merge indicators from calc frame to display frame on date
+    merge_cols = ['date'] + list(ind_cols.keys()) + ['RSI']
+    if show_macd:
+        merge_cols += ['MACD', 'MACD_SIG', 'MACD_HIST']
+    if show_stoch:
+        merge_cols += ['STO_K', 'STO_D']
+    if show_bbands:
+        merge_cols += ['BB_MA', 'BB_UP', 'BB_LO']
+    dfx = dfd.merge(dfc[merge_cols], on='date', how='left')
+    dfx['x'] = dfx['date_str']
 
     # Subplots: price, volume, RSI, optional MACD, optional Stochastic
     rows = 3 + int(show_macd) + int(show_stoch)
@@ -442,6 +445,7 @@ def main():
         rsi_len = st.slider("RSI Length", min_value=5, max_value=30, value=st.session_state.get('ta_rsi_len', 14))
         show_bbands = st.checkbox("Bollinger Bands (20, 2σ)", value=st.session_state.get('ta_bbands', False))
         st.markdown("---")
+        use_weekly_lts = st.checkbox("Use weekly data for LTS (API)", value=st.session_state.get('ta_use_weekly_lts', False), help="Fetch weekly bars from API for long-term trend. Falls back to aggregated weekly if unavailable.")
         show_macd = st.checkbox("Show MACD", value=st.session_state.get('ta_show_macd', True))
         macd_fast = st.number_input("MACD Fast EMA", min_value=5, max_value=30, value=st.session_state.get('ta_macd_fast', 12))
         macd_slow = st.number_input("MACD Slow EMA", min_value=10, max_value=60, value=st.session_state.get('ta_macd_slow', 26))
@@ -460,6 +464,7 @@ def main():
         st.session_state['ta_ma_windows'] = ma_windows
         st.session_state['ta_rsi_len'] = rsi_len
         st.session_state['ta_bbands'] = show_bbands
+        st.session_state['ta_use_weekly_lts'] = use_weekly_lts
         st.session_state['ta_show_macd'] = show_macd
         st.session_state['ta_macd_fast'] = macd_fast
         st.session_state['ta_macd_slow'] = macd_slow
@@ -468,57 +473,111 @@ def main():
         st.session_state['ta_stoch_k'] = stoch_k
         st.session_state['ta_stoch_d'] = stoch_d
 
+    # Determine extended history needed (calendar days) to stabilize longest MA
+    longest_ma = max([200] + (ma_windows or []))
+    calendar_factor = 1.5  # ~365/252 trading-to-calendar approximation
+    buffer_days = 30
+    calc_days = max(days, int(longest_ma * calendar_factor) + buffer_days)  # e.g., 200 -> ~330 days
+
     with st.spinner(f"Fetching {ticker} data..."):
+        # Display window data
         df = get_cached_stock_data(ticker, days)
+        # Extended window for indicator calculations
+        df_calc = get_cached_stock_data(ticker, calc_days)
 
     if df is None or df.empty:
         st.error("No price data found.")
         return
 
-    # Render chart and indicators
-    render_chart(df, ticker, ma_type, ma_windows, rsi_len, show_bbands, show_macd, macd_fast, macd_slow, macd_signal, show_stoch, stoch_k, stoch_d)
+    # Render chart and indicators (compute indicators on extended history)
+    render_chart(df, ticker, ma_type, ma_windows, rsi_len, show_bbands, show_macd, macd_fast, macd_slow, macd_signal, show_stoch, stoch_k, stoch_d, df_calc=df_calc)
 
-    # Compute rating
-    result = rating_score(df, ma_type, ma_windows, rsi_len, macd_fast, macd_slow, macd_signal, stoch_k, stoch_d)
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        signed = float(result.get('score', 50)) - 50.0
-        st.metric("Technical Score", f"{signed:+.1f}")
-        st.caption("Negative = bearish, Positive = bullish; Neutral = 0")
-        st.caption(f"RSI: {result.get('rsi', '—')}")
-    with col2:
-        if result.get('rationale'):
-            st.write("Reasons:")
-            for r in result['rationale']:
-                st.write(f"• {r}")
+    # New scoring: Short-term trend, Long-term trend, Overbought/Oversold
+    st.markdown("---")
+    st.subheader("Trend & Overbought/Oversold Scores")
 
-    # Score breakdown table
-    if result.get('breakdown'):
-        st.subheader("Score Breakdown")
-        bdf = pd.DataFrame(result['breakdown'])
-        bdf = bdf.sort_values('contribution', ascending=False).reset_index(drop=True)
-        # Hide internal 'meta' column from end users
-        bdf = bdf.drop(columns=['meta'], errors='ignore')
-        st.dataframe(bdf, use_container_width=True)
-        # Waterfall and narrative
-        wf = score_waterfall(result)
-        st.plotly_chart(wf, use_container_width=True)
-        st.subheader("How this score was computed")
-        st.text(explain_score(ticker, result, ma_windows))
+    sts = compute_short_trend(df_calc)
+    # Long-term trend: optionally compute on weekly data from API (if selected)
+    lts_df = df_calc
+    if use_weekly_lts:
+        try:
+            # Try API weekly first (use a longer day window to ensure enough weeks)
+            weekly_api = get_cached_stock_data(ticker, days=int(calc_days * 2), resolution="W")
+            if weekly_api is not None and not weekly_api.empty and len(weekly_api) >= 50:
+                lts_df = weekly_api
+            else:
+                # Fallback: aggregate daily to weekly
+                d = df.copy()
+                d['tradingDate'] = pd.to_datetime(d['tradingDate'])
+                d = d.set_index('tradingDate').sort_index()
+                agg = d.resample('W-FRI').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna(how='any').reset_index().rename(columns={'tradingDate': 'tradingDate'})
+                if len(agg) >= 50:
+                    lts_df = agg
+        except Exception:
+            pass
+    lts = compute_long_trend(lts_df)
+    obos = compute_obos(df, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
+
+    def make_gauge(title: str, value: float, subtitle: str):
+        rng = [-100, 100]
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=value,
+            number={'suffix': ''},
+            title={'text': f"{title}<br><span style='font-size:0.8em;color:gray'>{subtitle}</span>", 'font': {'size': 14}},
+            gauge={
+                'axis': {'range': rng},
+                'bar': {'color': '#398278'},
+                'steps': [
+                    {'range': [-100, -40], 'color': 'rgba(204,124,94,0.25)'},
+                    {'range': [-40, 40], 'color': 'rgba(128,128,128,0.15)'},
+                    {'range': [40, 100], 'color': 'rgba(57,130,120,0.25)'}
+                ],
+            }
+        ))
+        fig.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10))
+        return fig
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.plotly_chart(make_gauge("Short-Term Trend", float(sts['score']), sts['regime']), use_container_width=True)
+        st.caption("Components: EMA20 vs EMA50, EMA20 slope, price vs EMA20, HH/HL")
+    with c2:
+        st.plotly_chart(make_gauge("Long-Term Trend", float(lts['score']), lts['regime']), use_container_width=True)
+        st.caption("Components: EMA50 vs SMA200, SMA200 slope, price vs SMA200, EMA50 slope")
+    with c3:
+        st.plotly_chart(make_gauge("Overbought/Oversold", float(obos['score']), obos['regime']), use_container_width=True)
+        st.caption("RSI core with MACD turn confirmation")
+    st.caption("Indicators are computed on extended history to stabilize EMA/SMA even on short display windows.")
+
+    # Component breakdowns
+    with st.expander("Details: Short-Term Trend components"):
+        st.json(sts['components'])
+    with st.expander("Details: Long-Term Trend components"):
+        st.json(lts['components'])
+    with st.expander("Details: OB/OS components"):
+        st.json(obos['components'])
 
     # Watchlist comparison
     st.markdown("---")
-    st.subheader("Watchlist Scores (signed)")
+    st.subheader("Watchlist Scores")
     watchlist = st.multiselect("Select additional tickers", options=[t for t in load_bank_tickers() if t != ticker], default=[], help="Compare scores using the same settings")
     if st.button("Compute Watchlist") and watchlist:
         rows = []
         for t in watchlist:
-            dfi = get_cached_stock_data(t, days)
+            dfi = get_cached_stock_data(t, calc_days)
             if dfi is not None and not dfi.empty:
-                res = rating_score(dfi, ma_type, ma_windows, rsi_len, macd_fast, macd_slow, macd_signal, stoch_k, stoch_d)
-                rows.append({"Ticker": t, "Score": float(res.get('score', 50)) - 50.0, "RSI": res.get('rsi', np.nan)})
+                _sts = compute_short_trend(dfi)
+                _lts = compute_long_trend(dfi)
+                _obos = compute_obos(dfi, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
+                rows.append({
+                    "Ticker": t,
+                    "STS": _sts.get('score', np.nan),
+                    "LTS": _lts.get('score', np.nan),
+                    "OBOS": _obos.get('score', np.nan),
+                })
         if rows:
-            table = pd.DataFrame(rows).sort_values("Score", ascending=False).reset_index(drop=True)
+            table = pd.DataFrame(rows).sort_values(["LTS", "STS"], ascending=False).reset_index(drop=True)
             st.dataframe(table, use_container_width=True)
 
 

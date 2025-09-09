@@ -6,8 +6,10 @@ import pandas as pd
 import requests
 from datetime import datetime, timedelta
 
-def fetch_historical_price(ticker: str, days: int = 365) -> pd.DataFrame:
-    """Fetch stock historical price and volume data from TCBS API"""
+def fetch_historical_price(ticker: str, days: int = 365, resolution: str = "D") -> pd.DataFrame:
+    """Fetch stock historical price and volume data from TCBS API.
+    resolution: "D" for daily (default). Other values like "W" may be supported by the API.
+    """
     
     # TCBS API endpoint for historical data
     url = "https://apipubaws.tcbs.com.vn/stock-insight/v1/stock/bars-long-term"
@@ -20,7 +22,7 @@ def fetch_historical_price(ticker: str, days: int = 365) -> pd.DataFrame:
     params = {
         "ticker": ticker,
         "type": "stock",
-        "resolution": "D",  # Daily data
+        "resolution": resolution,
         "from": str(from_timestamp),
         "to": str(to_timestamp)
     }
@@ -72,9 +74,9 @@ def fetch_historical_price(ticker: str, days: int = 365) -> pd.DataFrame:
         return None
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def get_cached_stock_data(ticker: str, days: int = 365) -> pd.DataFrame:
-    """Cached wrapper for fetch_historical_price to avoid excessive API calls"""
-    return fetch_historical_price(ticker, days)
+def get_cached_stock_data(ticker: str, days: int = 365, resolution: str = "D") -> pd.DataFrame:
+    """Cached wrapper to avoid excessive API calls."""
+    return fetch_historical_price(ticker, days, resolution)
 
 def Stock_price_plot(ticker: str):
     """Display candlestick chart with volume for a given ticker"""
