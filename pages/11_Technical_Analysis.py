@@ -544,19 +544,35 @@ def main():
                 ],
             }
         ))
-        fig.update_layout(height=200, margin=dict(l=10, r=10, t=36, b=8))
+        # Slightly increase height and top margin so text never collides
+        fig.update_layout(height=220, margin=dict(l=10, r=10, t=44, b=10))
         return fig
 
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("#### Short-Term Trend")
-        st.plotly_chart(make_gauge("Short-Term Trend", float(sts['score']), sts['regime']), use_container_width=True)
+        st.plotly_chart(
+            make_gauge("Short-Term Trend", float(sts['score']), sts['regime']),
+            use_container_width=True,
+            config={"displayModeBar": False, "displaylogo": False},
+            key=f"gauge_sts_{ticker}"
+        )
     with c2:
         st.markdown("#### Long-Term Trend")
-        st.plotly_chart(make_gauge("Long-Term Trend", float(lts['score']), lts['regime']), use_container_width=True)
+        st.plotly_chart(
+            make_gauge("Long-Term Trend", float(lts['score']), lts['regime']),
+            use_container_width=True,
+            config={"displayModeBar": False, "displaylogo": False},
+            key=f"gauge_lts_{ticker}"
+        )
     with c3:
         st.markdown("#### Overbought/Oversold")
-        st.plotly_chart(make_gauge("Overbought/Oversold", float(obos['score']), obos['regime']), use_container_width=True)
+        st.plotly_chart(
+            make_gauge("Overbought/Oversold", float(obos['score']), obos['regime']),
+            use_container_width=True,
+            config={"displayModeBar": False, "displaylogo": False},
+            key=f"gauge_obos_{ticker}"
+        )
 
     # Component breakdowns
     def explain_sts(e: dict) -> str:
