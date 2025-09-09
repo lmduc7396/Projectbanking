@@ -74,6 +74,86 @@ def _ema_rising(series: pd.Series, lookback: int = 3) -> bool:
     return bool(s.iloc[-1] > s.iloc[-lookback])
 
 
+def _auto_pull_params(df: pd.DataFrame, lts_score: float) -> dict:
+    """Auto-select swing detection parameters based on volatility and pivot density.
+    Returns dict(mode, threshold, atr_mult, scale, debug)
+    """
+    d = df.copy()
+    d['date'] = pd.to_datetime(d['tradingDate'])
+    close = pd.to_numeric(d['close'], errors='coerce')
+    high = pd.to_numeric(d.get('high', close), errors='coerce')
+    low = pd.to_numeric(d.get('low', close), errors='coerce')
+    atr = compute_atr(high, low, close)
+    atr_pct = (atr / close.replace(0, np.nan)).fillna(0) * 100.0
+    atr_med = float(atr_pct.iloc[-60:].median()) if len(atr_pct) >= 10 else float(atr_pct.median())
+
+    # Candidate thresholds to target 3-10 legs window
+    candidates = [4.0, 5.0, 6.0, 7.0]
+    best = None
+    best_score = -1
+
+    def eval_params(scale: str, mode: str, thr: float, atrx: float) -> tuple:
+        # Build series for the given scale
+        if scale == 'weekly':
+            dw = d.set_index('date').sort_index().resample('W-FRI').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum'}).dropna(how='any').reset_index()
+            c = pd.to_numeric(dw['close'], errors='coerce'); h = pd.to_numeric(dw['high'], errors='coerce'); l = pd.to_numeric(dw['low'], errors='coerce')
+            a = compute_atr(h, l, c)
+            piv = _zigzag_swings(c, h, l, mode=mode, threshold=thr, atr_series=a, atr_mult=atrx, max_lookback=250, min_swing_bars=2)
+        else:
+            c = close; h = high; l = low; a = atr
+            piv = _zigzag_swings(c, h, l, mode=mode, threshold=thr, atr_series=a, atr_mult=atrx, max_lookback=250, min_swing_bars=5)
+        # Count confirmed legs
+        up = dn = 0
+        for i in range(len(piv)-1):
+            a, b = piv[i], piv[i+1]
+            if not (a.get('confirmed') and b.get('confirmed')):
+                continue
+            if a['type']=='L' and b['type']=='H':
+                # quick size/duration checks could be added
+                up += 1
+            elif a['type']=='H' and b['type']=='L':
+                dn += 1
+        legs = up + dn
+        return legs, up, dn
+
+    # Decide base mode by volatility
+    base_mode = 'percent'
+    atr_mult = 3.0
+    if atr_med >= 3.0:
+        base_mode = 'atrx'
+        # more volatile -> slightly higher multiple to avoid noise
+        atr_mult = 3.0 if atr_med < 4.5 else 3.5
+
+    # Evaluate daily first
+    for thr in candidates:
+        legs, up, dn = eval_params('daily', 'percent' if base_mode=='percent' else 'atrx', thr, atr_mult)
+        # Score: prefer 3-8 legs, light bias to 4-6
+        if 3 <= legs <= 8:
+            score = 10 - abs(5 - legs)
+        else:
+            score = max(0, 8 - abs(5 - legs))
+        if score > best_score:
+            best_score = score
+            best = {'mode': 'percent' if base_mode=='percent' else 'atrx', 'threshold': thr, 'atr_mult': atr_mult, 'scale': 'daily', 'legs': legs}
+
+    # If too noisy or too few legs, try weekly
+    if best is None or best['legs'] < 2 or best['legs'] > 12:
+        for thr in candidates:
+            legs, up, dn = eval_params('weekly', 'percent' if base_mode=='percent' else 'atrx', thr, atr_mult)
+            if 2 <= legs <= 8:
+                score = 10 - abs(4 - legs)
+            else:
+                score = max(0, 8 - abs(4 - legs))
+            if score > best_score:
+                best_score = score
+                best = {'mode': 'percent' if base_mode=='percent' else 'atrx', 'threshold': thr, 'atr_mult': atr_mult, 'scale': 'weekly', 'legs': legs}
+
+    if best is None:
+        best = {'mode': 'percent', 'threshold': 5.0, 'atr_mult': 3.0, 'scale': 'daily', 'legs': 0}
+    best['debug'] = {'atr_med_pct': atr_med, 'score': best_score}
+    return best
+
+
 def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int = 14) -> pd.Series:
     h = pd.to_numeric(high, errors='coerce').fillna(method='ffill')
     l = pd.to_numeric(low, errors='coerce').fillna(method='ffill')
@@ -123,7 +203,7 @@ def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str 
             dd = extreme_price_high - l.iloc[i]
             if dd >= thresh_at(extreme_idx, extreme_price_high) and (i - last_pivot_idx) >= min_swing_bars:
                 # Confirm swing high at extreme_idx
-                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_high), 'type': 'H'})
+                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_high), 'type': 'H', 'confirmed': True})
                 last_pivot_idx = extreme_idx
                 curr_trend = -1
                 # Reset extreme for downswing
@@ -137,7 +217,7 @@ def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str 
             bu = h.iloc[i] - extreme_price_low
             if bu >= thresh_at(extreme_idx, extreme_price_low) and (i - last_pivot_idx) >= min_swing_bars:
                 # Confirm swing low at extreme_idx
-                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_low), 'type': 'L'})
+                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_low), 'type': 'L', 'confirmed': True})
                 last_pivot_idx = extreme_idx
                 curr_trend = +1
                 # Reset extreme for upswing
@@ -146,9 +226,9 @@ def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str 
 
     # Append the last tracked extreme as current running pivot for context
     if curr_trend >= 0:
-        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_high), 'type': 'H'})
+        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_high), 'type': 'H', 'confirmed': False})
     else:
-        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_low), 'type': 'L'})
+        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_low), 'type': 'L', 'confirmed': False})
 
     # Deduplicate by idx and sort
     pivots = sorted({p['idx']: p for p in pivots}.values(), key=lambda x: x['idx'])
@@ -156,7 +236,7 @@ def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str 
 
 
 def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent', threshold: float = 5.0,
-                        atr_mult: float = 3.0, leg_mode: str = 'auto') -> dict:
+                        atr_mult: float = 3.0, leg_mode: str = 'auto', detect_scale: str = 'daily') -> dict:
     """
     Compute pullback/extension score and details based on last leg using ZigZag swings.
     Returns {score, details, overlay}.
@@ -173,26 +253,58 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
     ema50 = compute_ema(close, 50)
     atr = compute_atr(high, low, close)
     atr_pct = (atr / close.replace(0, np.nan)).fillna(0) * 100.0
-    # Swings
-    swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250, min_swing_bars=5)
+    # Optionally detect swings on weekly-aggregated data for robustness
+    use_weekly = (detect_scale.lower() == 'weekly')
+    if use_weekly:
+        dw = d.set_index('date').sort_index().resample('W-FRI').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum'}).dropna(how='any').reset_index()
+        wc = pd.to_numeric(dw['close'], errors='coerce')
+        wh = pd.to_numeric(dw['high'], errors='coerce')
+        wl = pd.to_numeric(dw['low'], errors='coerce')
+        w_atr = compute_atr(wh, wl, wc)
+        swings = _zigzag_swings(wc, wh, wl, mode=mode, threshold=threshold, atr_series=w_atr, atr_mult=atr_mult, max_lookback=250, min_swing_bars=2)
+        date_index = dw['date']
+        # helper to map weekly idx to nearest daily idx
+        def map_idx(w_idx: int) -> int:
+            wdt = date_index.iloc[w_idx]
+            # nearest daily index <= wdt
+            mask = d['date'] <= wdt
+            if not mask.any():
+                return 0
+            return int(mask[mask].index[-1])
+    else:
+        swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250, min_swing_bars=5)
     if len(swings) < 2:
         return {"score": 0.0, "details": "Not enough swings to determine last leg", "overlay": None}
 
     # Build sequential legs from swings
-    up_legs = []  # tuples: (dir, L_idx, L_price, H_idx, H_price, move_pct, bars)
-    dn_legs = []  # tuples: (dir, H_idx, H_price, L_idx, L_price, move_pct, bars)
+    up_legs = []  # tuples: (dir, L_idx, L_price, H_idx, H_price, move_pct_close, bars)
+    dn_legs = []  # tuples: (dir, H_idx, H_price, L_idx, L_price, move_pct_close, bars)
     for i in range(len(swings) - 1):
         a, b = swings[i], swings[i+1]
+        # Only use confirmed pivot pairs
+        if not (a.get('confirmed') and b.get('confirmed')):
+            continue
         if a['type'] == 'L' and b['type'] == 'H':
-            L_idx, Lp = a['idx'], float(a['price'])
-            H_idx, Hp = b['idx'], float(b['price'])
-            move_pct = (Hp / max(1e-9, Lp) - 1.0) * 100.0
+            if use_weekly:
+                L_idx = map_idx(a['idx'])
+                H_idx = map_idx(b['idx'])
+                Lp = float(close.iloc[L_idx]); Hp = float(close.iloc[H_idx])
+            else:
+                L_idx, Lp = a['idx'], float(a['price'])
+                H_idx, Hp = b['idx'], float(b['price'])
+            # Use close-to-close for explanatory move percentage
+            move_pct = (float(close.iloc[H_idx]) / max(1e-9, float(close.iloc[L_idx])) - 1.0) * 100.0
             bars = max(1, H_idx - L_idx)
             up_legs.append(('up', L_idx, Lp, H_idx, Hp, move_pct, bars))
         elif a['type'] == 'H' and b['type'] == 'L':
-            H_idx, Hp = a['idx'], float(a['price'])
-            L_idx, Lp = b['idx'], float(b['price'])
-            move_pct = (1.0 - Lp / max(1e-9, Hp)) * 100.0
+            if use_weekly:
+                H_idx = map_idx(a['idx'])
+                L_idx = map_idx(b['idx'])
+                Hp = float(close.iloc[H_idx]); Lp = float(close.iloc[L_idx])
+            else:
+                H_idx, Hp = a['idx'], float(a['price'])
+                L_idx, Lp = b['idx'], float(b['price'])
+            move_pct = (1.0 - float(close.iloc[L_idx]) / max(1e-9, float(close.iloc[H_idx]))) * 100.0
             bars = max(1, L_idx - H_idx)
             dn_legs.append(('down', H_idx, Hp, L_idx, Lp, move_pct, bars))
 
@@ -269,8 +381,11 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
 
     direction, P0_idx, P0, P1_idx, P1 = chosen
 
-    # Leg metrics
-    move_pct = (P1 / P0 - 1.0) * 100.0 if direction == 'up' else (1.0 - P1 / P0) * 100.0
+    # Leg metrics (use closes for explanatory move percentage)
+    if direction == 'up':
+        move_pct = (float(close.iloc[P1_idx]) / max(1e-9, float(close.iloc[P0_idx])) - 1.0) * 100.0
+    else:
+        move_pct = (1.0 - float(close.iloc[P1_idx]) / max(1e-9, float(close.iloc[P0_idx]))) * 100.0
     bars_in_leg = max(1, P1_idx - P0_idx)
     curr = float(close.iloc[-1])
     bars_since = max(0, len(close) - 1 - P1_idx)
@@ -545,7 +660,7 @@ def _rsi_core_score(rsi_value: float) -> float:
 
 def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9,
                  lts_score: float | None = None, pullback_enabled: bool = True, pull_mode: str = 'percent', pull_threshold: float = 5.0,
-                 pull_atr_mult: float = 3.0) -> dict:
+                 pull_atr_mult: float = 3.0, pull_scale: str = 'daily') -> dict:
     """
     Overbought/Oversold score [-100, 100]
     - RSI core mapped to [-70, +70]
@@ -578,7 +693,7 @@ def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_
     pull_detail = None
     pull_overlay = None
     if pullback_enabled:
-        pb = _pullback_component(df, lts_score if lts_score is not None else 0.0, mode=pull_mode, threshold=pull_threshold, atr_mult=pull_atr_mult)
+        pb = _pullback_component(df, lts_score if lts_score is not None else 0.0, mode=pull_mode, threshold=pull_threshold, atr_mult=pull_atr_mult, detect_scale=pull_scale)
         pull_score = float(pb.get('score', 0.0))
         pull_detail = pb.get('details')
         pull_overlay = pb.get('overlay')
@@ -825,10 +940,13 @@ def main():
         st.markdown("---")
         st.caption("OB/OS Pullback Component")
         enable_pullback = st.checkbox("Enable Pullback/Extension", value=st.session_state.get('ta_enable_pullback', True))
-        pull_mode = st.selectbox("Swing Threshold Mode", options=["percent", "atrx"], index=0 if st.session_state.get('ta_pull_mode', 'percent')=='percent' else 1, help="Use % change or ATR multiple to detect swings")
-        pull_threshold = st.number_input("Threshold % (if percent)", min_value=1.0, max_value=15.0, value=float(st.session_state.get('ta_pull_threshold', 5.0)), step=0.5)
-        pull_atr_mult = st.number_input("ATR multiple (if ATRx)", min_value=1.0, max_value=6.0, value=float(st.session_state.get('ta_pull_atr_mult', 3.0)), step=0.5)
-        show_fib = st.checkbox("Show Fib overlay", value=st.session_state.get('ta_show_fib', False))
+        auto_pull = st.checkbox("Auto pullback detection (recommended)", value=st.session_state.get('ta_auto_pull', True))
+        with st.expander("Advanced pullback settings"):
+            pull_mode = st.selectbox("Swing Threshold Mode", options=["percent", "atrx"], index=0 if st.session_state.get('ta_pull_mode', 'percent')=='percent' else 1, help="Use % change or ATR multiple to detect swings")
+            pull_threshold = st.number_input("Threshold % (if percent)", min_value=1.0, max_value=15.0, value=float(st.session_state.get('ta_pull_threshold', 5.0)), step=0.5)
+            pull_atr_mult = st.number_input("ATR multiple (if ATRx)", min_value=1.0, max_value=6.0, value=float(st.session_state.get('ta_pull_atr_mult', 3.0)), step=0.5)
+            pull_scale = st.selectbox("Swing detection scale", options=["daily","weekly"], index=0 if st.session_state.get('ta_pull_scale','daily')=='daily' else 1, help="Detect swings on daily or weekly-aggregated data")
+            show_fib = st.checkbox("Show Fib overlay", value=st.session_state.get('ta_show_fib', False))
         st.markdown("---")
         show_stoch = st.checkbox("Show Stochastic", value=st.session_state.get('ta_show_stoch', False))
         stoch_k = st.number_input("Stoch %K Length", min_value=5, max_value=30, value=st.session_state.get('ta_stoch_k', 14))
@@ -849,9 +967,11 @@ def main():
         st.session_state['ta_macd_slow'] = macd_slow
         st.session_state['ta_macd_signal'] = macd_signal
         st.session_state['ta_enable_pullback'] = enable_pullback
+        st.session_state['ta_auto_pull'] = auto_pull
         st.session_state['ta_pull_mode'] = pull_mode
         st.session_state['ta_pull_threshold'] = pull_threshold
         st.session_state['ta_pull_atr_mult'] = pull_atr_mult
+        st.session_state['ta_pull_scale'] = pull_scale
         st.session_state['ta_show_fib'] = show_fib
         st.session_state['ta_show_stoch'] = show_stoch
         st.session_state['ta_stoch_k'] = stoch_k
@@ -894,7 +1014,21 @@ def main():
         except Exception:
             pass
     lts = compute_long_trend(lts_df)
-    pull_mode_eff = 'percent' if (st.session_state.get('ta_pull_mode', 'percent') == 'percent') else 'atrx'
+    # Auto or manual pullback params
+    if bool(st.session_state.get('ta_auto_pull', True)):
+        auto = _auto_pull_params(df_calc, float(lts.get('score', 0.0)))
+        pull_mode_eff = auto['mode']
+        pull_threshold_eff = auto['threshold']
+        pull_atr_mult_eff = auto['atr_mult']
+        pull_scale_eff = auto['scale']
+        pull_debug = auto.get('debug', {})
+    else:
+        pull_mode_eff = 'percent' if (st.session_state.get('ta_pull_mode', 'percent') == 'percent') else 'atrx'
+        pull_threshold_eff = float(st.session_state.get('ta_pull_threshold', 5.0))
+        pull_atr_mult_eff = float(st.session_state.get('ta_pull_atr_mult', 3.0))
+        pull_scale_eff = str(st.session_state.get('ta_pull_scale', 'daily'))
+        pull_debug = {}
+
     obos = compute_obos(
         df_calc,
         rsi_len=rsi_len,
@@ -904,8 +1038,9 @@ def main():
         lts_score=float(lts.get('score', 0.0)),
         pullback_enabled=bool(st.session_state.get('ta_enable_pullback', True)),
         pull_mode=pull_mode_eff,
-        pull_threshold=float(st.session_state.get('ta_pull_threshold', 5.0)),
-        pull_atr_mult=float(st.session_state.get('ta_pull_atr_mult', 3.0)),
+        pull_threshold=pull_threshold_eff,
+        pull_atr_mult=pull_atr_mult_eff,
+        pull_scale=pull_scale_eff,
     )
 
     # Render chart and indicators (compute indicators on extended history). Add optional fib overlay.
@@ -985,6 +1120,9 @@ def main():
             config={"displayModeBar": False, "displaylogo": False},
             key=f"gauge_obos_{ticker}"
         )
+    if bool(st.session_state.get('ta_enable_pullback', True)) and bool(st.session_state.get('ta_auto_pull', True)):
+        suffix = '%' if (pull_mode_eff == 'percent') else 'x ATR'
+        st.caption(f"Auto pullback: mode={pull_mode_eff}, threshold={pull_threshold_eff:.1f}{suffix}, scale={pull_scale_eff}.")
 
     # Component breakdowns
     def explain_sts(e: dict) -> str:
