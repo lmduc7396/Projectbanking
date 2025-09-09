@@ -141,7 +141,7 @@ def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str 
 
 
 def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent', threshold: float = 5.0,
-                        atr_mult: float = 3.0) -> dict:
+                        atr_mult: float = 3.0, leg_mode: str = 'auto') -> dict:
     """
     Compute pullback/extension score and details based on last leg using ZigZag swings.
     Returns {score, details, overlay}.
@@ -162,29 +162,72 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
     swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250)
     if len(swings) < 2:
         return {"score": 0.0, "details": "Not enough swings to determine last leg", "overlay": None}
-    # Determine last pivot and preceding pivot
-    last_pivot = swings[-1]
-    prev_pivot = swings[-2]
-    # Determine leg direction and endpoints
-    if last_pivot['type'] == 'H':
-        # Up leg from previous L to last H if possible
-        # Find the nearest prior L before last H
-        prior_lows = [p for p in swings[:-1] if p['type'] == 'L' and p['idx'] < last_pivot['idx']]
-        if not prior_lows:
-            return {"score": 0.0, "details": "No prior swing low for last high", "overlay": None}
-        base_pivot = prior_lows[-1]
-        P0_idx, P0 = base_pivot['idx'], base_pivot['price']
-        P1_idx, P1 = last_pivot['idx'], last_pivot['price']
-        direction = 'up'
+
+    # Helpers to find most recent up/down legs
+    def last_up_leg():
+        highs = [p for p in swings if p['type'] == 'H']
+        if not highs:
+            return None
+        last_h = highs[-1]
+        lows_before = [p for p in swings if p['type'] == 'L' and p['idx'] < last_h['idx']]
+        if not lows_before:
+            return None
+        last_l_before = lows_before[-1]
+        return ('up', last_l_before['idx'], float(last_l_before['price']), last_h['idx'], float(last_h['price']))
+
+    def last_down_leg():
+        lows = [p for p in swings if p['type'] == 'L']
+        if not lows:
+            return None
+        last_l = lows[-1]
+        highs_before = [p for p in swings if p['type'] == 'H' and p['idx'] < last_l['idx']]
+        if not highs_before:
+            return None
+        last_h_before = highs_before[-1]
+        return ('down', last_h_before['idx'], float(last_h_before['price']), last_l['idx'], float(last_l['price']))
+
+    up_leg = last_up_leg()
+    dn_leg = last_down_leg()
+    if up_leg is None and dn_leg is None:
+        return {"score": 0.0, "details": "No valid legs found", "overlay": None}
+
+    # Decide which leg to use
+    leg_reason = "latest"
+    chosen = None
+    if leg_mode == 'up' and up_leg is not None:
+        chosen = up_leg; leg_reason = 'forced_up'
+    elif leg_mode == 'down' and dn_leg is not None:
+        chosen = dn_leg; leg_reason = 'forced_down'
+    elif leg_mode == 'auto':
+        if lts_score >= 20 and up_leg is not None:
+            chosen = up_leg; leg_reason = 'regime_up'
+        elif lts_score <= -20 and dn_leg is not None:
+            chosen = dn_leg; leg_reason = 'regime_down'
+        else:
+            # neutral: choose the most recent leg end
+            if up_leg and dn_leg:
+                chosen = up_leg if up_leg[3] >= dn_leg[3] else dn_leg
+            else:
+                chosen = up_leg or dn_leg
+            leg_reason = 'latest_neutral'
+        # Sanity guard: override based on most recent bar behavior vs EMA20
+        if chosen and leg_reason.startswith('regime'):
+            recent = close.diff().iloc[-5:]
+            ema20_last = float(ema20.iloc[-1])
+            if lts_score >= 20:
+                if (recent.lt(0).sum() >= 3) and (float(close.iloc[-1]) <= ema20_last) and up_leg is not None:
+                    chosen = up_leg; leg_reason = 'override_pullback_up'
+            elif lts_score <= -20:
+                if (recent.gt(0).sum() >= 3) and (float(close.iloc[-1]) >= ema20_last) and dn_leg is not None:
+                    chosen = dn_leg; leg_reason = 'override_bounce_down'
     else:
-        # Down leg from previous H to last L
-        prior_highs = [p for p in swings[:-1] if p['type'] == 'H' and p['idx'] < last_pivot['idx']]
-        if not prior_highs:
-            return {"score": 0.0, "details": "No prior swing high for last low", "overlay": None}
-        base_pivot = prior_highs[-1]
-        P0_idx, P0 = base_pivot['idx'], base_pivot['price']
-        P1_idx, P1 = last_pivot['idx'], last_pivot['price']
-        direction = 'down'
+        # latest
+        if up_leg and dn_leg:
+            chosen = up_leg if up_leg[3] >= dn_leg[3] else dn_leg
+        else:
+            chosen = up_leg or dn_leg
+
+    direction, P0_idx, P0, P1_idx, P1 = chosen
 
     # Leg metrics
     move_pct = (P1 / P0 - 1.0) * 100.0 if direction == 'up' else (1.0 - P1 / P0) * 100.0
@@ -310,7 +353,10 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
         'end_date': d['date'].iloc[P1_idx],
         'start_price': float(P0),
         'end_price': float(P1),
-        'fib_prices': {k: float(v) for k, v in fib_prices.items()}
+        'fib_prices': {k: float(v) for k, v in fib_prices.items()},
+        'leg_mode': leg_mode,
+        'leg_reason': leg_reason,
+        'lts_score': float(lts_score),
     }
 
     # Build explanation string
@@ -318,12 +364,12 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
         retr = float(np.clip((P1 - curr) / max(1e-9, (P1 - P0)), 0.0, 1.5))
         retr_pct = retr * 100.0
         zone = '(<23.6%)' if retr < 0.236 else '(23.6–38.2%)' if retr < 0.382 else '(38.2–50%)' if retr < 0.5 else '(50–61.8%)' if retr < 0.618 else '(61.8–78.6%)' if retr < 0.786 else '(>78.6%)'
-        detail = f"Last up-leg: +{move_pct:.1f}% over {bars_in_leg} bars. Retracement {retr_pct:.1f}% {zone} → base {base_points:+.0f}. Guard {guard_scale:.2f}, time {time_scale:.2f}, stretch {stretch_pts:+.1f}, volume {pullback_vol_adj:+.1f}."
+        detail = f"Regime-aware ({leg_reason}): Last up-leg +{move_pct:.1f}% over {bars_in_leg} bars. Retracement {retr_pct:.1f}% {zone} → base {base_points:+.0f}. Guard {guard_scale:.2f}, time {time_scale:.2f}, stretch {stretch_pts:+.1f}, volume {pullback_vol_adj:+.1f}."
     else:
         ext = float(np.clip((curr - P1) / max(1e-9, (P0 - P1)), 0.0, 1.5))
         ext_pct = ext * 100.0
         zone = '(<23.6%)' if ext < 0.236 else '(23.6–38.2%)' if ext < 0.382 else '(38.2–50%)' if ext < 0.5 else '(50–61.8%)' if ext < 0.618 else '(61.8–78.6%)' if ext < 0.786 else '(>78.6%)'
-        detail = f"Last down-leg: -{move_pct:.1f}% over {bars_in_leg} bars. Bounce extension {ext_pct:.1f}% {zone} → base {base_points:+.0f}. Guard {guard_scale:.2f}, time {time_scale:.2f}, stretch {stretch_pts:+.1f}, volume {pullback_vol_adj:+.1f}."
+        detail = f"Regime-aware ({leg_reason}): Last down-leg -{move_pct:.1f}% over {bars_in_leg} bars. Bounce extension {ext_pct:.1f}% {zone} → base {base_points:+.0f}. Guard {guard_scale:.2f}, time {time_scale:.2f}, stretch {stretch_pts:+.1f}, volume {pullback_vol_adj:+.1f}."
 
     return {"score": round(component, 1), "details": detail, "overlay": overlay}
 
