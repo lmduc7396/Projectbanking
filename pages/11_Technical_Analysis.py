@@ -410,7 +410,8 @@ def render_chart(df_display: pd.DataFrame, ticker: str, ma_type: str, ma_windows
     tickvals = [dfx['x'].iloc[i] for i in range(0, len(dfx), tick_interval)]
     ticktext = tickvals
 
-    fig.update_layout(height=900 if (show_macd or show_stoch) else 760, showlegend=True, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1), hovermode='x unified', xaxis_rangeslider_visible=False)
+    # Slightly smaller overall chart height
+    fig.update_layout(height=780 if (show_macd or show_stoch) else 620, showlegend=True, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1), hovermode='x unified', xaxis_rangeslider_visible=False)
     fig.update_yaxes(title_text='Price (VND)', row=1, col=1, tickformat=',.0f')
     fig.update_yaxes(title_text='Volume', row=2, col=1, tickformat=',.0f')
     fig.update_yaxes(title_text='RSI', row=3, col=1, range=[0, 100])
@@ -520,14 +521,22 @@ def main():
 
     def make_gauge(title: str, value: float, subtitle: str):
         rng = [-100, 100]
+        # Dynamic bar color by regime/sign
+        def bar_color(val: float, sub: str) -> str:
+            sub = (sub or '').lower()
+            if 'range' in sub or 'neutral' in sub:
+                return '#D4A017'  # warm yellow for neutral
+            if val >= 0:
+                return '#398278'  # green
+            return '#cc7c5e'      # terracotta red
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=value,
             number={'suffix': ''},
-            title={'text': f"{subtitle}", 'font': {'size': 18}},
+            title={'text': f"{subtitle}", 'font': {'size': 16}},
             gauge={
                 'axis': {'range': rng},
-                'bar': {'color': '#398278'},
+                'bar': {'color': bar_color(value, subtitle)},
                 'steps': [
                     {'range': [-100, -40], 'color': 'rgba(204,124,94,0.25)'},
                     {'range': [-40, 40], 'color': 'rgba(128,128,128,0.15)'},
@@ -535,18 +544,18 @@ def main():
                 ],
             }
         ))
-        fig.update_layout(height=220, margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_layout(height=200, margin=dict(l=10, r=10, t=36, b=8))
         return fig
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.subheader("Short-Term Trend")
+        st.markdown("#### Short-Term Trend")
         st.plotly_chart(make_gauge("Short-Term Trend", float(sts['score']), sts['regime']), use_container_width=True)
     with c2:
-        st.subheader("Long-Term Trend")
+        st.markdown("#### Long-Term Trend")
         st.plotly_chart(make_gauge("Long-Term Trend", float(lts['score']), lts['regime']), use_container_width=True)
     with c3:
-        st.subheader("Overbought/Oversold")
+        st.markdown("#### Overbought/Oversold")
         st.plotly_chart(make_gauge("Overbought/Oversold", float(obos['score']), obos['regime']), use_container_width=True)
 
     # Component breakdowns
