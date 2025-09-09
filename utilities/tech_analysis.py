@@ -88,8 +88,35 @@ def compute_short_trend(df: pd.DataFrame) -> Dict:
         price_pos = -25.0
     else:
         price_pos = 0.0
-    # Simple structure: HH/HL vs LH/LL via last two fractals (fallback 0)
-    structure = 0.0
+
+    # Structure via simple 3-bar fractal swings: HH/HL -> +20; LH/LL -> -20; else 0
+    def _detect_structure(high_s: pd.Series, low_s: pd.Series, window: int = 3, max_lookback: int = 80) -> int:
+        h = pd.Series(high_s).astype(float)
+        l = pd.Series(low_s).astype(float)
+        if len(h) < window * 2 + 1:
+            return 0
+        start = max(0, len(h) - max_lookback)
+        idx = range(start + window, len(h) - window)
+        swing_highs = []
+        swing_lows = []
+        for i in idx:
+            if h.iloc[i] == h.iloc[i - window:i + window + 1].max():
+                swing_highs.append((i, h.iloc[i]))
+            if l.iloc[i] == l.iloc[i - window:i + window + 1].min():
+                swing_lows.append((i, l.iloc[i]))
+        if len(swing_highs) < 2 or len(swing_lows) < 2:
+            return 0
+        h1, h2 = swing_highs[-1][1], swing_highs[-2][1]
+        l1, l2 = swing_lows[-1][1], swing_lows[-2][1]
+        if (h1 > h2) and (l1 > l2):
+            return +1
+        if (h1 < h2) and (l1 < l2):
+            return -1
+        return 0
+
+    structure_flag = _detect_structure(high, low, window=3, max_lookback=80)
+    structure = 20.0 if structure_flag > 0 else -20.0 if structure_flag < 0 else 0.0
+
     score = float(np.clip(ma_align + slope + price_pos + structure, -100.0, 100.0))
     regime = "Uptrend" if score >= 20 else "Downtrend" if score <= -20 else "Range"
     return {"score": round(score, 1), "regime": regime}
@@ -185,4 +212,3 @@ def analyze_tickers(tickers, days: int = 365) -> Dict:
         except Exception as e:
             results[t] = {"status": "failed", "error": str(e)}
     return {"results": results, "requested": len(tickers), "status": "success"}
-
