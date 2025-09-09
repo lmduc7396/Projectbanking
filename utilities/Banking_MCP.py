@@ -16,6 +16,7 @@ import requests
 from datetime import datetime, timedelta
 from functools import lru_cache
 import os
+from .tech_analysis import analyze_tickers
 
 
 class BankingToolSystem:
@@ -997,6 +998,20 @@ class BankingToolSystem:
                     "total_banks": len([b for b in bank_types['TICKER'] if b not in sector_names]),
                     "status": "success"
                 }
+
+        # Tool: Technical Analysis (STS/LTS/OBOS)
+        @self.tool(
+            name="technical_analysis",
+            description="Compute technical scores (Short-Term Trend, Long-Term Trend, Overbought/Oversold) for tickers.",
+            parameters={
+                "tickers": {"type": "array", "items": {"type": "string"}, "description": "Array of tickers", "required": True}
+            }
+        )
+        def technical_analysis(tickers: list) -> Dict:
+            tickers = [str(t).upper() for t in tickers or []]
+            if not tickers:
+                return {"status": "failed", "error": "No tickers provided"}
+            return analyze_tickers(tickers, days=365)
             
             # Convert single ticker to list for uniform processing
             if isinstance(tickers, str):
