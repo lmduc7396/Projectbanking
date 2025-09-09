@@ -395,13 +395,14 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
         denom = max(1e-9, (P1 - P0))
         retr = float((P1 - curr) / denom)
         retr = float(np.clip(retr, 0.0, 1.5))
+        # Tuned weights: reward 23.6–38.2% more, reduce reward beyond 61.8%
         base_points = (
             2 if retr < 0.236 else
-            8 if retr < 0.382 else
-            16 if retr < 0.5 else
-            22 if retr < 0.618 else
-            26 if retr < 0.786 else
-            18
+            12 if retr < 0.382 else
+            18 if retr < 0.5 else
+            20 if retr < 0.618 else
+            14 if retr < 0.786 else
+            6
         )
         component_sign = +1
         fib_prices = {
@@ -415,13 +416,14 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
         denom = max(1e-9, (P0 - P1))
         ext = float((curr - P1) / denom)
         ext = float(np.clip(ext, 0.0, 1.5))
+        # Mirror tuning for bounce extensions in down legs
         base_points = -(
             2 if ext < 0.236 else
-            8 if ext < 0.382 else
-            16 if ext < 0.5 else
-            22 if ext < 0.618 else
-            26 if ext < 0.786 else
-            18
+            12 if ext < 0.382 else
+            18 if ext < 0.5 else
+            20 if ext < 0.618 else
+            14 if ext < 0.786 else
+            6
         )
         component_sign = -1
         fib_prices = {
