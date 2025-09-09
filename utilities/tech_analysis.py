@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Dict
+from typing import Dict, Optional
 from .stock_candle import get_cached_stock_data
 
 
@@ -169,9 +169,241 @@ def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_
         macd_shift = 20.0
     elif (rsi_last > 60 and (hist_falling or recent_cross_dn)):
         macd_shift = -20.0
-    score = float(np.clip(rsi_core + macd_shift, -100.0, 100.0))
+    base = rsi_core + macd_shift
+    # Note: Pullback/extension component is handled in compute_obos_with_pullback to keep this fast.
+    score = float(np.clip(base, -100.0, 100.0))
     regime = "Bullish OS" if score >= 40 else "Bearish OB" if score <= -40 else "Neutral"
     return {"score": round(score, 1), "regime": regime}
+
+
+# --- Pullback/Extension logic (trimmed & aligned with page) ---
+def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str = 'percent', threshold: float = 5.0,
+                   atr_series: Optional[pd.Series] = None, atr_mult: float = 3.0, max_lookback: int = 250,
+                   min_swing_bars: int = 5):
+    c = pd.Series(close)
+    h = pd.Series(high)
+    l = pd.Series(low)
+    n = len(c)
+    if n < 5:
+        return []
+    start = max(0, n - max_lookback)
+    pivots = []
+    idx0 = start
+    last_pivot_idx = idx0
+    curr_trend = 0
+    extreme_idx = idx0
+    extreme_high = h.iloc[idx0]
+    extreme_low = l.iloc[idx0]
+
+    def thresh_at(i_ref: int, price_ref: float) -> float:
+        if mode == 'percent':
+            return abs(price_ref) * (threshold / 100.0)
+        a = atr_series.iloc[i_ref] if atr_series is not None else 0.0
+        return a * atr_mult
+
+    for i in range(start + 1, n):
+        if curr_trend >= 0:
+            if h.iloc[i] >= extreme_high:
+                extreme_high = h.iloc[i]
+                extreme_idx = i
+            dd = extreme_high - l.iloc[i]
+            if dd >= thresh_at(extreme_idx, extreme_high) and (i - last_pivot_idx) >= min_swing_bars:
+                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_high), 'type': 'H', 'confirmed': True})
+                last_pivot_idx = extreme_idx
+                curr_trend = -1
+                extreme_idx = i
+                extreme_low = l.iloc[i]
+        if curr_trend <= 0:
+            if l.iloc[i] <= extreme_low:
+                extreme_low = l.iloc[i]
+                extreme_idx = i
+            bu = h.iloc[i] - extreme_low
+            if bu >= thresh_at(extreme_idx, extreme_low) and (i - last_pivot_idx) >= min_swing_bars:
+                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_low), 'type': 'L', 'confirmed': True})
+                last_pivot_idx = extreme_idx
+                curr_trend = +1
+                extreme_idx = i
+                extreme_high = h.iloc[i]
+
+    if curr_trend >= 0:
+        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_high), 'type': 'H', 'confirmed': False})
+    else:
+        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_low), 'type': 'L', 'confirmed': False})
+
+    pivots = sorted({p['idx']: p for p in pivots}.values(), key=lambda x: x['idx'])
+    return pivots
+
+
+def _auto_pull_params(df: pd.DataFrame, lts_score: float) -> dict:
+    d = df.copy()
+    d['date'] = pd.to_datetime(d['tradingDate'])
+    close = pd.to_numeric(d['close'], errors='coerce')
+    high = pd.to_numeric(d.get('high', close), errors='coerce')
+    low = pd.to_numeric(d.get('low', close), errors='coerce')
+    atr = compute_atr(high, low, close)
+    atr_pct = (atr / close.replace(0, np.nan)).fillna(0) * 100.0
+    atr_med = float(atr_pct.iloc[-60:].median()) if len(atr_pct) >= 10 else float(atr_pct.median())
+    candidates = [4.0, 5.0, 6.0, 7.0]
+    best = None; best_score = -1
+
+    def eval_params(scale: str, mode: str, thr: float, atrx: float) -> int:
+        if scale == 'weekly':
+            dw = d.set_index('date').sort_index().resample('W-FRI').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum'}).dropna(how='any').reset_index()
+            c = pd.to_numeric(dw['close'], errors='coerce'); h = pd.to_numeric(dw['high'], errors='coerce'); l = pd.to_numeric(dw['low'], errors='coerce')
+            a = compute_atr(h, l, c)
+            piv = _zigzag_swings(c, h, l, mode=mode, threshold=thr, atr_series=a, atr_mult=atrx, max_lookback=250, min_swing_bars=2)
+        else:
+            c = close; h = high; l = low; a = atr
+            piv = _zigzag_swings(c, h, l, mode=mode, threshold=thr, atr_series=a, atr_mult=atrx, max_lookback=250, min_swing_bars=5)
+        legs = 0
+        for i in range(len(piv)-1):
+            a, b = piv[i], piv[i+1]
+            if a.get('confirmed') and b.get('confirmed'):
+                legs += 1
+        return legs
+
+    base_mode = 'percent'
+    atr_mult = 3.0 if atr_med < 4.5 else 3.5
+    if atr_med >= 3.0:
+        base_mode = 'atrx'
+    for thr in candidates:
+        legs = eval_params('daily', base_mode, thr, atr_mult)
+        score = 10 - abs(5 - legs) if 3 <= legs <= 8 else max(0, 8 - abs(5 - legs))
+        if score > best_score:
+            best_score = score
+            best = {'mode': base_mode, 'threshold': thr, 'atr_mult': atr_mult, 'scale': 'daily', 'legs': legs}
+    if best is None or best['legs'] < 2 or best['legs'] > 12:
+        for thr in candidates:
+            legs = eval_params('weekly', base_mode, thr, atr_mult)
+            score = 10 - abs(4 - legs) if 2 <= legs <= 8 else max(0, 8 - abs(4 - legs))
+            if score > best_score:
+                best_score = score
+                best = {'mode': base_mode, 'threshold': thr, 'atr_mult': atr_mult, 'scale': 'weekly', 'legs': legs}
+    return best or {'mode': 'percent', 'threshold': 5.0, 'atr_mult': 3.0, 'scale': 'daily'}
+
+
+def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent', threshold: float = 5.0,
+                        atr_mult: float = 3.0, detect_scale: str = 'daily') -> float:
+    if df is None or df.empty or len(df) < 20:
+        return 0.0
+    d = df.copy(); d['date'] = pd.to_datetime(d['tradingDate'])
+    close = pd.to_numeric(d['close'], errors='coerce')
+    high = pd.to_numeric(d.get('high', close), errors='coerce')
+    low = pd.to_numeric(d.get('low', close), errors='coerce')
+    ema20 = compute_ema(close, 20)
+    ema50 = compute_ema(close, 50)
+    atr = compute_atr(high, low, close)
+    use_weekly = (detect_scale.lower() == 'weekly')
+    if use_weekly:
+        dw = d.set_index('date').sort_index().resample('W-FRI').agg({'open':'first','high':'max','low':'min','close':'last','volume':'sum'}).dropna(how='any').reset_index()
+        wc = pd.to_numeric(dw['close'], errors='coerce'); wh = pd.to_numeric(dw['high'], errors='coerce'); wl = pd.to_numeric(dw['low'], errors='coerce')
+        w_atr = compute_atr(wh, wl, wc)
+        swings = _zigzag_swings(wc, wh, wl, mode=mode, threshold=threshold, atr_series=w_atr, atr_mult=atr_mult, max_lookback=250, min_swing_bars=2)
+        date_index = dw['date']
+        def map_idx(w_idx: int) -> int:
+            wdt = date_index.iloc[w_idx]
+            mask = d['date'] <= wdt
+            return int(mask[mask].index[-1]) if mask.any() else 0
+    else:
+        swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250, min_swing_bars=5)
+
+    # Build legs
+    up_legs = []; dn_legs = []
+    for i in range(len(swings) - 1):
+        a, b = swings[i], swings[i+1]
+        if not (a.get('confirmed') and b.get('confirmed')):
+            continue
+        if a['type']=='L' and b['type']=='H':
+            if use_weekly:
+                L_idx = map_idx(a['idx']); H_idx = map_idx(b['idx'])
+                Lp = float(close.iloc[L_idx]); Hp = float(close.iloc[H_idx])
+            else:
+                L_idx, Lp = a['idx'], float(a['price'])
+                H_idx, Hp = b['idx'], float(b['price'])
+            move_pct = (float(close.iloc[H_idx]) / max(1e-9, float(close.iloc[L_idx])) - 1.0) * 100.0
+            bars = max(1, H_idx - L_idx)
+            up_legs.append(('up', L_idx, Lp, H_idx, Hp, move_pct, bars))
+        elif a['type']=='H' and b['type']=='L':
+            if use_weekly:
+                H_idx = map_idx(a['idx']); L_idx = map_idx(b['idx'])
+                Hp = float(close.iloc[H_idx]); Lp = float(close.iloc[L_idx])
+            else:
+                H_idx, Hp = a['idx'], float(a['price'])
+                L_idx, Lp = b['idx'], float(b['price'])
+            move_pct = (1.0 - float(close.iloc[L_idx]) / max(1e-9, float(close.iloc[H_idx]))) * 100.0
+            bars = max(1, L_idx - H_idx)
+            dn_legs.append(('down', H_idx, Hp, L_idx, Lp, move_pct, bars))
+
+    if not up_legs and not dn_legs:
+        return 0.0
+
+    # Choose leg (regime-aware)
+    min_pct = 8.0; min_bars = 6
+    if lts_score >= 20 and up_legs:
+        cands = [leg for leg in up_legs if leg[5] >= min_pct and leg[6] >= min_bars]
+        leg = cands[-1] if cands else max(up_legs, key=lambda x: x[5])
+        direction, P0_idx, P0, P1_idx, P1 = ('up', leg[1], leg[2], leg[3], leg[4])
+    elif lts_score <= -20 and dn_legs:
+        cands = [leg for leg in dn_legs if leg[5] >= min_pct and leg[6] >= min_bars]
+        leg = cands[-1] if cands else max(dn_legs, key=lambda x: x[5])
+        direction, P0_idx, P0, P1_idx, P1 = ('down', leg[1], leg[2], leg[3], leg[4])
+    else:
+        # neutral: pick last
+        if up_legs and dn_legs:
+            direction, P0_idx, P0, P1_idx, P1 = ('up', up_legs[-1][1], up_legs[-1][2], up_legs[-1][3], up_legs[-1][4]) if up_legs[-1][3] >= dn_legs[-1][3] else ('down', dn_legs[-1][1], dn_legs[-1][2], dn_legs[-1][3], dn_legs[-1][4])
+        elif up_legs:
+            direction, P0_idx, P0, P1_idx, P1 = ('up', up_legs[-1][1], up_legs[-1][2], up_legs[-1][3], up_legs[-1][4])
+        else:
+            direction, P0_idx, P0, P1_idx, P1 = ('down', dn_legs[-1][1], dn_legs[-1][2], dn_legs[-1][3], dn_legs[-1][4])
+
+    curr = float(close.iloc[-1])
+    # Fib-based scoring (tuned per page)
+    if direction == 'up':
+        denom = max(1e-9, (P1 - P0))
+        retr = float(np.clip((P1 - curr) / denom, 0.0, 1.5))
+        base_points = (
+            2 if retr < 0.236 else
+            12 if retr < 0.382 else
+            18 if retr < 0.5 else
+            20 if retr < 0.618 else
+            14 if retr < 0.786 else
+            6
+        )
+        comp = base_points
+    else:
+        denom = max(1e-9, (P0 - P1))
+        ext = float(np.clip((curr - P1) / denom, 0.0, 1.5))
+        base_points = -(
+            2 if ext < 0.236 else
+            12 if ext < 0.382 else
+            18 if ext < 0.5 else
+            20 if ext < 0.618 else
+            14 if ext < 0.786 else
+            6
+        )
+        comp = base_points
+
+    # Structure/time/stretches — simplified guard: reduce by 40% if against EMA50 trend
+    ema50 = compute_ema(close, 50)
+    ema50_rising = float(ema50.iloc[-1]) > float(ema50.iloc[-5]) if len(ema50) > 5 else True
+    guard_scale = 1.0
+    if direction == 'up' and (curr < float(ema50.iloc[-1])) and (not ema50_rising):
+        guard_scale = 0.6
+    if direction == 'down' and (curr > float(ema50.iloc[-1])) and ema50_rising:
+        guard_scale = 0.6
+    comp = float(np.clip(comp * guard_scale, -30.0, 30.0))
+    return comp
+
+
+def compute_obos_with_pullback(df: pd.DataFrame, lts_score: float, rsi_len: int = 14) -> Dict:
+    # Base OBOS
+    base = compute_obos(df, rsi_len=rsi_len)
+    # Auto params
+    params = _auto_pull_params(df, lts_score)
+    pull = _pullback_component(df, lts_score, mode=params['mode'], threshold=params['threshold'], atr_mult=params['atr_mult'], detect_scale=params['scale'])
+    total = float(np.clip(base['score'] + pull, -100.0, 100.0))
+    regime = "Bullish OS" if total >= 40 else "Bearish OB" if total <= -40 else "Neutral"
+    return {"score": round(total, 1), "regime": regime}
 
 
 def analyze_tickers(tickers, days: int = 365) -> Dict:
@@ -184,7 +416,7 @@ def analyze_tickers(tickers, days: int = 365) -> Dict:
                 continue
             sts = compute_short_trend(df_calc)
             lts = compute_long_trend(df_calc)
-            obos = compute_obos(df_calc)
+            obos = compute_obos_with_pullback(df_calc, lts_score=lts['score'])
             # Brief implications
             trend_note = (
                 "Strong uptrend" if lts['score'] >= 60 else
