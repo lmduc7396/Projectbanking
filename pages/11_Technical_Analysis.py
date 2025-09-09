@@ -74,6 +74,259 @@ def _ema_rising(series: pd.Series, lookback: int = 3) -> bool:
     return bool(s.iloc[-1] > s.iloc[-lookback])
 
 
+def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int = 14) -> pd.Series:
+    h = pd.to_numeric(high, errors='coerce').fillna(method='ffill')
+    l = pd.to_numeric(low, errors='coerce').fillna(method='ffill')
+    c = pd.to_numeric(close, errors='coerce').fillna(method='ffill')
+    prev_close = c.shift(1)
+    tr = np.maximum(h - l, np.maximum((h - prev_close).abs(), (l - prev_close).abs()))
+    atr = tr.ewm(alpha=1/length, adjust=False, min_periods=1).mean()
+    return atr
+
+
+def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str = 'percent', threshold: float = 5.0,
+                   atr_series: pd.Series | None = None, atr_mult: float = 3.0, max_lookback: int = 250):
+    """
+    Lightweight ZigZag swing detection by percent or ATR multiple.
+    Returns list of dicts: {idx, price, type: 'H'/'L'} limited to last max_lookback bars.
+    """
+    c = pd.to_numeric(close, errors='coerce')
+    h = pd.to_numeric(high, errors='coerce')
+    l = pd.to_numeric(low, errors='coerce')
+    n = len(c)
+    if n < 5:
+        return []
+    start = max(0, n - max_lookback)
+    i = start
+    pivots = []
+    # Initialize with first point as provisional pivot
+    last_pivot_idx = i
+    last_pivot_price = c.iloc[i]
+    last_dir = 0  # +1 up, -1 down
+    i += 1
+    while i < n:
+        price = c.iloc[i]
+        move = (price - last_pivot_price)
+        thresh = 0.0
+        if mode == 'percent':
+            thresh = abs(last_pivot_price) * (threshold / 100.0)
+        else:
+            a = atr_series.iloc[i] if atr_series is not None else 0
+            thresh = a * atr_mult
+        if last_dir >= 0:  # looking for high
+            if price >= last_pivot_price:
+                last_pivot_idx = i; last_pivot_price = price
+            elif (last_pivot_price - price) >= thresh:
+                # confirmed high
+                pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'H'})
+                last_dir = -1
+                last_pivot_idx = i; last_pivot_price = price
+        if last_dir <= 0:  # looking for low
+            if price <= last_pivot_price:
+                last_pivot_idx = i; last_pivot_price = price
+            elif (price - last_pivot_price) >= thresh:
+                # confirmed low
+                pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'L'})
+                last_dir = +1
+                last_pivot_idx = i; last_pivot_price = price
+        i += 1
+    # Append the last extremum as a pivot of the current search direction
+    if last_dir >= 0:
+        pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'H'})
+    else:
+        pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'L'})
+    # Sort and unique by idx
+    pivots = sorted({p['idx']: p for p in pivots}.values(), key=lambda x: x['idx'])
+    return pivots
+
+
+def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent', threshold: float = 5.0,
+                        atr_mult: float = 3.0) -> dict:
+    """
+    Compute pullback/extension score and details based on last leg using ZigZag swings.
+    Returns {score, details, overlay}.
+    overlay includes leg info and fib levels for charting.
+    """
+    if df is None or df.empty or len(df) < 20:
+        return {"score": 0.0, "details": "Insufficient data", "overlay": None}
+    d = df.copy()
+    d['date'] = pd.to_datetime(d['tradingDate'])
+    close = pd.to_numeric(d['close'], errors='coerce')
+    high = pd.to_numeric(d.get('high', close), errors='coerce')
+    low = pd.to_numeric(d.get('low', close), errors='coerce')
+    ema20 = compute_ema(close, 20)
+    ema50 = compute_ema(close, 50)
+    atr = compute_atr(high, low, close)
+    atr_pct = (atr / close.replace(0, np.nan)).fillna(0) * 100.0
+    # Swings
+    swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250)
+    if len(swings) < 2:
+        return {"score": 0.0, "details": "Not enough swings to determine last leg", "overlay": None}
+    # Determine last pivot and preceding pivot
+    last_pivot = swings[-1]
+    prev_pivot = swings[-2]
+    # Determine leg direction and endpoints
+    if last_pivot['type'] == 'H':
+        # Up leg from previous L to last H if possible
+        # Find the nearest prior L before last H
+        prior_lows = [p for p in swings[:-1] if p['type'] == 'L' and p['idx'] < last_pivot['idx']]
+        if not prior_lows:
+            return {"score": 0.0, "details": "No prior swing low for last high", "overlay": None}
+        base_pivot = prior_lows[-1]
+        P0_idx, P0 = base_pivot['idx'], base_pivot['price']
+        P1_idx, P1 = last_pivot['idx'], last_pivot['price']
+        direction = 'up'
+    else:
+        # Down leg from previous H to last L
+        prior_highs = [p for p in swings[:-1] if p['type'] == 'H' and p['idx'] < last_pivot['idx']]
+        if not prior_highs:
+            return {"score": 0.0, "details": "No prior swing high for last low", "overlay": None}
+        base_pivot = prior_highs[-1]
+        P0_idx, P0 = base_pivot['idx'], base_pivot['price']
+        P1_idx, P1 = last_pivot['idx'], last_pivot['price']
+        direction = 'down'
+
+    # Leg metrics
+    move_pct = (P1 / P0 - 1.0) * 100.0 if direction == 'up' else (1.0 - P1 / P0) * 100.0
+    bars_in_leg = max(1, P1_idx - P0_idx)
+    curr = float(close.iloc[-1])
+    bars_since = max(0, len(close) - 1 - P1_idx)
+
+    # Retracement/Extension ratios
+    if direction == 'up':
+        denom = max(1e-9, (P1 - P0))
+        retr = float((P1 - curr) / denom)
+        retr = float(np.clip(retr, 0.0, 1.5))
+        base_points = (
+            2 if retr < 0.236 else
+            8 if retr < 0.382 else
+            16 if retr < 0.5 else
+            22 if retr < 0.618 else
+            26 if retr < 0.786 else
+            18
+        )
+        component_sign = +1
+        fib_prices = {
+            '23.6%': P1 - 0.236 * (P1 - P0),
+            '38.2%': P1 - 0.382 * (P1 - P0),
+            '50%':   P1 - 0.5   * (P1 - P0),
+            '61.8%': P1 - 0.618 * (P1 - P0),
+            '78.6%': P1 - 0.786 * (P1 - P0),
+        }
+    else:
+        denom = max(1e-9, (P0 - P1))
+        ext = float((curr - P1) / denom)
+        ext = float(np.clip(ext, 0.0, 1.5))
+        base_points = -(
+            2 if ext < 0.236 else
+            8 if ext < 0.382 else
+            16 if ext < 0.5 else
+            22 if ext < 0.618 else
+            26 if ext < 0.786 else
+            18
+        )
+        component_sign = -1
+        fib_prices = {
+            '23.6%': P1 + 0.236 * (P0 - P1),
+            '38.2%': P1 + 0.382 * (P0 - P1),
+            '50%':   P1 + 0.5   * (P0 - P1),
+            '61.8%': P1 + 0.618 * (P0 - P1),
+            '78.6%': P1 + 0.786 * (P0 - P1),
+        }
+
+    # Regime scaling
+    if lts_score >= 20:
+        regime_scale = 1.0
+    elif lts_score <= -20:
+        regime_scale = 1.0
+    else:
+        regime_scale = 0.5
+
+    # Structure guard
+    ema50_rising = _ema_rising(ema50, 5)
+    guard_scale = 1.0
+    if direction == 'up':
+        if (curr < float(ema50.iloc[-1])) and (not ema50_rising):
+            guard_scale = 0.6  # reduce reward
+    else:
+        if (curr > float(ema50.iloc[-1])) and ema50_rising:
+            guard_scale = 0.6  # reduce penalty magnitude
+
+    # Time decay: full until 30 bars, then linear to 0 by 60
+    if bars_since <= 30:
+        time_scale = 1.0
+    elif bars_since >= 60:
+        time_scale = 0.0
+    else:
+        time_scale = max(0.0, 1.0 - (bars_since - 30) / 30.0)
+
+    # ATR stretch adjustment
+    dist_atr = 0.0
+    if float(atr.iloc[-1]) > 0:
+        dist_atr = abs((curr - float(ema20.iloc[-1])) / float(atr.iloc[-1]))
+    stretch_pts = 0.0
+    if direction == 'up' and curr < float(ema20.iloc[-1]) and dist_atr > 1.0:
+        stretch_pts = min(6.0, 3.0 * min(2.0, dist_atr - 1.0))
+    elif direction == 'down' and curr > float(ema20.iloc[-1]) and dist_atr > 1.0:
+        stretch_pts = -min(6.0, 3.0 * min(2.0, dist_atr - 1.0))
+
+    # Volume context on pullback segment
+    pullback_vol_adj = 0.0
+    if bars_since >= 3:
+        seg_vol = d['volume'].iloc[P1_idx + 1:]
+        seg_mean = float(seg_vol.mean()) if len(seg_vol) else 0.0
+        if direction == 'up':
+            # Compare vs up-days volume during leg
+            leg_df = d.iloc[P0_idx:P1_idx + 1]
+            up_vol = leg_df.loc[leg_df['close'] > leg_df['close'].shift(1), 'volume']
+            base = float(up_vol.mean()) if len(up_vol) else float(leg_df['volume'].mean())
+            if base > 0:
+                ratio = seg_mean / base
+                if ratio < 0.9:
+                    pullback_vol_adj = +4.0
+                elif ratio > 1.1:
+                    pullback_vol_adj = -6.0
+        else:
+            # Compare vs down-days volume during leg
+            leg_df = d.iloc[P0_idx:P1_idx + 1]
+            down_vol = leg_df.loc[leg_df['close'] < leg_df['close'].shift(1), 'volume']
+            base = float(down_vol.mean()) if len(down_vol) else float(leg_df['volume'].mean())
+            if base > 0:
+                ratio = seg_mean / base
+                if ratio < 0.9:
+                    pullback_vol_adj = -4.0
+                elif ratio > 1.1:
+                    pullback_vol_adj = +6.0
+
+    raw_component = base_points * regime_scale
+    component = (raw_component * guard_scale * time_scale) + stretch_pts + pullback_vol_adj
+    component = float(np.clip(component, -30.0, 30.0))
+
+    overlay = {
+        'direction': direction,
+        'start_idx': int(P0_idx),
+        'end_idx': int(P1_idx),
+        'start_date': d['date'].iloc[P0_idx],
+        'end_date': d['date'].iloc[P1_idx],
+        'start_price': float(P0),
+        'end_price': float(P1),
+        'fib_prices': {k: float(v) for k, v in fib_prices.items()}
+    }
+
+    # Build explanation string
+    if direction == 'up':
+        retr = float(np.clip((P1 - curr) / max(1e-9, (P1 - P0)), 0.0, 1.5))
+        retr_pct = retr * 100.0
+        zone = '(<23.6%)' if retr < 0.236 else '(23.6–38.2%)' if retr < 0.382 else '(38.2–50%)' if retr < 0.5 else '(50–61.8%)' if retr < 0.618 else '(61.8–78.6%)' if retr < 0.786 else '(>78.6%)'
+        detail = f"Last up-leg: +{move_pct:.1f}% over {bars_in_leg} bars. Retracement {retr_pct:.1f}% {zone} → base {base_points:+.0f}. Guard {guard_scale:.2f}, time {time_scale:.2f}, stretch {stretch_pts:+.1f}, volume {pullback_vol_adj:+.1f}."
+    else:
+        ext = float(np.clip((curr - P1) / max(1e-9, (P0 - P1)), 0.0, 1.5))
+        ext_pct = ext * 100.0
+        zone = '(<23.6%)' if ext < 0.236 else '(23.6–38.2%)' if ext < 0.382 else '(38.2–50%)' if ext < 0.5 else '(50–61.8%)' if ext < 0.618 else '(61.8–78.6%)' if ext < 0.786 else '(>78.6%)'
+        detail = f"Last down-leg: -{move_pct:.1f}% over {bars_in_leg} bars. Bounce extension {ext_pct:.1f}% {zone} → base {base_points:+.0f}. Guard {guard_scale:.2f}, time {time_scale:.2f}, stretch {stretch_pts:+.1f}, volume {pullback_vol_adj:+.1f}."
+
+    return {"score": round(component, 1), "details": detail, "overlay": overlay}
+
 def _detect_structure(high: pd.Series, low: pd.Series, window: int = 3, max_lookback: int = 80) -> int:
     """
     Very simple swing structure via 3-bar fractals.
@@ -204,7 +457,9 @@ def _rsi_core_score(rsi_value: float) -> float:
     return 0.0
 
 
-def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9) -> dict:
+def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9,
+                 lts_score: float | None = None, pullback_enabled: bool = True, pull_mode: str = 'percent', pull_threshold: float = 5.0,
+                 pull_atr_mult: float = 3.0) -> dict:
     """
     Overbought/Oversold score [-100, 100]
     - RSI core mapped to [-70, +70]
@@ -232,13 +487,28 @@ def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_
         macd_shift = -20.0
         labels.append("MACD bearish shift")
 
-    score = float(np.clip(rsi_core + macd_shift, -100.0, 100.0))
+    # Pullback/Extension component
+    pull_score = 0.0
+    pull_detail = None
+    pull_overlay = None
+    if pullback_enabled:
+        pb = _pullback_component(df, lts_score if lts_score is not None else 0.0, mode=pull_mode, threshold=pull_threshold, atr_mult=pull_atr_mult)
+        pull_score = float(pb.get('score', 0.0))
+        pull_detail = pb.get('details')
+        pull_overlay = pb.get('overlay')
+
+    score = float(np.clip(rsi_core + macd_shift + pull_score, -100.0, 100.0))
     regime = "Bullish OS" if score >= 40 else "Bearish OB" if score <= -40 else "Neutral"
+    components = {"rsi_core": round(rsi_core, 1), "macd_shift": macd_shift, "rsi": round(rsi_last, 1)}
+    if pullback_enabled:
+        components.update({"pullback": pull_score})
     return {
         "score": round(score, 1),
         "regime": regime,
-        "components": {"rsi_core": round(rsi_core, 1), "macd_shift": macd_shift, "rsi": round(rsi_last, 1)},
+        "components": components,
         "labels": labels,
+        "pull_detail": pull_detail,
+        "pull_overlay": pull_overlay,
     }
 
 
@@ -302,7 +572,7 @@ def compute_stochastic(high: pd.Series, low: pd.Series, close: pd.Series, k_len:
 
 def render_chart(df_display: pd.DataFrame, ticker: str, ma_type: str, ma_windows: List[int], rsi_len: int,
                  show_bbands: bool, show_macd: bool, macd_fast: int, macd_slow: int, macd_signal: int,
-                 show_stoch: bool, stoch_k: int, stoch_d: int, df_calc=None):
+                 show_stoch: bool, stoch_k: int, stoch_d: int, df_calc=None, pull_overlay=None, show_fib=False):
     """Render chart using display window but compute indicators on a longer calc window if provided."""
     # Prepare display frame
     dfd = df_display.copy()
@@ -378,6 +648,21 @@ def render_chart(df_display: pd.DataFrame, ticker: str, ma_type: str, ma_windows
         fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['BB_MA'].tolist(), name='BB MA', line=dict(color='rgba(97,155,247,0.8)', width=1), hoverinfo='skip'), row=1, col=1)
         fig.add_trace(go.Scatter(x=dfx['x'].tolist(), y=dfx['BB_LO'].tolist(), name='BB Lower', line=dict(color='rgba(97,155,247,0.6)', width=1), hoverinfo='skip'), row=1, col=1)
 
+    # Pullback Fib overlay
+    if show_fib and pull_overlay:
+        try:
+            start_dt = pd.to_datetime(pull_overlay['start_date']).strftime('%Y-%m-%d')
+            end_dt = pd.to_datetime(pull_overlay['end_date']).strftime('%Y-%m-%d')
+            # Draw leg line
+            fig.add_trace(go.Scatter(x=[start_dt, end_dt], y=[pull_overlay['start_price'], pull_overlay['end_price']],
+                                     name='Last Leg', mode='lines', line=dict(color='#888', width=1, dash='dot')), row=1, col=1)
+            # Horizontal fib levels across display range
+            for label, py in pull_overlay.get('fib_prices', {}).items():
+                fig.add_trace(go.Scatter(x=[dfx['x'].iloc[0], dfx['x'].iloc[-1]], y=[py, py], name=f'Fib {label}',
+                                         line=dict(width=1, dash='dash', color='rgba(0,0,0,0.25)'), hoverinfo='skip', showlegend=False), row=1, col=1)
+        except Exception:
+            pass
+
     # Volume
     colors = np.where(dfx['close'] >= dfx['open'], '#398278', '#cc7c5e')
     fig.add_trace(go.Bar(x=dfx['x'].tolist(), y=dfx['volume'].tolist(), name='Volume', marker_color=colors, showlegend=False), row=2, col=1)
@@ -452,6 +737,13 @@ def main():
         macd_slow = st.number_input("MACD Slow EMA", min_value=10, max_value=60, value=st.session_state.get('ta_macd_slow', 26))
         macd_signal = st.number_input("MACD Signal", min_value=5, max_value=20, value=st.session_state.get('ta_macd_signal', 9))
         st.markdown("---")
+        st.caption("OB/OS Pullback Component")
+        enable_pullback = st.checkbox("Enable Pullback/Extension", value=st.session_state.get('ta_enable_pullback', True))
+        pull_mode = st.selectbox("Swing Threshold Mode", options=["percent", "atrx"], index=0 if st.session_state.get('ta_pull_mode', 'percent')=='percent' else 1, help="Use % change or ATR multiple to detect swings")
+        pull_threshold = st.number_input("Threshold % (if percent)", min_value=1.0, max_value=15.0, value=float(st.session_state.get('ta_pull_threshold', 5.0)), step=0.5)
+        pull_atr_mult = st.number_input("ATR multiple (if ATRx)", min_value=1.0, max_value=6.0, value=float(st.session_state.get('ta_pull_atr_mult', 3.0)), step=0.5)
+        show_fib = st.checkbox("Show Fib overlay", value=st.session_state.get('ta_show_fib', False))
+        st.markdown("---")
         show_stoch = st.checkbox("Show Stochastic", value=st.session_state.get('ta_show_stoch', False))
         stoch_k = st.number_input("Stoch %K Length", min_value=5, max_value=30, value=st.session_state.get('ta_stoch_k', 14))
         stoch_d = st.number_input("Stoch %D Smoothing", min_value=2, max_value=10, value=st.session_state.get('ta_stoch_d', 3))
@@ -470,6 +762,11 @@ def main():
         st.session_state['ta_macd_fast'] = macd_fast
         st.session_state['ta_macd_slow'] = macd_slow
         st.session_state['ta_macd_signal'] = macd_signal
+        st.session_state['ta_enable_pullback'] = enable_pullback
+        st.session_state['ta_pull_mode'] = pull_mode
+        st.session_state['ta_pull_threshold'] = pull_threshold
+        st.session_state['ta_pull_atr_mult'] = pull_atr_mult
+        st.session_state['ta_show_fib'] = show_fib
         st.session_state['ta_show_stoch'] = show_stoch
         st.session_state['ta_stoch_k'] = stoch_k
         st.session_state['ta_stoch_d'] = stoch_d
@@ -490,13 +787,7 @@ def main():
         st.error("No price data found.")
         return
 
-    # Render chart and indicators (compute indicators on extended history)
-    render_chart(df, ticker, ma_type, ma_windows, rsi_len, show_bbands, show_macd, macd_fast, macd_slow, macd_signal, show_stoch, stoch_k, stoch_d, df_calc=df_calc)
-
     # New scoring: Short-term trend, Long-term trend, Overbought/Oversold
-    st.markdown("---")
-    st.subheader("Trend & Overbought/Oversold Scores")
-
     sts = compute_short_trend(df_calc)
     # Long-term trend: optionally compute on weekly data from API (if selected)
     lts_df = df_calc
@@ -517,7 +808,42 @@ def main():
         except Exception:
             pass
     lts = compute_long_trend(lts_df)
-    obos = compute_obos(df, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
+    pull_mode_eff = 'percent' if (st.session_state.get('ta_pull_mode', 'percent') == 'percent') else 'atrx'
+    obos = compute_obos(
+        df_calc,
+        rsi_len=rsi_len,
+        macd_fast=macd_fast,
+        macd_slow=macd_slow,
+        macd_signal=macd_signal,
+        lts_score=float(lts.get('score', 0.0)),
+        pullback_enabled=bool(st.session_state.get('ta_enable_pullback', True)),
+        pull_mode=pull_mode_eff,
+        pull_threshold=float(st.session_state.get('ta_pull_threshold', 5.0)),
+        pull_atr_mult=float(st.session_state.get('ta_pull_atr_mult', 3.0)),
+    )
+
+    # Render chart and indicators (compute indicators on extended history). Add optional fib overlay.
+    render_chart(
+        df,
+        ticker,
+        ma_type,
+        ma_windows,
+        rsi_len,
+        show_bbands,
+        show_macd,
+        macd_fast,
+        macd_slow,
+        macd_signal,
+        show_stoch,
+        stoch_k,
+        stoch_d,
+        df_calc=df_calc,
+        pull_overlay=obos.get('pull_overlay'),
+        show_fib=bool(st.session_state.get('ta_show_fib', False))
+    )
+
+    st.markdown("---")
+    st.subheader("Trend & Overbought/Oversold Scores")
 
     def make_gauge(title: str, value: float, subtitle: str):
         rng = [-100, 100]
@@ -603,7 +929,7 @@ def main():
         lines.append(f"= Long-term trend score: {total:+.1f} (clipped to [-100,100]).")
         return "\n".join(lines)
 
-    def explain_obos(e: dict, labels: list) -> str:
+    def explain_obos(e: dict, labels: list, pull_detail: str | None) -> str:
         lines = []
         rsi = e.get('rsi', 50.0)
         rsi_core = e.get('rsi_core', 0.0)
@@ -614,7 +940,11 @@ def main():
             lines.append(f"- MACD shift: {reason} → {macd:+.0f} points.")
         else:
             lines.append("- MACD shift: no recent confirmation → +0 points.")
+        if 'pullback' in e:
+            lines.append(f"- Pullback/Extension: {pull_detail or 'computed'} → {e['pullback']:+.1f} points.")
         total = float(rsi_core) + float(macd)
+        if 'pullback' in e:
+            total += float(e.get('pullback', 0.0))
         lines.append(f"= OB/OS score: {total:+.1f} (clipped to [-100,100]).")
         return "\n".join(lines)
 
@@ -623,7 +953,7 @@ def main():
     with st.expander("Details: Long-Term Trend components"):
         st.markdown(explain_lts(lts['components']))
     with st.expander("Details: OB/OS components"):
-        st.markdown(explain_obos(obos['components'], obos.get('labels', [])))
+        st.markdown(explain_obos(obos['components'], obos.get('labels', []), obos.get('pull_detail')))
 
     # Watchlist comparison
     st.markdown("---")
