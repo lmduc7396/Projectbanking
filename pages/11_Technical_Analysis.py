@@ -524,7 +524,7 @@ def main():
             mode="gauge+number",
             value=value,
             number={'suffix': ''},
-            title={'text': f"{title}<br><span style='font-size:0.8em;color:gray'>{subtitle}</span>", 'font': {'size': 14}},
+            title={'text': f"{subtitle}", 'font': {'size': 18}},
             gauge={
                 'axis': {'range': rng},
                 'bar': {'color': '#398278'},
@@ -535,28 +535,70 @@ def main():
                 ],
             }
         ))
-        fig.update_layout(height=200, margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_layout(height=220, margin=dict(l=10, r=10, t=40, b=10))
         return fig
 
     c1, c2, c3 = st.columns(3)
     with c1:
+        st.subheader("Short-Term Trend")
         st.plotly_chart(make_gauge("Short-Term Trend", float(sts['score']), sts['regime']), use_container_width=True)
-        st.caption("Components: EMA20 vs EMA50, EMA20 slope, price vs EMA20, HH/HL")
     with c2:
+        st.subheader("Long-Term Trend")
         st.plotly_chart(make_gauge("Long-Term Trend", float(lts['score']), lts['regime']), use_container_width=True)
-        st.caption("Components: EMA50 vs SMA200, SMA200 slope, price vs SMA200, EMA50 slope")
     with c3:
+        st.subheader("Overbought/Oversold")
         st.plotly_chart(make_gauge("Overbought/Oversold", float(obos['score']), obos['regime']), use_container_width=True)
-        st.caption("RSI core with MACD turn confirmation")
-    st.caption("Indicators are computed on extended history to stabilize EMA/SMA even on short display windows.")
 
     # Component breakdowns
+    def explain_sts(e: dict) -> str:
+        lines = []
+        ma = e.get('ma_align', 0.0)
+        slope = e.get('slope', 0.0)
+        price_pos = e.get('price_pos', 0.0)
+        structure = e.get('structure', 0.0)
+        lines.append(f"- MA alignment: EMA20 {'above' if ma>0 else 'below' if ma<0 else '≈'} EMA50 → {ma:+.0f} points.")
+        lines.append(f"- EMA20 slope: momentum over ~20 bars scaled to ±25 → {slope:+.1f} points.")
+        lines.append(f"- Price vs EMA20: close {'>' if price_pos>0 else '<' if price_pos<0 else '≈'} EMA20 with trend {'rising' if price_pos>0 else 'falling' if price_pos<0 else 'mixed'} → {price_pos:+.0f} points.")
+        lines.append(f"- Structure: recent swings show {'HH/HL' if structure>0 else 'LH/LL' if structure<0 else 'mixed'} → {structure:+.0f} points.")
+        total = ma + float(slope) + price_pos + structure
+        lines.append(f"= Short-term trend score: {total:+.1f} (clipped to [-100,100]).")
+        return "\n".join(lines)
+
+    def explain_lts(e: dict) -> str:
+        lines = []
+        ma = e.get('ma_align', 0.0)
+        slope = e.get('slope', 0.0)
+        price_pos = e.get('price_pos', 0.0)
+        ema50_slope = e.get('ema50_slope', 0.0)
+        lines.append(f"- MA alignment: EMA50 {'above' if ma>0 else 'below' if ma<0 else '≈'} SMA200 → {ma:+.0f} points.")
+        lines.append(f"- SMA200 slope: long-term drift scaled to ±25 → {slope:+.1f} points.")
+        lines.append(f"- Price vs SMA200: close {'>' if price_pos>0 else '<' if price_pos<0 else '≈'} SMA200 → {price_pos:+.0f} points.")
+        lines.append(f"- EMA50 slope: confirmation of baseline direction → {ema50_slope:+.0f} points.")
+        total = ma + float(slope) + price_pos + ema50_slope
+        lines.append(f"= Long-term trend score: {total:+.1f} (clipped to [-100,100]).")
+        return "\n".join(lines)
+
+    def explain_obos(e: dict, labels: list) -> str:
+        lines = []
+        rsi = e.get('rsi', 50.0)
+        rsi_core = e.get('rsi_core', 0.0)
+        macd = e.get('macd_shift', 0.0)
+        lines.append(f"- RSI: {rsi:.1f}. Deep oversold (<20) is rewarded; extreme overbought (>80) is penalized → core {rsi_core:+.1f} points.")
+        if macd != 0:
+            reason = ', '.join(labels) if labels else 'MACD shift'
+            lines.append(f"- MACD shift: {reason} → {macd:+.0f} points.")
+        else:
+            lines.append("- MACD shift: no recent confirmation → +0 points.")
+        total = float(rsi_core) + float(macd)
+        lines.append(f"= OB/OS score: {total:+.1f} (clipped to [-100,100]).")
+        return "\n".join(lines)
+
     with st.expander("Details: Short-Term Trend components"):
-        st.json(sts['components'])
+        st.markdown(explain_sts(sts['components']))
     with st.expander("Details: Long-Term Trend components"):
-        st.json(lts['components'])
+        st.markdown(explain_lts(lts['components']))
     with st.expander("Details: OB/OS components"):
-        st.json(obos['components'])
+        st.markdown(explain_obos(obos['components'], obos.get('labels', [])))
 
     # Watchlist comparison
     st.markdown("---")
