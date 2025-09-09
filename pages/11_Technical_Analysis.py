@@ -85,7 +85,8 @@ def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int =
 
 
 def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str = 'percent', threshold: float = 5.0,
-                   atr_series: pd.Series | None = None, atr_mult: float = 3.0, max_lookback: int = 250):
+                   atr_series: pd.Series | None = None, atr_mult: float = 3.0, max_lookback: int = 250,
+                   min_swing_bars: int = 5):
     """
     Lightweight ZigZag swing detection by percent or ATR multiple.
     Returns list of dicts: {idx, price, type: 'H'/'L'} limited to last max_lookback bars.
@@ -97,45 +98,59 @@ def _zigzag_swings(close: pd.Series, high: pd.Series, low: pd.Series, mode: str 
     if n < 5:
         return []
     start = max(0, n - max_lookback)
-    i = start
     pivots = []
-    # Initialize with first point as provisional pivot
-    last_pivot_idx = i
-    last_pivot_price = c.iloc[i]
-    last_dir = 0  # +1 up, -1 down
-    i += 1
-    while i < n:
-        price = c.iloc[i]
-        move = (price - last_pivot_price)
-        thresh = 0.0
+    # Initialize using first bar in window
+    idx0 = start
+    last_pivot_idx = idx0
+    curr_trend = 0  # 0 unknown, +1 up, -1 down
+    extreme_idx = idx0
+    extreme_price_high = h.iloc[idx0]
+    extreme_price_low = l.iloc[idx0]
+
+    def thresh_at(i_ref: int, price_ref: float) -> float:
         if mode == 'percent':
-            thresh = abs(last_pivot_price) * (threshold / 100.0)
-        else:
-            a = atr_series.iloc[i] if atr_series is not None else 0
-            thresh = a * atr_mult
-        if last_dir >= 0:  # looking for high
-            if price >= last_pivot_price:
-                last_pivot_idx = i; last_pivot_price = price
-            elif (last_pivot_price - price) >= thresh:
-                # confirmed high
-                pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'H'})
-                last_dir = -1
-                last_pivot_idx = i; last_pivot_price = price
-        if last_dir <= 0:  # looking for low
-            if price <= last_pivot_price:
-                last_pivot_idx = i; last_pivot_price = price
-            elif (price - last_pivot_price) >= thresh:
-                # confirmed low
-                pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'L'})
-                last_dir = +1
-                last_pivot_idx = i; last_pivot_price = price
-        i += 1
-    # Append the last extremum as a pivot of the current search direction
-    if last_dir >= 0:
-        pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'H'})
+            return abs(price_ref) * (threshold / 100.0)
+        a = atr_series.iloc[i_ref] if atr_series is not None else 0.0
+        return a * atr_mult
+
+    for i in range(start + 1, n):
+        # Update extremes within current trend
+        if curr_trend >= 0:  # tracking upswing candidate
+            if h.iloc[i] >= extreme_price_high:
+                extreme_price_high = h.iloc[i]
+                extreme_idx = i
+            # Check reversal: drawdown from high exceeds threshold and min bars since last pivot
+            dd = extreme_price_high - l.iloc[i]
+            if dd >= thresh_at(extreme_idx, extreme_price_high) and (i - last_pivot_idx) >= min_swing_bars:
+                # Confirm swing high at extreme_idx
+                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_high), 'type': 'H'})
+                last_pivot_idx = extreme_idx
+                curr_trend = -1
+                # Reset extreme for downswing
+                extreme_idx = i
+                extreme_price_low = l.iloc[i]
+        if curr_trend <= 0:  # tracking downswing candidate
+            if l.iloc[i] <= extreme_price_low:
+                extreme_price_low = l.iloc[i]
+                extreme_idx = i
+            # Check reversal: bounce from low exceeds threshold and min bars since last pivot
+            bu = h.iloc[i] - extreme_price_low
+            if bu >= thresh_at(extreme_idx, extreme_price_low) and (i - last_pivot_idx) >= min_swing_bars:
+                # Confirm swing low at extreme_idx
+                pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_low), 'type': 'L'})
+                last_pivot_idx = extreme_idx
+                curr_trend = +1
+                # Reset extreme for upswing
+                extreme_idx = i
+                extreme_price_high = h.iloc[i]
+
+    # Append the last tracked extreme as current running pivot for context
+    if curr_trend >= 0:
+        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_high), 'type': 'H'})
     else:
-        pivots.append({'idx': last_pivot_idx, 'price': last_pivot_price, 'type': 'L'})
-    # Sort and unique by idx
+        pivots.append({'idx': int(extreme_idx), 'price': float(extreme_price_low), 'type': 'L'})
+
+    # Deduplicate by idx and sort
     pivots = sorted({p['idx']: p for p in pivots}.values(), key=lambda x: x['idx'])
     return pivots
 
@@ -159,32 +174,39 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
     atr = compute_atr(high, low, close)
     atr_pct = (atr / close.replace(0, np.nan)).fillna(0) * 100.0
     # Swings
-    swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250)
+    swings = _zigzag_swings(close, high, low, mode=mode, threshold=threshold, atr_series=atr, atr_mult=atr_mult, max_lookback=250, min_swing_bars=5)
     if len(swings) < 2:
         return {"score": 0.0, "details": "Not enough swings to determine last leg", "overlay": None}
 
-    # Helpers to find most recent up/down legs
+    # Build sequential legs from swings
+    up_legs = []  # tuples: (dir, L_idx, L_price, H_idx, H_price, move_pct, bars)
+    dn_legs = []  # tuples: (dir, H_idx, H_price, L_idx, L_price, move_pct, bars)
+    for i in range(len(swings) - 1):
+        a, b = swings[i], swings[i+1]
+        if a['type'] == 'L' and b['type'] == 'H':
+            L_idx, Lp = a['idx'], float(a['price'])
+            H_idx, Hp = b['idx'], float(b['price'])
+            move_pct = (Hp / max(1e-9, Lp) - 1.0) * 100.0
+            bars = max(1, H_idx - L_idx)
+            up_legs.append(('up', L_idx, Lp, H_idx, Hp, move_pct, bars))
+        elif a['type'] == 'H' and b['type'] == 'L':
+            H_idx, Hp = a['idx'], float(a['price'])
+            L_idx, Lp = b['idx'], float(b['price'])
+            move_pct = (1.0 - Lp / max(1e-9, Hp)) * 100.0
+            bars = max(1, L_idx - H_idx)
+            dn_legs.append(('down', H_idx, Hp, L_idx, Lp, move_pct, bars))
+
     def last_up_leg():
-        highs = [p for p in swings if p['type'] == 'H']
-        if not highs:
+        if not up_legs:
             return None
-        last_h = highs[-1]
-        lows_before = [p for p in swings if p['type'] == 'L' and p['idx'] < last_h['idx']]
-        if not lows_before:
-            return None
-        last_l_before = lows_before[-1]
-        return ('up', last_l_before['idx'], float(last_l_before['price']), last_h['idx'], float(last_h['price']))
+        leg = up_legs[-1]
+        return (leg[0], leg[1], leg[2], leg[3], leg[4])
 
     def last_down_leg():
-        lows = [p for p in swings if p['type'] == 'L']
-        if not lows:
+        if not dn_legs:
             return None
-        last_l = lows[-1]
-        highs_before = [p for p in swings if p['type'] == 'H' and p['idx'] < last_l['idx']]
-        if not highs_before:
-            return None
-        last_h_before = highs_before[-1]
-        return ('down', last_h_before['idx'], float(last_h_before['price']), last_l['idx'], float(last_l['price']))
+        leg = dn_legs[-1]
+        return (leg[0], leg[1], leg[2], leg[3], leg[4])
 
     up_leg = last_up_leg()
     dn_leg = last_down_leg()
@@ -199,16 +221,34 @@ def _pullback_component(df: pd.DataFrame, lts_score: float, mode: str = 'percent
     elif leg_mode == 'down' and dn_leg is not None:
         chosen = dn_leg; leg_reason = 'forced_down'
     elif leg_mode == 'auto':
-        if lts_score >= 20 and up_leg is not None:
-            chosen = up_leg; leg_reason = 'regime_up'
-        elif lts_score <= -20 and dn_leg is not None:
-            chosen = dn_leg; leg_reason = 'regime_down'
+        min_pct = 8.0
+        min_bars = 6
+        if lts_score >= 20 and up_legs:
+            # Prefer dominant up-leg: last up-leg meeting thresholds, else max pct up-leg
+            candidates = [leg for leg in up_legs if leg[5] >= min_pct and leg[6] >= min_bars]
+            if candidates:
+                leg = candidates[-1]
+                chosen = ('up', leg[1], leg[2], leg[3], leg[4]); leg_reason = 'dominant_up'
+            else:
+                leg = max(up_legs, key=lambda x: x[5])
+                chosen = ('up', leg[1], leg[2], leg[3], leg[4]); leg_reason = 'max_up'
+        elif lts_score <= -20 and dn_legs:
+            candidates = [leg for leg in dn_legs if leg[5] >= min_pct and leg[6] >= min_bars]
+            if candidates:
+                leg = candidates[-1]
+                chosen = ('down', leg[1], leg[2], leg[3], leg[4]); leg_reason = 'dominant_down'
+            else:
+                leg = max(dn_legs, key=lambda x: x[5])
+                chosen = ('down', leg[1], leg[2], leg[3], leg[4]); leg_reason = 'max_down'
         else:
             # neutral: choose the most recent leg end
-            if up_leg and dn_leg:
-                chosen = up_leg if up_leg[3] >= dn_leg[3] else dn_leg
+            if up_legs and dn_legs:
+                chosen = ('up', up_legs[-1][1], up_legs[-1][2], up_legs[-1][3], up_legs[-1][4]) if up_legs[-1][3] >= dn_legs[-1][3] else ('down', dn_legs[-1][1], dn_legs[-1][2], dn_legs[-1][3], dn_legs[-1][4])
             else:
-                chosen = up_leg or dn_leg
+                if up_legs:
+                    leg = up_legs[-1]; chosen = ('up', leg[1], leg[2], leg[3], leg[4])
+                else:
+                    leg = dn_legs[-1]; chosen = ('down', leg[1], leg[2], leg[3], leg[4])
             leg_reason = 'latest_neutral'
         # Sanity guard: override based on most recent bar behavior vs EMA20
         if chosen and leg_reason.startswith('regime'):
