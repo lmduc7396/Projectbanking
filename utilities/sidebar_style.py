@@ -25,6 +25,12 @@ def apply_sidebar_style():
             padding-left: 1rem;
             padding-right: 1rem;
         }
+
+        /* Pull main content upward for tighter layout */
+        .main .block-container {
+            padding-top: 1rem !important;
+            margin-top: 0 !important;
+        }
         
         /* Reduce font size in sidebar */
         section[data-testid="stSidebar"] * {
