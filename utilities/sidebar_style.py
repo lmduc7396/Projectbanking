@@ -26,10 +26,24 @@ def apply_sidebar_style():
             padding-right: 1rem;
         }
 
-        /* Pull main content upward for tighter layout */
-        .main .block-container {
+        /* Reduce global top spacing without negative offsets */
+        div[data-testid="stAppViewContainer"] > .main {
             padding-top: 0.5rem !important;
-            margin-top: -1.0rem !important;
+        }
+
+        div[data-testid="stAppViewContainer"] > .main .block-container {
+            padding-top: 0.5rem !important;
+            margin-top: 0 !important;
+        }
+
+        div[data-testid="stAppViewContainer"] > .main .block-container > div:first-child {
+            padding-top: 0.25rem !important;
+            margin-top: 0 !important;
+        }
+
+        div[data-testid="stAppViewContainer"] h1:first-child,
+        div[data-testid="stAppViewContainer"] h2:first-child {
+            margin-top: 0.25rem !important;
         }
         
         /* Reduce font size in sidebar */
