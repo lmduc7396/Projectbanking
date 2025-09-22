@@ -1,10 +1,4 @@
 #%%
-"""
-Prepare Valuation Data for Banking Sector
-This script processes raw valuation data to create a clean dataset
-with individual bank valuations and sector-level medians.
-"""
-
 import pandas as pd
 import numpy as np
 import os
