@@ -66,6 +66,11 @@ def apply_sidebar_style():
             padding-left: 0 !important;
             padding-right: 0 !important;
         }
+
+        /* Hide the automatically generated home link (streamlit_app.py) */
+        section[data-testid="stSidebarNav"] ul li:first-child {
+            display: none !important;
+        }
         
         /* Sidebar headers - slightly larger but still reduced */
         section[data-testid="stSidebar"] h1 {
