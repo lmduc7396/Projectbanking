@@ -36,19 +36,6 @@ except ImportError:
 st.title("Bank Earnings Drivers Analysis Dashboard")
 st.markdown("### Analyze earnings drivers through revenue growth, cost efficiency, and non-recurring items")
 
-# Cross-links to related sub-page
-with st.sidebar:
-    st.markdown("---")
-    st.subheader("Related Views")
-    try:
-        st.page_link("pages/6_Sector_Driver_Overview.py", label="Sector Driver Overview (sub‑page)")
-    except Exception:
-        if st.button("Open Sector Driver Overview"):
-            try:
-                st.switch_page("pages/6_Sector_Driver_Overview.py")
-            except Exception:
-                pass
-
 # Load data
 @st.cache_data
 def load_data():

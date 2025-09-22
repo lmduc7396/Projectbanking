@@ -1,89 +1,20 @@
-#%%
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-import numpy as np
-import openai
-import os
-from dotenv import load_dotenv
-import requests
-from datetime import datetime
-from utilities.style_utils import apply_google_font
 
-# Page configuration
+
 st.set_page_config(
     page_title="Banking Analysis Dashboard",
-    page_icon="Banking",
+    page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Apply Google Fonts
-apply_google_font()
-
-# Apply consistent sidebar styling
-from utilities.sidebar_style import apply_sidebar_style
-apply_sidebar_style()
-
-# Load environment variables
-load_dotenv()
-
-# Load your data
-@st.cache_data(ttl=3600)  # Refresh cache every hour
-def load_data():
-    df_quarter = pd.read_parquet('Data/dfsectorquarter.parquet')
-    df_year = pd.read_parquet('Data/dfsectoryear.parquet')
-    keyitem = pd.read_excel('Data/Key_items.xlsx')
-    return df_quarter, df_year, keyitem
-
-df_quarter, df_year, keyitem = load_data()
-color_sequence = px.colors.qualitative.Bold
-
-# Main page content
-st.title("Banking Analysis Dashboard")
-st.markdown("---")
-
-st.markdown("""
-### Welcome to the Banking Analysis Dashboard
-
-This comprehensive dashboard provides tools for analyzing banking sector data with the following features:
-
-#### **Banking Plot**
-- Interactive visualization of banking metrics
-- Compare multiple banks or bank types
-- Customizable time periods and metrics
-- Support for both quarterly and yearly data
-
-#### **Company Table** 
-- Detailed financial tables for individual banks or sectors
-- Growth analysis (QoQ/YoY)
-- Earnings metrics and financial ratios
-- Stock price visualization for individual tickers
-
-#### **OpenAI Comment**
-- AI-powered analysis and commentary
-- Bank performance insights
-- Sector comparison analysis
-- Generate detailed reports using OpenAI
-
-### How to Use
-1. **Select a page** from the sidebar navigation
-2. **Choose your database** (Quarterly or Yearly) in the sidebar
-3. **Configure your analysis** using the interactive controls on each page
-
-### Data Coverage
-- **Quarterly Data**: Detailed quarterly financial statements
-- **Yearly Data**: Annual financial performance
-- **Bank Types**: Sector, SOCB, Private_1, Private_2, Private_3
-- **Individual Tickers**: 3-letter bank codes
-
-### Getting Started
-**Use the sidebar navigation** to explore different analysis tools and begin your banking sector analysis.
-""")
-
-st.markdown("---")
-st.markdown("**Ready to start your analysis?** Navigate to any page using the sidebar!")
-
-   
+try:
+    st.switch_page("pages/1_Banking_Charts.py")
+except Exception:
+    st.title("Banking Analysis Dashboard")
+    st.markdown(
+        """
+        Unable to automatically open `pages/1_Banking_Charts.py`.
+        Use the sidebar to navigate to the **Banking Charts** page.
+        """
+    )
