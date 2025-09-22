@@ -4,7 +4,6 @@ Provides consistent sidebar appearance across the application.
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 def apply_sidebar_style():
     """
@@ -66,17 +65,6 @@ def apply_sidebar_style():
         section[data-testid="stSidebarNav"] {
             padding-left: 0 !important;
             padding-right: 0 !important;
-        }
-
-        /* Hide the automatically generated home link (streamlit_app.py) */
-        section[data-testid="stSidebarNav"] ul li:first-child {
-            display: none !important;
-        }
-        section[data-testid="stSidebarNav"] ul li:has(a[href*="streamlit_app"]) {
-            display: none !important;
-        }
-        section[data-testid="stSidebarNav"] ul li a[href="/"] {
-            display: none !important;
         }
         
         /* Sidebar headers - slightly larger but still reduced */
@@ -186,30 +174,3 @@ def apply_sidebar_style():
         }
         </style>
     """, unsafe_allow_html=True)
-
-    components.html(
-        """
-        <script>
-        const hideHomeNav = () => {
-            const doc = window.parent.document;
-            const nav = doc.querySelector('section[data-testid="stSidebarNav"]');
-            if (!nav) { return; }
-            const targets = nav.querySelectorAll('a[href="/"], a[href*="streamlit_app"]');
-            targets.forEach(link => {
-                const parentLi = link.closest('li');
-                if (parentLi) {
-                    parentLi.style.display = 'none';
-                } else {
-                    link.style.display = 'none';
-                }
-            });
-        };
-        const observer = new MutationObserver(() => {
-            hideHomeNav();
-        });
-        observer.observe(window.parent.document.body, { childList: true, subtree: true });
-        hideHomeNav();
-        </script>
-        """,
-        height=0,
-    )
