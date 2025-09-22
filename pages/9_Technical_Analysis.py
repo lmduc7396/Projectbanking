@@ -1258,54 +1258,8 @@ def main():
                 dfi = get_cached_stock_data(t, calc_days)
                 if dfi is not None and not dfi.empty:
                     _sts = compute_short_trend(dfi)
-                    lts_source = dfi
-                    if use_weekly_lts:
-                        try:
-                            weekly_api = get_cached_stock_data(t, days=int(calc_days * 2), resolution="W")
-                            if weekly_api is not None and not weekly_api.empty and len(weekly_api) >= 50:
-                                lts_source = weekly_api
-                            else:
-                                d_week = dfi.copy()
-                                d_week['tradingDate'] = pd.to_datetime(d_week['tradingDate'])
-                                d_week = d_week.set_index('tradingDate').sort_index()
-                                agg = d_week.resample('W-FRI').agg({
-                                    'open': 'first',
-                                    'high': 'max',
-                                    'low': 'min',
-                                    'close': 'last',
-                                    'volume': 'sum'
-                                }).dropna(how='any').reset_index().rename(columns={'tradingDate': 'tradingDate'})
-                                if len(agg) >= 50:
-                                    lts_source = agg
-                        except Exception:
-                            pass
-                    _lts = compute_long_trend(lts_source)
-
-                    if auto_pull_enabled:
-                        auto_params = _auto_pull_params(dfi, float(_lts.get('score', 0.0)))
-                        w_pull_mode = auto_params['mode']
-                        w_pull_threshold = auto_params['threshold']
-                        w_pull_atr_mult = auto_params['atr_mult']
-                        w_pull_scale = auto_params['scale']
-                    else:
-                        w_pull_mode = 'percent' if pull_mode == 'percent' else 'atrx'
-                        w_pull_threshold = float(pull_threshold)
-                        w_pull_atr_mult = float(pull_atr_mult)
-                        w_pull_scale = str(pull_scale)
-
-                    _obos = compute_obos(
-                        dfi,
-                        rsi_len=rsi_len,
-                        macd_fast=macd_fast,
-                        macd_slow=macd_slow,
-                        macd_signal=macd_signal,
-                        lts_score=float(_lts.get('score', 0.0)),
-                        pullback_enabled=pullback_enabled,
-                        pull_mode=w_pull_mode,
-                        pull_threshold=w_pull_threshold,
-                        pull_atr_mult=w_pull_atr_mult,
-                        pull_scale=w_pull_scale,
-                    )
+                    _lts = compute_long_trend(dfi)
+                    _obos = compute_obos(dfi, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
                     rows.append({
                         "Ticker": t,
                         "STS": _sts.get('score', np.nan),
