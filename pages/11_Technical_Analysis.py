@@ -726,6 +726,25 @@ def load_bank_tickers() -> List[str]:
         return []
 
 
+@st.cache_data(ttl=1800)
+def load_bank_groups() -> dict[str, List[str]]:
+    """Return mapping of bank type/sector to constituent tickers."""
+    try:
+        xls = pd.read_excel(os.path.join(project_root, 'Data', 'Bank_Type.xlsx'))
+        df = xls[['Type', 'TICKER']].dropna()
+        df['TICKER'] = df['TICKER'].astype(str).str.strip()
+        df['Type'] = df['Type'].astype(str).str.strip()
+        df = df[df['TICKER'].str.len() == 3]
+        groups: dict[str, List[str]] = {}
+        for grp, sub in df.groupby('Type'):
+            tickers = sorted(sub['TICKER'].unique().tolist())
+            if tickers:
+                groups[grp] = tickers
+        return groups
+    except Exception:
+        return {}
+
+
 def compute_sma(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window, min_periods=1).mean()
 
@@ -1184,24 +1203,62 @@ def main():
     # Watchlist comparison
     st.markdown("---")
     st.subheader("Watchlist Scores")
-    watchlist = st.multiselect("Select additional tickers", options=[t for t in load_bank_tickers() if t != ticker], default=[], help="Compare scores using the same settings")
-    if st.button("Compute Watchlist") and watchlist:
-        rows = []
-        for t in watchlist:
-            dfi = get_cached_stock_data(t, calc_days)
-            if dfi is not None and not dfi.empty:
-                _sts = compute_short_trend(dfi)
-                _lts = compute_long_trend(dfi)
-                _obos = compute_obos(dfi, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
-                rows.append({
-                    "Ticker": t,
-                    "STS": _sts.get('score', np.nan),
-                    "LTS": _lts.get('score', np.nan),
-                    "OBOS": _obos.get('score', np.nan),
-                })
-        if rows:
-            table = pd.DataFrame(rows).sort_values(["LTS", "STS"], ascending=False).reset_index(drop=True)
-            st.dataframe(table, use_container_width=True)
+    bank_tickers = load_bank_tickers()
+    watchlist = st.multiselect(
+        "Select tickers",
+        options=bank_tickers,
+        default=[],
+        help="Choose individual tickers (you can include the one shown above)."
+    )
+
+    group_map = load_bank_groups()
+    selected_group_labels: List[str] = []
+    selected_group_tickers: List[str] = []
+    if group_map:
+        label_to_group = {grp.replace('_', ' '): grp for grp in sorted(group_map)}
+        selected_group_labels = st.multiselect(
+            "Add predefined bank groups",
+            options=list(label_to_group.keys()),
+            default=[],
+            help="Populate the watchlist using sector/type groupings from the reference file."
+        )
+        for label in selected_group_labels:
+            selected_group_tickers.extend(group_map.get(label_to_group[label], []))
+        if selected_group_tickers:
+            group_preview = ", ".join(sorted(set(selected_group_tickers)))
+            st.caption(f"Group tickers included: {group_preview}")
+
+    def _unique_preserve_order(items: List[str]) -> List[str]:
+        seen: set[str] = set()
+        ordered: List[str] = []
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                ordered.append(item)
+        return ordered
+
+    combined_watchlist = _unique_preserve_order(watchlist + selected_group_tickers)
+
+    if st.button("Compute Watchlist"):
+        if not combined_watchlist:
+            st.warning("Add one or more tickers to compare.")
+        else:
+            rows = []
+            for t in combined_watchlist:
+                dfi = get_cached_stock_data(t, calc_days)
+                if dfi is not None and not dfi.empty:
+                    _sts = compute_short_trend(dfi)
+                    _lts = compute_long_trend(dfi)
+                    _obos = compute_obos(dfi, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
+                    rows.append({
+                        "Ticker": t,
+                        "STS": _sts.get('score', np.nan),
+                        "LTS": _lts.get('score', np.nan),
+                        "OBOS": _obos.get('score', np.nan),
+                    })
+            if rows:
+                table = pd.DataFrame(rows).sort_values(["LTS", "STS"], ascending=False).reset_index(drop=True)
+                st.dataframe(table, use_container_width=True)
 
 
 if __name__ == "__main__":
