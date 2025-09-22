@@ -1215,15 +1215,23 @@ def main():
     selected_group_labels: List[str] = []
     selected_group_tickers: List[str] = []
     if group_map:
-        label_to_group = {grp.replace('_', ' '): grp for grp in sorted(group_map)}
+        all_label = "All"
+        original_groups = sorted(group_map)
+        label_options = [all_label] + [grp.replace('_', ' ') for grp in original_groups]
+        label_to_group = {label: original for label, original in zip(label_options[1:], original_groups)}
         selected_group_labels = st.multiselect(
             "Add predefined bank groups",
-            options=list(label_to_group.keys()),
+            options=label_options,
             default=[],
             help="Populate the watchlist using sector/type groupings from the reference file."
         )
         for label in selected_group_labels:
-            selected_group_tickers.extend(group_map.get(label_to_group[label], []))
+            if label == all_label:
+                for tickers in group_map.values():
+                    selected_group_tickers.extend(tickers)
+            else:
+                original_group = label_to_group[label]
+                selected_group_tickers.extend(group_map.get(original_group, []))
         if selected_group_tickers:
             group_preview = ", ".join(sorted(set(selected_group_tickers)))
             st.caption(f"Group tickers included: {group_preview}")
