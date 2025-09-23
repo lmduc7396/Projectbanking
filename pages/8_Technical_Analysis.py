@@ -1259,7 +1259,29 @@ def main():
                 if dfi is not None and not dfi.empty:
                     _sts = compute_short_trend(dfi)
                     _lts = compute_long_trend(dfi)
-                    _obos = compute_obos(dfi, rsi_len=rsi_len, macd_fast=macd_fast, macd_slow=macd_slow, macd_signal=macd_signal)
+                    pull_mode_row = pull_mode_eff
+                    pull_threshold_row = pull_threshold_eff
+                    pull_atr_mult_row = pull_atr_mult_eff
+                    pull_scale_row = pull_scale_eff
+                    if pullback_enabled and auto_pull_enabled:
+                        auto_row = _auto_pull_params(dfi, float(_lts.get('score', 0.0)))
+                        pull_mode_row = auto_row.get('mode', pull_mode_row)
+                        pull_threshold_row = auto_row.get('threshold', pull_threshold_row)
+                        pull_atr_mult_row = auto_row.get('atr_mult', pull_atr_mult_row)
+                        pull_scale_row = auto_row.get('scale', pull_scale_row)
+                    _obos = compute_obos(
+                        dfi,
+                        rsi_len=rsi_len,
+                        macd_fast=macd_fast,
+                        macd_slow=macd_slow,
+                        macd_signal=macd_signal,
+                        lts_score=float(_lts.get('score', 0.0)),
+                        pullback_enabled=pullback_enabled,
+                        pull_mode=pull_mode_row,
+                        pull_threshold=pull_threshold_row,
+                        pull_atr_mult=pull_atr_mult_row,
+                        pull_scale=pull_scale_row,
+                    )
                     rows.append({
                         "Ticker": t,
                         "STS": _sts.get('score', np.nan),
