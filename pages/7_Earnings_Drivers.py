@@ -300,7 +300,64 @@ if quarterly_df is not None and yearly_df is not None:
                 height=600,
                 hide_index=True
             )
-            
+
+            # Contribution waterfall for a focused view
+            if not filtered_df.empty:
+                ticker_options = sorted(filtered_df['TICKER'].dropna().unique().tolist())
+                if ticker_options:
+                    st.subheader("Contribution Waterfall")
+                    selected_ticker_waterfall = st.selectbox(
+                        "Select bank",
+                        ticker_options,
+                        help="Visualise how each component contributes to the selected bank's growth"
+                    )
+
+                    ticker_row = filtered_df[filtered_df['TICKER'] == selected_ticker_waterfall]
+                    if ticker_row.empty:
+                        st.info("No driver data available for the selected bank.")
+                    else:
+                        row = ticker_row.iloc[0]
+
+                        def safe_value(column_name: str):
+                            if column_name in row and pd.notna(row[column_name]):
+                                return float(row[column_name])
+                            return None
+
+                        contributions = {
+                            "Top Line": safe_value(revenue_impact_col),
+                            "Cost Cutting": safe_value(cost_impact_col),
+                            "Non-Recurring": safe_value(nonrec_impact_col),
+                        }
+
+                        total_impact = safe_value(total_impact_col)
+                        if total_impact is None:
+                            total_impact = sum(v for v in contributions.values() if v is not None)
+
+                        if all(v is None for v in contributions.values()):
+                            st.info("Impact metrics are missing for this bank/timeframe.")
+                        else:
+                            waterfall = go.Figure(go.Waterfall(
+                                name="growth",
+                                orientation="v",
+                                measure=["relative", "relative", "relative", "total"],
+                                x=list(contributions.keys()) + ["Total"],
+                                y=[contributions.get(k, 0.0) or 0.0 for k in contributions.keys()] + [total_impact or 0.0],
+                                textposition="outside",
+                                connector={"line": {"color": "#7F7F7F"}}
+                            ))
+                            waterfall.update_layout(
+                                showlegend=False,
+                                yaxis_title="Contribution (pp)",
+                                waterfallgap=0.3,
+                            )
+                            st.plotly_chart(waterfall, use_container_width=True)
+
+                            detail_df = pd.DataFrame({
+                                "Component": list(contributions.keys()) + ["Total"],
+                                "Contribution": [round(contributions.get(k, 0.0) or 0.0, 2) for k in contributions.keys()] + [round(total_impact or 0.0, 2)]
+                            })
+                            st.dataframe(detail_df, hide_index=True, use_container_width=True)
+
             # Add explanation
             st.info(
                 "**Weighted Impact Analysis**: \n"
