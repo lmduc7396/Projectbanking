@@ -942,8 +942,12 @@ def main():
 
     with st.sidebar:
         st.subheader("Inputs")
-        bank_tickers = load_bank_tickers()
-        ticker = st.selectbox("Bank Ticker", options=bank_tickers or ["VCB", "ACB", "BID"], index=st.session_state.get('ta_idx', 0))
+        # Allow any ticker input for main analysis (not limited to banks)
+        ticker = st.text_input(
+            "Ticker",
+            value=st.session_state.get('ta_ticker', 'VCB'),
+            help="Enter any VN-listed ticker (e.g., VNM, FPT, VCB)"
+        ).strip().upper()
         period_map = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365, "2Y": 730}
         period_label = st.selectbox("Period", options=list(period_map.keys()), index=st.session_state.get('ta_period_idx', 2))
         days = period_map[period_label]
@@ -978,7 +982,7 @@ def main():
             st.cache_data.clear()
             st.rerun()
         # Persist settings
-        st.session_state['ta_idx'] = bank_tickers.index(ticker) if ticker in bank_tickers else 0
+        st.session_state['ta_ticker'] = ticker
         st.session_state['ta_period_idx'] = list(period_map.keys()).index(period_label)
         st.session_state['ta_ma_type_idx'] = 0 if ma_type == 'SMA' else 1
         st.session_state['ta_ma_windows'] = ma_windows
