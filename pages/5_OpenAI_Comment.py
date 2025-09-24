@@ -159,11 +159,23 @@ if ticker:
             ]
             if not ticker_cache.empty:
                 latest_cached = ticker_cache.iloc[-1]
-                generated_col = 'GENERATED_AT' if 'GENERATED_AT' in latest_cached else 'GENERATED_DATE'
-                try:
-                    generated_date = pd.to_datetime(latest_cached[generated_col]).strftime('%Y-%m-%d')
-                except Exception:
-                    generated_date = str(latest_cached[generated_col])
+                # Pick a valid timestamp column if present
+                candidate_cols = [
+                    'GENERATED_AT', 'GENERATED_DATE',
+                    'generated_at', 'created_at', 'UPDATED_AT', 'updated_at'
+                ]
+                generated_col = next((c for c in candidate_cols if c in ticker_cache.columns), None)
+
+                # Safely extract and format the date
+                generated_raw = latest_cached.get(generated_col) if generated_col else None
+                if pd.isna(generated_raw) or generated_raw is None:
+                    generated_date = "unknown"
+                else:
+                    try:
+                        generated_date = pd.to_datetime(generated_raw, errors='coerce')
+                        generated_date = generated_date.strftime('%Y-%m-%d %H:%M') if pd.notna(generated_date) else str(generated_raw)
+                    except Exception:
+                        generated_date = str(generated_raw)
 
                 st.success(
                     f"Cached analysis available for {ticker} - {selected_quarter} (Generated: {generated_date})"
