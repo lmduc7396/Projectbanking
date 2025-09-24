@@ -7,8 +7,12 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from utilities.db import get_connection
+
+# Ensure environment variables from .env are available before any DB calls
+load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / 'Data'
