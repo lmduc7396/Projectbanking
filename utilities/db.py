@@ -21,12 +21,23 @@ DEFAULT_SCHEMA = "dbo"
 def _get_connection_string(db: str) -> str:
     env_var = TARGET_DB_ENV if db == "target" else SOURCE_DB_ENV
     conn_str = os.getenv(env_var)
-    if not conn_str:
-        raise RuntimeError(
-            f"Environment variable '{env_var}' is not set. "
-            "Please define the connection string before running this action."
-        )
-    return conn_str
+    if conn_str:
+        return conn_str
+
+    # Streamlit Cloud exposes secrets via st.secrets, not environment vars
+    try:
+        import streamlit as st  # type: ignore
+
+        secrets = getattr(st, "secrets", None)
+        if secrets is not None and env_var in secrets:
+            return secrets[env_var]
+    except Exception:
+        pass
+
+    raise RuntimeError(
+        f"Connection information for '{env_var}' is not set. "
+        "Please define it as an environment variable or Streamlit secret."
+    )
 
 
 def _parse_connection_string(conn_str: str) -> Dict[str, str]:
