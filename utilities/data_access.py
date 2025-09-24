@@ -67,29 +67,30 @@ def load_banking_forecast(*, rename: bool = True) -> pd.DataFrame:
 
 
 def load_valuation_banking() -> pd.DataFrame:
-    """Load daily market/valuation data and enrich with bank Type.
+    """Load last 5 years of PE/PB for banking tickers only.
 
-    Migrated to dbo.Market_Data schema with columns like PE, PB, PS, PX_*, MKT_CAP.
-    This function filters to banking tickers and attaches their Type classification.
+    - Source: dbo.Market_Data
+    - Columns: TICKER, TRADE_DATE, PE, PB, Type
+    - Filters: TRADE_DATE >= GETDATE() - 5 years; TICKER limited to those present in BankingMetrics
     """
-    df = _load_dataframe("SELECT * FROM dbo.Market_Data")
+    query = """
+        SELECT md.TICKER,
+               md.TRADE_DATE,
+               md.PE,
+               md.PB,
+               bm.BANK_TYPE AS Type
+        FROM dbo.Market_Data AS md
+        INNER JOIN (
+            SELECT TICKER, MAX(BANK_TYPE) AS BANK_TYPE
+            FROM dbo.BankingMetrics
+            GROUP BY TICKER
+        ) AS bm
+            ON md.TICKER = bm.TICKER
+        WHERE md.TRADE_DATE >= DATEADD(year, -5, CAST(GETDATE() AS date))
+          AND (md.PE IS NOT NULL OR md.PB IS NOT NULL)
+    """
 
-    # Ensure expected columns exist
-    if 'TICKER' not in df.columns:
-        return df
-
-    # Attach bank Type by merging with quarterly banking metrics mapping
-    try:
-        banks_q = load_banking_metrics('Q')
-        if not banks_q.empty:
-            type_map = banks_q[['TICKER', 'Type']].dropna().drop_duplicates()
-            df = df.merge(type_map, on='TICKER', how='left')
-            # Keep only banking tickers (those that have a Type)
-            df = df[df['Type'].notna()].copy()
-    except Exception:
-        # If mapping fails, proceed without Type (downstream should handle)
-        pass
-
+    df = _load_dataframe(query)
     return df
 
 
