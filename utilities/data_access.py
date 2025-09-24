@@ -67,9 +67,29 @@ def load_banking_forecast(*, rename: bool = True) -> pd.DataFrame:
 
 
 def load_valuation_banking() -> pd.DataFrame:
-    df = _load_dataframe("SELECT * FROM dbo.ValuationBanking")
-    if 'BANK_TYPE' in df.columns and 'Type' not in df.columns:
-        df['Type'] = df['BANK_TYPE']
+    """Load daily market/valuation data and enrich with bank Type.
+
+    Migrated to dbo.Market_Data schema with columns like PE, PB, PS, PX_*, MKT_CAP.
+    This function filters to banking tickers and attaches their Type classification.
+    """
+    df = _load_dataframe("SELECT * FROM dbo.Market_Data")
+
+    # Ensure expected columns exist
+    if 'TICKER' not in df.columns:
+        return df
+
+    # Attach bank Type by merging with quarterly banking metrics mapping
+    try:
+        banks_q = load_banking_metrics('Q')
+        if not banks_q.empty:
+            type_map = banks_q[['TICKER', 'Type']].dropna().drop_duplicates()
+            df = df.merge(type_map, on='TICKER', how='left')
+            # Keep only banking tickers (those that have a Type)
+            df = df[df['Type'].notna()].copy()
+    except Exception:
+        # If mapping fails, proceed without Type (downstream should handle)
+        pass
+
     return df
 
 

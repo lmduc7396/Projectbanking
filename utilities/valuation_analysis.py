@@ -9,11 +9,11 @@ from typing import Dict, Tuple, List, Optional
 def get_metric_column(metric_type: str) -> str:
     """Get the column name for the selected metric"""
     if metric_type == "P/E":
-        return "PE_RATIO"
+        return "PE"
     elif metric_type == "P/B":
-        return "PX_TO_BOOK_RATIO"
+        return "PB"
     else:
-        return "PX_TO_SALES_RATIO"
+        return "PS"
 
 def remove_outliers_iqr(data: pd.Series, multiplier: float = 1.5) -> pd.Series:
     """Remove outliers using IQR method"""

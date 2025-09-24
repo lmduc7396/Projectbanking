@@ -831,13 +831,13 @@ class BankingToolSystem:
             
             # df already loaded above
             
-            # Map metric names
+            # Map metric names to Market_Data schema
             metric_map = {
-                "PE": "PE_RATIO",
-                "PB": "PX_TO_BOOK_RATIO"
+                "PE": "PE",
+                "PB": "PB"
             }
             
-            col_name = metric_map.get(metric, "PX_TO_BOOK_RATIO")
+            col_name = metric_map.get(metric, "PB")
             
             if col_name not in df.columns:
                 return {"error": f"Metric {metric} not found", "status": "failed"}

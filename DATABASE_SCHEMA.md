@@ -64,26 +64,37 @@ This document provides a comprehensive reference for all database tables created
 
 ## Market Data Tables
 
-### Valuation
-**Purpose**: Daily valuation multiples and ratios
+### Market_Data
+**Purpose**: Comprehensive daily market data including OHLC prices, valuation multiples, and EV/EBITDA
 **Update Frequency**: Daily
-**Data Range**: Last 5 years
-**Row Count**: ~400,000+
+**Data Range**: 2018 - Present
+**Row Count**: ~1,400,000+
 
 | Column | Data Type | Nullable | Description | Example |
 |--------|-----------|----------|-------------|---------|
-| **TICKER** | NVARCHAR(50) | NO | Stock symbol | 'VNM' |
-| **TRADE_DATE** | DATETIME | NO | Trading date | '2024-09-23' |
-| P/E | FLOAT | YES | Price-to-Earnings ratio | 18.5 |
-| P/B | FLOAT | YES | Price-to-Book ratio | 3.2 |
-| P/S | FLOAT | YES | Price-to-Sales ratio | 2.8 |
-| EV/EBITDA | FLOAT | YES | Enterprise Value/EBITDA | 12.3 |
+| **TICKER** | VARCHAR(10) | NO | Stock symbol (extracted from PRIMARYSECID) | 'VNM' |
+| **TRADE_DATE** | DATE | NO | Trading date | '2024-09-23' |
+| PE | FLOAT | YES | Price-to-Earnings ratio | 18.5 |
+| PB | FLOAT | YES | Price-to-Book ratio | 3.2 |
+| PS | FLOAT | YES | Price-to-Sales ratio | 2.8 |
+| PX_OPEN | FLOAT | YES | Opening price | 67500 |
+| PX_HIGH | FLOAT | YES | Daily high price | 68200 |
+| PX_LOW | FLOAT | YES | Daily low price | 67000 |
+| PX_LAST | FLOAT | YES | Closing/Last price | 67800 |
+| MKT_CAP | FLOAT | YES | Market capitalization | 145678.5 |
+| EV_EBITDA | FLOAT | YES | Enterprise Value/EBITDA ratio | 12.3 |
+| UPDATE_TIMESTAMP | DATETIME | YES | Last update timestamp | '2024-09-23 18:30:00' |
 
 **Primary Key**: TICKER + TRADE_DATE
+**Data Sources**:
+- Bloomberg (SIL.S_BBG_DATA_DWH_ADJUSTED): PE, PB, PS, PX_OPEN, PX_HIGH, PX_LOW, PX_LAST, MKT_CAP
+- IRIS (SIL.W_F_IRIS_CALCULATE): EV_EBITDA
 **Data Quality Notes**:
-- NULL values indicate ratio not calculable (negative earnings, etc.)
-- Filtered to trading days only
-- Updated after market close
+- PX_ prefix used for price columns to avoid SQL reserved keywords
+- NULL values indicate data not available or not calculable
+- Price relationships validated: PX_HIGH >= PX_LAST >= PX_LOW
+- Extreme valuation ratios capped (PE < 1000, PB < 100, PS < 100)
+- Updated via standalone valuation_ohlc_extractor script
 
 ---
 
