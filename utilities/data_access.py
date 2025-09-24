@@ -39,7 +39,7 @@ def _load_dataframe(query: str, params: Optional[list] = None) -> pd.DataFrame:
 
 
 def load_banking_metrics(period: str, *, rename: bool = True) -> pd.DataFrame:
-    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = ?"
+    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = %s"
     df = _load_dataframe(query, params=[period])
 
     if rename:

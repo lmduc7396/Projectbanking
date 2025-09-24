@@ -1,10 +1,11 @@
 #%%
-import pyodbc
 import pandas as pd
 import re
 from pathlib import Path
 import platform
 from typing import Optional
+
+from utilities.db import create_connection_from_string
 
 # Helper functions
 def get_base_path():
@@ -26,9 +27,9 @@ def _format_identifier(identifier: str) -> str:
     return f"[{identifier}]"
 
 
-def get_connection(connection_str: str = DB_AILAB_STR) -> pyodbc.Connection:
-    """Return a live pyodbc connection using the provided connection string."""
-    return pyodbc.connect(connection_str)
+def get_connection(connection_str: str = DB_AILAB_STR):
+    """Return a live pymssql connection using the provided connection string."""
+    return create_connection_from_string(connection_str)
 
 
 def fetch_tables(schema: Optional[str] = None) -> pd.DataFrame:
@@ -40,7 +41,7 @@ def fetch_tables(schema: Optional[str] = None) -> pd.DataFrame:
     )
     params = None
     if schema:
-        query += " AND TABLE_SCHEMA = ?"
+        query += " AND TABLE_SCHEMA = %s"
         params = (schema,)
 
     with get_connection() as conn:
@@ -90,7 +91,7 @@ def fetch_table_columns(table: str, schema: Optional[str] = None) -> pd.DataFram
     query = (
         "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH, ORDINAL_POSITION "
         "FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_NAME = ?"
+        "WHERE TABLE_NAME = %s"
     )
     if schema:
         query += " AND TABLE_SCHEMA = ?"
