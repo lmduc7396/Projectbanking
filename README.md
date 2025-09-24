@@ -2,7 +2,7 @@
 
 A comprehensive banking analysis dashboard with AI-powered insights using OpenAI's API.
 
-## 📁 Project Structure (Parquet-first)
+## 📁 Project Structure (SQL-first)
 
 ```
 .
@@ -10,17 +10,10 @@ A comprehensive banking analysis dashboard with AI-powered insights using OpenAI
 ├── requirements.txt           # Python dependencies
 ├── .env                      # Environment variables (not in repo)
 │
-├── Data/                     # Data files and datasets (primary: Parquet)
-│   ├── dfsectorquarter.parquet
-│   ├── dfsectoryear.parquet
-│   ├── dfsectorforecast.parquet
-│   ├── Valuation_banking.parquet
-│   ├── earnings_quality_quarterly.parquet
-│   ├── earnings_quality_yearly.parquet
-│   ├── banking_comments.parquet
-│   ├── quarterly_analysis_results.parquet
-│   ├── Bank_Type.xlsx        # Reference (kept as Excel)
-│   └── Key_items.xlsx        # Reference (kept as Excel)
+├── Data/                     # Legacy reference files (kept for staging/backfill only)
+│   ├── Bank_Type.xlsx
+│   ├── Key_items.xlsx
+│   └── ... (other historical files no longer the primary source)
 │
 ├── generators/               # Bulk generation scripts
 │   ├── bulk_comment_generator.py      # Generate AI comments for all banks/quarters
@@ -33,11 +26,11 @@ A comprehensive banking analysis dashboard with AI-powered insights using OpenAI
 │   ├── 4_Comment_Management.py       # Manage and export comments
 │   └── 5_Quarterly_Analysis.py       # Quarterly sector analysis
 │
-├── scripts/                  # Utility scripts
-│   ├── run_generators.py            # Unified runner for generators
-│   ├── prepare_data.py              # Prepares core datasets → Parquet
-│   ├── Prepare_earnings_driver.py   # Prepares earnings driver datasets → Parquet
-│   └── prepare_valuation.py         # Prepares valuation dataset → Parquet
+├── scripts/                  # ETL jobs feeding the warehouse
+│   ├── run_generators.py
+│   ├── prepare_data.py              # Reads legacy SQL → dbo.BankingMetrics etc.
+│   ├── Prepare_earnings_driver.py   # Writes driver tables (EarningsQuality*)
+│   └── prepare_valuation.py         # Loads valuation tables
 │
 └── utilities/               # Reusable utility modules
     ├── __init__.py
@@ -72,11 +65,13 @@ cd "VS - Code project"
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
-Create a `.env` file in the project root with:
+3. Set up environment variables (local) or Streamlit secrets (cloud):
 ```
 OPENAI_API_KEY=your_api_key_here
+SOURCE_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
+TARGET_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
 ```
+Connection strings may retain `DRIVER=...` segments for compatibility, but only the fields above are consumed by the pymssql client.
 
 ### Running the Application
 

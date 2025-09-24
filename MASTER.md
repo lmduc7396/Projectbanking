@@ -4,7 +4,7 @@ This master document summarizes the full architecture, data flow, tools, workflo
 
 ## 1) Overview
 - Purpose: Financial data visualization plus AI analysis powered by OpenAI.
-- Flow: Raw data → Prepared Parquet → AI generators → Caches → Streamlit UI.
+- Flow: Source SQL Server → curated warehouse tables → Streamlit/MCP tools (Parquet files now legacy-only).
 - Scope: Quarterly and yearly banking metrics, sector aggregates, valuation, price performance, and AI commentary.
 
 ## 2) Quick Start
@@ -13,8 +13,10 @@ This master document summarizes the full architecture, data flow, tools, workflo
 pip install -r requirements.txt
 
 # 2) Environment
-# .env file at project root
+# .env file at project root (or Streamlit secrets)
 # OPENAI_API_KEY=your_api_key_here
+# SOURCE_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
+# TARGET_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
 # (Optional) OPENAI_MODEL=gpt-5
 
 # 3) Prepare data (generates Parquet)
@@ -36,17 +38,10 @@ python scripts/run_generators.py
 ├── requirements.txt                 # Python deps
 ├── .env                             # Environment variables (local)
 │
-├── Data/                            # Source + generated data
-│   ├── dfsectorquarter.parquet      # Historical quarterly (primary)
-│   ├── dfsectoryear.parquet         # Historical yearly (primary)
-│   ├── dfsectorforecast.parquet     # Forecasts
-│   ├── Valuation_banking.parquet    # Valuation time series
-│   ├── earnings_quality_quarterly.parquet
-│   ├── earnings_quality_yearly.parquet
-│   ├── banking_comments.parquet     # AI comments cache
-│   ├── quarterly_analysis_results.parquet
-│   ├── Bank_Type.xlsx               # Reference: classifications
-│   └── Key_items.xlsx               # Reference: metric definitions
+├── Data/                            # Legacy reference files (parquet/Excel)
+│   ├── Bank_Type.xlsx               # Legacy lookups (still used by ETL scripts)
+│   ├── Key_items.xlsx               # Metric mapping
+│   └── *.parquet                    # Historical exports (no longer primary source)
 │
 ├── generators/
 │   ├── bulk_comment_generator.py
@@ -87,6 +82,19 @@ Notes:
 - Generated caches:
   - `banking_comments.parquet`: TICKER/SECTOR, QUARTER, COMMENT, GENERATED_AT
   - `quarterly_analysis_results.parquet`: QUARTER, BANK_COUNT, KEY_CHANGES, INDIVIDUAL_HIGHLIGHTS, FORWARD_OUTLOOK, FULL_ANALYSIS, GENERATED_AT
+
+**Warehouse tables (primary data source)**
+
+> Full schema, column descriptions, and table relationships live in `DATABASE_SCHEMA.md`. Always refer there when exploring or onboarding new data tables.
+
+- `dbo.BankingMetrics` – quarterly & yearly fundamentals; key `(TICKER, YEARREPORT, LENGTHREPORT)`, `PERIOD_TYPE` distinguishes `Q`/`Y`.
+- `dbo.BankingForecast` – forecast rows (typically next two years); key `(TICKER, YEARREPORT, LENGTHREPORT)`.
+- `dbo.Valuation` / `dbo.ValuationBanking` – raw valuation pull and cleaned banking subset; key `(TICKER, TRADE_DATE)`.
+- `dbo.FA_Quarterly`, `dbo.FA_Annual` – legacy financial statements stored in warehouse for completeness.
+- `dbo.Banking_Comments`, `dbo.QuarterlyAnalysis` – AI commentary caches migrated from parquet files.
+- `_load_earnings_quality_*` tables (quarterly/yearly) – earnings driver impacts used by MCP tools.
+
+All connection handling is centralized in `utilities/db.py` using `pymssql`. Connection strings may still contain `DRIVER=...` segments (for backward compatibility) but only `SERVER`, `DATABASE`, `UID`, `PWD`, `Connection Timeout`, and optional `ssl`/`TDS_Version` values are consumed. For table-specific details, consult `DATABASE_SCHEMA.md`.
 
 ## 5) Core Utilities (How Things Work)
 - `quarter_utils.py`: Convert/sort quarters; numeric encodings for ordering and ranges.
@@ -207,4 +215,3 @@ These are enforced by convention across utilities, pages, and generators:
 
 ---
 Authoritative references: README.md, CLAUDE.md, MCP.md, PERFORMANCE_OPTIMIZATION.md, PARQUET_MIGRATION_SUMMARY.md
-
