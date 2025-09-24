@@ -37,8 +37,7 @@ def _load_comments():
     df = load_comments()
     if df.empty:
         return df
-    gen_col = 'GENERATED_AT' if 'GENERATED_AT' in df.columns else 'GENERATED_DATE'
-    df['generated_dt'] = pd.to_datetime(df[gen_col], errors='coerce')
+    df['generated_dt'] = pd.to_datetime(df.get('GENERATED_DATE'), errors='coerce')
     df['generated_display'] = df['generated_dt'].dt.strftime('%Y-%m-%d %H:%M')
     return df
 

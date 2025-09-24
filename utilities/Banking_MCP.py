@@ -111,10 +111,9 @@ class BankingToolSystem:
         df = df.copy()
         if 'quarter' in df.columns and 'QUARTER' not in df.columns:
             df['QUARTER'] = df['quarter']
-        if 'generated_at' in df.columns and 'GENERATED_AT' not in df.columns:
-            df['GENERATED_AT'] = df['generated_at']
-        if 'GENERATED_AT' not in df.columns and 'GENERATED_DATE' in df.columns:
-            df['GENERATED_AT'] = df['GENERATED_DATE']
+        # Standardize on GENERATED_DATE only
+        if 'generated_at' in df.columns and 'GENERATED_DATE' not in df.columns:
+            df['GENERATED_DATE'] = df['generated_at']
         return df
 
     @lru_cache(maxsize=1)
@@ -772,13 +771,13 @@ class BankingToolSystem:
                     if not comment.empty:
                         comment_row = comment.iloc[0]
                         comment_text = comment_row.get('COMMENT', comment_row.get('comment'))
-                        generated_at = comment_row.get('GENERATED_AT', comment_row.get('generated_at', comment_row.get('GENERATED_DATE')))
+                        generated_date = comment_row.get('GENERATED_DATE')
                         results[ticker] = {
                             "type": "bank",
                             "ticker": ticker,
                             "quarter": quarter,
                             "comment": comment_text,
-                            "generated_at": str(generated_at) if generated_at is not None else ""
+                            "generated_date": str(generated_date) if generated_date is not None else ""
                         }
                     else:
                         errors.append(f"No commentary for {ticker} in {quarter}")

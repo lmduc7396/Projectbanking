@@ -45,9 +45,8 @@ def _load_quarterly_analysis():
 @st.cache_data(ttl=600)
 def _load_comments():
     df = load_comments()
-    if not df.empty:
-        generated_col = 'GENERATED_AT' if 'GENERATED_AT' in df.columns else 'GENERATED_DATE'
-        df['generated_display'] = pd.to_datetime(df[generated_col], errors='coerce')
+    if not df.empty and 'GENERATED_DATE' in df.columns:
+        df['generated_display'] = pd.to_datetime(df['GENERATED_DATE'], errors='coerce')
     return df
 
 
@@ -116,8 +115,6 @@ def quarterly_analysis_page():
                         display_df = quarter_comments.copy()
                         if 'generated_display' in display_df.columns:
                             display_df['Generated'] = display_df['generated_display'].dt.strftime('%Y-%m-%d %H:%M')
-                        elif 'GENERATED_DATE' in display_df.columns:
-                            display_df['Generated'] = pd.to_datetime(display_df['GENERATED_DATE'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M')
                         else:
                             display_df['Generated'] = ''
 

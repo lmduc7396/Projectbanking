@@ -49,8 +49,8 @@ color_sequence = px.colors.qualitative.Bold
 @st.cache_data(ttl=600)
 def load_comments_cache():
     df = load_comments()
-    if not df.empty and 'GENERATED_AT' in df.columns:
-        df['GENERATED_AT'] = pd.to_datetime(df['GENERATED_AT'], errors='coerce')
+    if not df.empty and 'GENERATED_DATE' in df.columns:
+        df['GENERATED_DATE'] = pd.to_datetime(df['GENERATED_DATE'], errors='coerce')
     return df
 
 
@@ -159,21 +159,14 @@ if ticker:
             ]
             if not ticker_cache.empty:
                 latest_cached = ticker_cache.iloc[-1]
-                # Pick a valid timestamp column if present
-                candidate_cols = [
-                    'GENERATED_AT', 'GENERATED_DATE',
-                    'generated_at', 'created_at', 'UPDATED_AT', 'updated_at'
-                ]
-                generated_col = next((c for c in candidate_cols if c in ticker_cache.columns), None)
-
-                # Safely extract and format the date
-                generated_raw = latest_cached.get(generated_col) if generated_col else None
+                # Use GENERATED_DATE if available; otherwise, omit date
+                generated_raw = latest_cached.get('GENERATED_DATE')
                 if pd.isna(generated_raw) or generated_raw is None:
                     generated_date = "unknown"
                 else:
                     try:
-                        generated_date = pd.to_datetime(generated_raw, errors='coerce')
-                        generated_date = generated_date.strftime('%Y-%m-%d %H:%M') if pd.notna(generated_date) else str(generated_raw)
+                        generated_dt = pd.to_datetime(generated_raw, errors='coerce')
+                        generated_date = generated_dt.strftime('%Y-%m-%d %H:%M') if pd.notna(generated_dt) else str(generated_raw)
                     except Exception:
                         generated_date = str(generated_raw)
 

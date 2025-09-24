@@ -23,11 +23,9 @@ def load_cached_comment(ticker, quarter, comments_df: pd.DataFrame | None = None
             return None
 
         comment_data = comment_row.iloc[0]
-        generated_col = 'GENERATED_AT' if 'GENERATED_AT' in comment_data else 'GENERATED_DATE'
-
         return {
             'comment': comment_data.get('COMMENT'),
-            'generated_date': comment_data.get(generated_col),
+            'generated_date': comment_data.get('GENERATED_DATE'),
             'sector': comment_data.get('SECTOR')
         }
 
@@ -370,7 +368,7 @@ def save_comment_to_cache(ticker, sector, quarter, comment):
                 'SECTOR': sector,
                 'DATE': quarter,
                 'COMMENT': comment,
-                'GENERATED_AT': pd.Timestamp.utcnow()
+                'GENERATED_DATE': pd.Timestamp.utcnow()
             }
         ])
 

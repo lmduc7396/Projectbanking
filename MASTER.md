@@ -80,8 +80,8 @@ Notes:
 - Quarter format: `XQyy` (e.g., `1Q24` for Q1 2024).
 - Sector tickers: `Sector`, `SOCB`, `Private_1`, `Private_2`, `Private_3` (can mix with bank tickers in queries).
 - Generated caches:
-  - `banking_comments.parquet`: TICKER/SECTOR, QUARTER, COMMENT, GENERATED_AT
-  - `quarterly_analysis_results.parquet`: QUARTER, BANK_COUNT, KEY_CHANGES, INDIVIDUAL_HIGHLIGHTS, FORWARD_OUTLOOK, FULL_ANALYSIS, GENERATED_AT
+  - `banking_comments.parquet`: TICKER/SECTOR, QUARTER, COMMENT, GENERATED_DATE
+  - `quarterly_analysis_results.parquet`: QUARTER, BANK_COUNT, KEY_CHANGES, INDIVIDUAL_HIGHLIGHTS, FORWARD_OUTLOOK, FULL_ANALYSIS, GENERATED_DATE
 
 **Warehouse tables (primary data source)**
 

@@ -98,8 +98,8 @@ Key columns in CSV files:
 - KeyCode columns: Financial metrics (mapped via Key_items.xlsx)
 
 Generated cache files:
-- `banking_comments.xlsx`: TICKER, SECTOR, QUARTER, COMMENT, GENERATED_AT
-- `quarterly_analysis_results.xlsx`: QUARTER, BANK_COUNT, KEY_CHANGES, INDIVIDUAL_HIGHLIGHTS, FORWARD_OUTLOOK, FULL_ANALYSIS, GENERATED_AT
+- `banking_comments.xlsx`: TICKER, SECTOR, QUARTER, COMMENT, GENERATED_DATE
+- `quarterly_analysis_results.xlsx`: QUARTER, BANK_COUNT, KEY_CHANGES, INDIVIDUAL_HIGHLIGHTS, FORWARD_OUTLOOK, FULL_ANALYSIS, GENERATED_DATE
 
 ## Code Style Guidelines
 
