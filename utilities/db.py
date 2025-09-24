@@ -137,7 +137,12 @@ def create_connection_from_string(conn_str: str, autocommit: bool = False) -> py
 @contextmanager
 def get_connection(db: str = "target", autocommit: bool = False) -> Iterable[pymssql.Connection]:
     params = _parse_connection_string(_get_connection_string(db))
-    connection = pymssql.connect(**_build_connection_kwargs(params, autocommit))
+    try:
+        connection = pymssql.connect(**_build_connection_kwargs(params, autocommit))
+    except pymssql.Error as exc:
+        message = getattr(exc, 'args', [str(exc)])
+        raise RuntimeError(f"Failed to connect to SQL Server using '{db}' credentials: {message}") from exc
+
     try:
         yield connection
     finally:
