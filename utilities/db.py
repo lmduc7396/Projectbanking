@@ -64,7 +64,10 @@ def _parse_connection_string(conn_str: str) -> Dict[str, str]:
         if '=' not in token:
             continue
         key, value = token.split('=', 1)
-        params[key.strip().upper()] = value.strip().strip('"')
+        key = key.strip().upper()
+        if key == 'DRIVER':
+            continue
+        params[key] = value.strip().strip('"')
     return params
 
 
@@ -116,14 +119,6 @@ def _build_connection_kwargs(params: Dict[str, str], autocommit: bool) -> Dict[s
             kwargs['login_timeout'] = int(login_timeout)
         except ValueError:
             pass
-
-    conn_props: List[str] = []
-    if params.get('ENCRYPT', '').lower() in {'yes', 'true'}:
-        conn_props.append('Encrypt=yes')
-    if params.get('TRUSTSERVERCERTIFICATE'):
-        conn_props.append(f"TrustServerCertificate={params['TRUSTSERVERCERTIFICATE']}")
-    if conn_props:
-        kwargs['conn_properties'] = ';'.join(conn_props)
 
     return kwargs
 
