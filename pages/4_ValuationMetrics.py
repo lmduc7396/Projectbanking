@@ -68,6 +68,42 @@ if df.empty:
     st.error("Valuation data not found. Please run the valuation preparation pipeline.")
     st.stop()
 
+# Build sector and sub-sector aggregate series (median of component banks by day)
+try:
+    base = df.copy()
+    # Only use individual banks to form aggregates (3-char tickers)
+    base_banks = base[base['TICKER'].astype(str).str.len() == 3]
+    # Ensure needed columns
+    needed_cols = {'TRADE_DATE', 'TICKER', 'Type', 'PE', 'PB'}
+    if needed_cols.issubset(set(base_banks.columns)) and not base_banks.empty:
+        # Sub-sector medians per date
+        sub_agg = (
+            base_banks
+            .groupby(['TRADE_DATE', 'Type'])[['PE', 'PB']]
+            .median()
+            .reset_index()
+        )
+        # Create rows where TICKER is the Type label (e.g., 'SOCB', 'Private_1', ...)
+        sub_agg['TICKER'] = sub_agg['Type']
+
+        # Overall sector median per date
+        sector_agg = (
+            base_banks
+            .groupby(['TRADE_DATE'])[['PE', 'PB']]
+            .median()
+            .reset_index()
+        )
+        sector_agg['TICKER'] = 'Sector'
+        sector_agg['Type'] = 'Sector'
+
+        # Combine back with original
+        agg_df = pd.concat([base, sub_agg, sector_agg], ignore_index=True, sort=False)
+        # Drop duplicates if any
+        agg_df = agg_df.drop_duplicates(subset=['TICKER', 'TRADE_DATE'])
+        df = agg_df
+except Exception as e:
+    st.warning(f"Could not compute sector aggregates: {e}")
+
 # Sidebar metric selection
 with st.sidebar:
     st.markdown("### Settings")

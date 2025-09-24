@@ -844,36 +844,71 @@ class BankingToolSystem:
             
             results = {}
             comparison_data = []
-            
+
+            # Precompute available sector types
+            available_types = set(df['Type'].dropna().unique().tolist()) if 'Type' in df.columns else set()
+
+            def series_for(name: str) -> pd.Series:
+                """Return a clean valuation series for a bank ticker or an aggregate name.
+
+                - If name is an actual ticker in df, return its series.
+                - If name equals 'Sector', return median across all banks by date.
+                - If name matches a Type (e.g., 'SOCB', 'Private_1'), return median of that Type by date.
+                """
+                # Exact ticker
+                sel = df[df['TICKER'] == name][['TRADE_DATE', col_name]].dropna()
+                if not sel.empty:
+                    return sel.sort_values('TRADE_DATE')[col_name]
+
+                # Aggregates
+                if name == 'Sector':
+                    grp = (
+                        df[['TRADE_DATE', col_name]]
+                        .dropna()
+                        .groupby('TRADE_DATE')[col_name]
+                        .median()
+                        .sort_index()
+                    )
+                    return grp
+                if name in available_types and 'Type' in df.columns:
+                    sub = df[df['Type'] == name][['TRADE_DATE', col_name]].dropna()
+                    if not sub.empty:
+                        grp = sub.groupby('TRADE_DATE')[col_name].median().sort_index()
+                        return grp
+                return pd.Series(dtype=float)
+
             for ticker in tickers:
-                ticker = ticker.upper()
-                bank_data = df[df['TICKER'] == ticker][col_name].dropna()
-                
-                if not bank_data.empty:
-                    current = bank_data.iloc[-1]
-                    mean = bank_data.mean()
-                    std = bank_data.std()
-                    z_score = (current - mean) / std if std != 0 else 0
-                    percentile = stats.percentileofscore(bank_data, current)
-                    
+                ticker = str(ticker).upper()
+                series = series_for(ticker)
+
+                if not series.empty:
+                    current = float(series.iloc[-1])
+                    mean = float(series.mean())
+                    median = float(series.median())
+                    std = float(series.std())
+                    z_score = float((current - mean) / std) if std != 0 else 0.0
+                    percentile = float(stats.percentileofscore(series.values, current))
+
+                    interp = "Undervalued" if z_score < -1 else ("Overvalued" if z_score > 1 else "Fair valued")
+
                     results[ticker] = {
-                        "current_value": float(current),
-                        "mean": float(mean),
-                        "median": float(bank_data.median()),
-                        "std": float(std),
-                        "z_score": float(z_score),
-                        "percentile_rank": float(percentile),
-                        "min": float(bank_data.min()),
-                        "max": float(bank_data.max()),
-                        "interpretation": "Undervalued" if z_score < -1 else "Overvalued" if z_score > 1 else "Fair valued"
+                        "current_value": current,
+                        "mean": mean,
+                        "median": median,
+                        "std": std,
+                        "z_score": z_score,
+                        "percentile_rank": percentile,
+                        "min": float(series.min()),
+                        "max": float(series.max()),
+                        "interpretation": interp,
                     }
-                    
+
                     comparison_data.append({
                         "ticker": ticker,
-                        "current": float(current),
-                        "z_score": float(z_score),
-                        "percentile": float(percentile),
-                        "interpretation": results[ticker]["interpretation"]
+                        "current": current,
+                        "z_score": z_score,
+                        "percentile": percentile,
+                        "interpretation": interp,
                     })
             
             # Sort by z_score for ranking
