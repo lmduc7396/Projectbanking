@@ -18,6 +18,7 @@ sys.path.append(project_root)
 # Import and apply Google Fonts
 from utilities.style_utils import apply_google_font
 from utilities.sidebar_style import apply_sidebar_style
+from utilities.data_access import load_banking_metrics, load_banking_forecast
 apply_google_font()
 
 # Apply consistent sidebar styling
@@ -57,12 +58,11 @@ st.title(' ')
 # Function to detect the last complete year from historical data
 @st.cache_data(ttl=3600)
 def get_last_historical_year():
-    """Detect the last complete year from historical parquet data"""
-    # Use the already-loaded year historical data from parquet
-    df_year_historical = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
-    
+    """Detect the last complete year from historical records."""
+    df_year_historical = load_banking_metrics('Y')
+
     if df_year_historical.empty:
-        st.error("No historical data found in dfsectoryear.parquet")
+        st.error("No historical data found in BankingMetrics")
         st.stop()
     
     # Handle both string and numeric Year values
@@ -85,19 +85,16 @@ def get_last_historical_year():
 def load_data():
     """Load all required data in one optimized function"""
     # Load historical data
-    df_year_historical = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
-    
-    # Load forecast data if it exists
-    forecast_file = os.path.join(project_root, 'Data/dfsectorforecast.parquet')
-    df_forecast = None
-    if os.path.exists(forecast_file):
-        df_forecast = pd.read_parquet(forecast_file)
-        # Combine historical and forecast data for complete dataset
+    df_year_historical = load_banking_metrics('Y')
+
+    df_forecast = load_banking_forecast()
+    if not df_forecast.empty:
         df_year = pd.concat([df_year_historical, df_forecast], ignore_index=True)
     else:
+        df_forecast = None
         df_year = df_year_historical
-    
-    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
+
+    df_quarter = load_banking_metrics('Q')
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
     
     # Pre-process quarter data
@@ -129,7 +126,7 @@ banks_with_forecast = sorted(df_year[forecast_mask & ticker_mask]['TICKER'].uniq
 
 # Check if there's any data to work with
 if len(banks_with_forecast) == 0:
-    st.error("No banks with forecast data found. Please check your data files.")
+    st.error("No banks with forecast data found. Please verify the database contents.")
     st.stop()
 
 # Sidebar with Bank/Sector selection

@@ -3,7 +3,43 @@
 import pandas as pd
 import numpy as np
 import warnings
+from pathlib import Path
+
+from utilities.db import get_connection, upsert_dataframe
+from utilities.data_catalog import get_table
+
 warnings.filterwarnings('ignore')
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / 'Data'
+
+
+def load_keycode_mapping() -> dict:
+    key_items = pd.read_excel(DATA_DIR / 'Key_items.xlsx')
+    return dict(zip(key_items['KeyCode'], key_items['Name']))
+
+
+def load_banking_metrics(period_type: str) -> pd.DataFrame:
+    """Fetch banking metrics from the warehouse and prepare for analysis."""
+    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = ?"
+    with get_connection(db="target") as conn:
+        df = pd.read_sql(query, conn, params=[period_type])
+
+    mapping = load_keycode_mapping()
+    df = df.rename(columns=mapping)
+
+    if 'BANK_TYPE' in df.columns and 'Type' not in df.columns:
+        df['Type'] = df['BANK_TYPE']
+
+    if 'DATE_STRING' in df.columns:
+        label_col = 'Date_Quarter' if period_type == 'Q' else 'Year'
+        df[label_col] = df['DATE_STRING']
+
+    if 'DATE' in df.columns and 'ENDDATE_x' not in df.columns:
+        df['ENDDATE_x'] = df['DATE']
+
+    return df
 
 def process_earnings_quality(df, period_column):
     """
@@ -808,7 +844,7 @@ def main():
     # Process Quarterly Data
     try:
         print("\nProcessing quarterly data...")
-        df_quarter = pd.read_parquet('Data/dfsectorquarter.parquet')
+        df_quarter = load_banking_metrics('Q')
         df_quarter_processed = process_earnings_quality(df_quarter, 'Date_Quarter')
         
         print("  Calculating T12M scores...")
@@ -839,9 +875,18 @@ def main():
         # Sort by ticker and date for better readability
         df_quarter_with_scores = df_quarter_with_scores.sort_values(['TICKER', 'Date_Quarter'])
         
-        # Save to CSV
-        df_quarter_with_scores.to_parquet('Data/earnings_quality_quarterly.parquet', index=False, engine='pyarrow', compression='snappy')
-        print(f"Done - Quarterly data processed: {len(df_quarter_with_scores)} records with T12M, QoQ, and YoY scores")
+        # Persist to database
+        quarter_table = get_table('EarningsQualityQuarterly')
+        db_quarter = df_quarter_with_scores.copy()
+        db_quarter['PERIOD_TYPE'] = 'Q'
+        if 'Date_Quarter' in db_quarter.columns:
+            db_quarter['DATE_STRING'] = db_quarter['Date_Quarter']
+        inserted_quarter = upsert_dataframe(
+            db_quarter,
+            table=quarter_table.name,
+            key_columns=quarter_table.key_columns,
+        )
+        print(f"Done - Quarterly data processed and loaded: {inserted_quarter} records with T12M, QoQ, and YoY scores")
         
         # Display sample with weighted impacts
         print("\nSample of quarterly data with weighted impacts:")
@@ -861,7 +906,7 @@ def main():
     # Process Yearly Data
     try:
         print("\n\nProcessing yearly data...")
-        df_year = pd.read_parquet('Data/dfsectoryear.parquet')
+        df_year = load_banking_metrics('Y')
         df_year_processed = process_earnings_quality(df_year, 'Year')
         
         # Calculate score drivers for yearly data
@@ -870,9 +915,18 @@ def main():
         # Sort by ticker and year for better readability
         df_year_with_scores = df_year_with_scores.sort_values(['TICKER', 'Year'])
         
-        # Save to CSV
-        df_year_with_scores.to_parquet('Data/earnings_quality_yearly.parquet', index=False, engine='pyarrow', compression='snappy')
-        print(f"Done - Yearly data processed: {len(df_year_with_scores)} records")
+        # Persist to database
+        yearly_table = get_table('EarningsQualityYearly')
+        db_year = df_year_with_scores.copy()
+        db_year['PERIOD_TYPE'] = 'Y'
+        if 'Year' in db_year.columns:
+            db_year['DATE_STRING'] = db_year['Year'].astype(str)
+        inserted_year = upsert_dataframe(
+            db_year,
+            table=yearly_table.name,
+            key_columns=yearly_table.key_columns,
+        )
+        print(f"Done - Yearly data processed and loaded: {inserted_year} records")
         
         # Display sample with weighted impacts
         print("\nSample of yearly data with weighted impacts:")
@@ -895,44 +949,51 @@ def main():
     print("="*60)
     
     try:
-        # Analyze latest year score drivers
-        df_year = pd.read_parquet('Data/earnings_quality_yearly.parquet')
-        latest_year = df_year['Year'].max()
-        # Check for impact columns instead of score columns
-        if 'Top_Line_Impact' in df_year.columns:
-            latest_data = df_year[(df_year['Year'] == latest_year) & (df_year['Top_Line_Impact'].notna())].copy()
-        else:
-            latest_data = pd.DataFrame()
-        
-        if len(latest_data) > 0:
-            print(f"\nWeighted Impact Averages for {latest_year}:")
-            if 'Top_Line_Impact' in latest_data.columns:
-                print(f"Top Line Impact: {latest_data['Top_Line_Impact'].mean():.1f}pp")
-            if 'NII_Impact' in latest_data.columns:
-                print(f"  - NII Impact: {latest_data['NII_Impact'].mean():.1f}pp")
-            if 'Fee_Impact' in latest_data.columns:
-                print(f"  - Fee Impact: {latest_data['Fee_Impact'].mean():.1f}pp")
-            if 'Cost_Cutting_Impact' in latest_data.columns:
-                print(f"Cost Cutting Impact: {latest_data['Cost_Cutting_Impact'].mean():.1f}pp")
-            if 'OPEX_Impact' in latest_data.columns:
-                print(f"  - OPEX Impact: {latest_data['OPEX_Impact'].mean():.1f}pp")
-            if 'Provision_Impact' in latest_data.columns:
-                print(f"  - Provision Impact: {latest_data['Provision_Impact'].mean():.1f}pp")
-            if 'Non_Recurring_Impact' in latest_data.columns:
-                print(f"Non-Recurring Impact: {latest_data['Non_Recurring_Impact'].mean():.1f}pp")
-            
-            # Identify banks with best NII-driven growth
-            print(f"\n\nTop 5 Banks with Highest NII Impact ({latest_year}):")
-            if 'NII_Impact' in latest_data.columns:
-                top_nii = latest_data.nlargest(5, 'NII_Impact')[
-                    [col for col in ['TICKER', 'Type', 'NII_Impact', 'Fee_Impact', 'Total_Impact'] if col in latest_data.columns]
-                ]
-            print(top_nii.to_string(index=False))
-        
+        latest_dataset = locals().get('df_year_with_scores')
+        if latest_dataset is None:
+            with get_connection(db="target") as conn:
+                latest_dataset = pd.read_sql("SELECT * FROM dbo.EarningsQualityYearly", conn)
+
+        if latest_dataset is not None and not latest_dataset.empty:
+            latest_year = latest_dataset['Year'].max()
+            if 'Top_Line_Impact' in latest_dataset.columns:
+                latest_data = latest_dataset[
+                    (latest_dataset['Year'] == latest_year)
+                    & (latest_dataset['Top_Line_Impact'].notna())
+                ].copy()
+            else:
+                latest_data = pd.DataFrame()
+
+            if len(latest_data) > 0:
+                print(f"\nWeighted Impact Averages for {latest_year}:")
+                if 'Top_Line_Impact' in latest_data.columns:
+                    print(f"Top Line Impact: {latest_data['Top_Line_Impact'].mean():.1f}pp")
+                if 'NII_Impact' in latest_data.columns:
+                    print(f"  - NII Impact: {latest_data['NII_Impact'].mean():.1f}pp")
+                if 'Fee_Impact' in latest_data.columns:
+                    print(f"  - Fee Impact: {latest_data['Fee_Impact'].mean():.1f}pp")
+                if 'Cost_Cutting_Impact' in latest_data.columns:
+                    print(f"Cost Cutting Impact: {latest_data['Cost_Cutting_Impact'].mean():.1f}pp")
+                if 'OPEX_Impact' in latest_data.columns:
+                    print(f"  - OPEX Impact: {latest_data['OPEX_Impact'].mean():.1f}pp")
+                if 'Provision_Impact' in latest_data.columns:
+                    print(f"  - Provision Impact: {latest_data['Provision_Impact'].mean():.1f}pp")
+                if 'Non_Recurring_Impact' in latest_data.columns:
+                    print(f"Non-Recurring Impact: {latest_data['Non_Recurring_Impact'].mean():.1f}pp")
+
+                if 'NII_Impact' in latest_data.columns:
+                    print(f"\n\nTop 5 Banks with Highest NII Impact ({latest_year}):")
+                    selection_cols = [
+                        col for col in ['TICKER', 'Type', 'NII_Impact', 'Fee_Impact', 'Total_Impact']
+                        if col in latest_data.columns
+                    ]
+                    top_nii = latest_data.nlargest(5, 'NII_Impact')[selection_cols]
+                    print(top_nii.to_string(index=False))
+
     except Exception as e:
         print(f"Error generating summary: {e}")
-    
-    print("\nAnalysis complete! Check Data folder for CSV files with full results and detailed sub-scores.")
+
+    print("\nAnalysis complete! Earnings driver datasets have been written to the warehouse.")
 
 if __name__ == "__main__":
     main()

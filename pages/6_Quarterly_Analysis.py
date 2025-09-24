@@ -31,33 +31,36 @@ apply_sidebar_style()
 
 # Import utilities
 from utilities.quarter_utils import quarter_sort_key, sort_quarters
+from utilities.data_access import load_comments, load_quarterly_analysis
 
-# Define path functions
-def get_data_path():
-    return os.path.join(project_root, 'Data')
 
-def get_comments_file_path():
-    return os.path.join(get_data_path(), 'banking_comments.parquet')
+@st.cache_data(ttl=1800)
+def _load_quarterly_analysis():
+    df = load_quarterly_analysis()
+    if not df.empty:
+        df['generated_date'] = pd.to_datetime(df['generated_date'], errors='coerce')
+    return df
+
+
+@st.cache_data(ttl=600)
+def _load_comments():
+    df = load_comments()
+    if not df.empty:
+        generated_col = 'GENERATED_AT' if 'GENERATED_AT' in df.columns else 'GENERATED_DATE'
+        df['generated_display'] = pd.to_datetime(df[generated_col], errors='coerce')
+    return df
 
 def quarterly_analysis_page():
     st.title("Quarterly Banking Analysis")
     st.markdown("Comprehensive AI-powered analysis of banking comments for specific quarters")
     
-    # Check if analysis results file exists
-    analysis_file = os.path.join(get_data_path(), "quarterly_analysis_results.parquet")
-    analysis_exists = os.path.exists(analysis_file)
-    
-    # Check if comments file exists using dynamic path
-    comments_file = get_comments_file_path()
-    comments_exist = os.path.exists(comments_file)
-    
-    if analysis_exists:
+    analysis_df = _load_quarterly_analysis()
+    comments_df = _load_comments()
+
+    if not analysis_df.empty:
         try:
-            # Load pre-generated analysis results
-            analysis_df = pd.read_parquet(analysis_file)
-            
             # Get available quarters from analysis results
-            available_quarters_raw = analysis_df['quarter'].unique().tolist()
+            available_quarters_raw = analysis_df['quarter'].dropna().unique().tolist()
             available_quarters = sort_quarters(available_quarters_raw, reverse=True)
             
             # Quarter selection
@@ -71,31 +74,29 @@ def quarterly_analysis_page():
                     help="Select the quarter you want to view analysis for (sorted by most recent first)"
                 )
             
+            quarter_analysis = analysis_df[analysis_df['quarter'] == selected_quarter]
+
             with col2:
-                # Show analysis status
-                quarter_analysis = analysis_df[analysis_df['quarter'] == selected_quarter]
                 if not quarter_analysis.empty:
-                    status = quarter_analysis.iloc[0]['status']
+                    status = quarter_analysis.iloc[0].get('status', 'unknown')
                     if status == 'success':
                         st.success("Analysis Available")
                     else:
                         st.error("Analysis Error")
-            
+
             with col3:
-                # Show generation date
                 if not quarter_analysis.empty:
-                    gen_date = pd.to_datetime(quarter_analysis.iloc[0]['generated_date'])
-                    st.metric("Generated", gen_date.strftime('%Y-%m-%d'))
+                    gen_date = quarter_analysis.iloc[0].get('generated_date')
+                    if pd.notna(gen_date):
+                        st.metric("Generated", gen_date.strftime('%Y-%m-%d'))
+                    else:
+                        st.metric("Generated", "Unknown")
             
             if selected_quarter and not quarter_analysis.empty:
                 # Load comments data for raw data viewer (if available)
                 quarter_comments = pd.DataFrame()
-                if comments_exist:
-                    try:
-                        comments_df = pd.read_parquet(comments_file)
-                        quarter_comments = comments_df[comments_df['QUARTER'] == selected_quarter]
-                    except:
-                        pass
+                if not comments_df.empty:
+                    quarter_comments = comments_df[comments_df['QUARTER'] == selected_quarter]
                 
                 # Display analysis results
                 st.subheader(f"AI Analysis Results for {selected_quarter}")
@@ -115,8 +116,15 @@ def quarterly_analysis_page():
                         st.markdown(f"**All {len(quarter_comments)} comments for {selected_quarter}:**")
                         
                         # Create a display dataframe with better formatting
-                        display_df = quarter_comments[['TICKER', 'SECTOR', 'COMMENT', 'GENERATED_DATE']].copy()
-                        display_df['GENERATED_DATE'] = pd.to_datetime(display_df['GENERATED_DATE']).dt.strftime('%Y-%m-%d %H:%M')
+                        display_df = quarter_comments.copy()
+                        if 'generated_display' in display_df.columns:
+                            display_df['Generated'] = display_df['generated_display'].dt.strftime('%Y-%m-%d %H:%M')
+                        elif 'GENERATED_DATE' in display_df.columns:
+                            display_df['Generated'] = pd.to_datetime(display_df['GENERATED_DATE'], errors='coerce').dt.strftime('%Y-%m-%d %H:%M')
+                        else:
+                            display_df['Generated'] = ''
+
+                        display_df = display_df[['TICKER', 'SECTOR', 'COMMENT', 'Generated']]
                         
                         st.dataframe(
                             display_df,
@@ -126,7 +134,7 @@ def quarterly_analysis_page():
                                 "TICKER": st.column_config.TextColumn("Bank", width="small"),
                                 "SECTOR": st.column_config.TextColumn("Sector", width="small"),
                                 "COMMENT": st.column_config.TextColumn("Analysis Comment", width="large"),
-                                "GENERATED_DATE": st.column_config.TextColumn("Generated", width="small")
+                                "Generated": st.column_config.TextColumn("Generated", width="small")
                             }
                         )
             

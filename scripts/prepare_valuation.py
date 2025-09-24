@@ -1,39 +1,50 @@
 #%%
 import pandas as pd
 import numpy as np
-import os
-from pathlib import Path
 
-# Get project directories
-script_dir = Path(__file__).parent
-project_root = script_dir.parent
-data_dir = project_root / 'Data'
+from utilities.db import get_connection, upsert_dataframe
+from utilities.data_catalog import get_table
+
+
+def load_valuation_data() -> pd.DataFrame:
+    with get_connection(db="target") as conn:
+        df = pd.read_sql("SELECT * FROM dbo.Valuation", conn)
+    rename_map = {
+        'P/E': 'PE_RATIO',
+        'P/B': 'PX_TO_BOOK_RATIO',
+        'P/S': 'PX_TO_SALES_RATIO',
+        'EV/EBITDA': 'EV_EBITDA',
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    return df
+
+
+def load_bank_classification() -> pd.DataFrame:
+    query = (
+        "SELECT DISTINCT TICKER, BANK_TYPE AS Type "
+        "FROM dbo.BankingMetrics "
+        "WHERE LEN(TICKER) = 3"
+    )
+    with get_connection(db="target") as conn:
+        df = pd.read_sql(query, conn)
+    df['Type'] = df['Type'].fillna('Other')
+    return df
+
 
 #%% Load data
-print("Loading data files...")
+print("Loading data from warehouse...")
 
-# Load raw valuation data
-valuation_df = pd.read_csv(data_dir / 'VALUATION.csv')
+valuation_df = load_valuation_data()
 print(f"Loaded {len(valuation_df)} rows of valuation data")
 
-# Load bank types
-bank_type_df = pd.read_excel(data_dir / 'Bank_Type.xlsx')
-print(f"Loaded {len(bank_type_df)} banks with type classifications")
-
-# Also get bank list from quarterly data as backup
-quarter_df = pd.read_parquet(data_dir / 'dfsectorquarter.parquet')
-all_bank_tickers = quarter_df[quarter_df['TICKER'].str.len() == 3]['TICKER'].unique()
-print(f"Found {len(all_bank_tickers)} bank tickers in quarterly data")
+bank_type_df = load_bank_classification()
+print(f"Loaded {len(bank_type_df)} bank classifications from BankingMetrics")
 
 #%% Clean and filter data
 print("\nCleaning valuation data...")
 
-# Extract 3-letter ticker from PRIMARYSECID
-valuation_df['TICKER'] = valuation_df['PRIMARYSECID'].str.extract(r'^([A-Z]{3})\s+VN\s+Equity$')[0]
-
 # Filter only banking tickers
-# Combine tickers from both sources
-valid_tickers = set(bank_type_df['TICKER'].unique()) | set(all_bank_tickers)
+valid_tickers = set(bank_type_df['TICKER'].unique())
 valuation_banking = valuation_df[valuation_df['TICKER'].isin(valid_tickers)].copy()
 
 print(f"Filtered to {len(valuation_banking)} rows for {valuation_banking['TICKER'].nunique()} banks")
@@ -140,9 +151,14 @@ for ticker in final_df['TICKER'].unique():
         final_df.loc[mask, col] = final_df.loc[mask, col].ffill(limit=5)
 
 #%% Save output
-output_path = data_dir / 'Valuation_banking.parquet'
-final_df.to_parquet(output_path, index=False, engine='pyarrow', compression='snappy')
-print(f"\nSaved to {output_path}")
+valuation_table = get_table('ValuationBanking')
+db_final = final_df.rename(columns={'Type': 'BANK_TYPE'})
+inserted_rows = upsert_dataframe(
+    db_final,
+    table=valuation_table.name,
+    key_columns=valuation_table.key_columns,
+)
+print(f"\nLoaded {inserted_rows} valuation rows into {valuation_table.name}")
 
 #%% Summary statistics
 print("\n" + "="*50)

@@ -40,19 +40,16 @@ from utilities.valuation_analysis import (
     get_valuation_status,
     generate_valuation_histogram
 )
+from utilities.data_access import load_valuation_banking
 
-# Data path (watch for file changes)
-FILE_PATH = os.path.join(project_root, 'Data', 'Valuation_banking.parquet')
 
-# Load data (cache invalidates when file mtime changes)
-@st.cache_data(ttl=None)
-def load_valuation_data(file_mtime: float):
-    """Load valuation data. Cache keyed by file modification time for freshness."""
-    if os.path.exists(FILE_PATH):
-        df = pd.read_parquet(FILE_PATH)
-        df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
+@st.cache_data(ttl=1800)
+def load_valuation_data() -> pd.DataFrame:
+    df = load_valuation_banking()
+    if df.empty:
         return df
-    return None
+    df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
+    return df
 
 # Title and description
 st.title("Banking Sector Valuation Analysis")
@@ -64,12 +61,11 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-# Load data with mtime key so cache updates when file changes
-file_mtime = os.path.getmtime(FILE_PATH) if os.path.exists(FILE_PATH) else 0
-df = load_valuation_data(file_mtime)
+# Load data
+df = load_valuation_data()
 
-if df is None:
-    st.error("Valuation data not found. Please run prepare_valuation.py script first.")
+if df.empty:
+    st.error("Valuation data not found. Please run the valuation preparation pipeline.")
     st.stop()
 
 # Sidebar metric selection

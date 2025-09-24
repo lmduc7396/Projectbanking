@@ -7,16 +7,21 @@ Provides modular tools for OpenAI to access and analyze banking data
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Optional, Callable
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timedelta
 import json
-from functools import wraps
+from functools import wraps, lru_cache
 from scipy import stats
 import requests
-from datetime import datetime, timedelta
-from functools import lru_cache
 import os
 from .tech_analysis import analyze_tickers
+from .data_access import (
+    load_banking_metrics,
+    load_banking_forecast,
+    load_comments as load_comments_table,
+    load_quarterly_analysis as load_quarterly_analysis_table,
+    load_valuation_banking,
+    load_earnings_quality,
+)
 
 
 class BankingToolSystem:
@@ -25,139 +30,120 @@ class BankingToolSystem:
     Easy to extend with new tools using decorator pattern
     """
     
-    def __init__(self, data_dir: Path = None):
+    def __init__(self):
         """Initialize the tool system with lazy loading"""
-        if data_dir is None:
-            data_dir = Path(__file__).parent.parent / "Data"
-        
-        self.data_dir = data_dir
         self.tools = {}
         self.tool_schemas = []
-        self.data = {}
-        self._data_loaded = {}  # Track which data files are loaded
+
         # Result cache (per-tool) with TTL
         self.result_cache: Dict[str, Dict[str, Any]] = {}
         self.RESULT_TTL_SECONDS = int(os.getenv("MCP_RESULT_TTL", "300"))
+
         # External API cache (e.g., stock performance)
         self._stock_cache: Dict[str, Dict[str, Any]] = {}
         self.STOCK_CACHE_TTL_SECONDS = int(os.getenv("MCP_STOCK_TTL", "1800"))  # 30 minutes default
-        
-        # Don't load data upfront - use lazy loading instead
-        # self._load_data()  # REMOVED - now lazy loaded
-        
+
         # Register all tools
         self._register_tools()
-    
+
     @lru_cache(maxsize=1)
-    def _load_historical_year(self):
-        """Lazy load historical year data"""
-        if 'historical_year' not in self.data:
-            self.data['historical_year'] = pd.read_parquet(self.data_dir / 'dfsectoryear.parquet')
-            self._data_loaded['historical_year'] = True
-        return self.data['historical_year']
+    def _load_historical_year(self) -> pd.DataFrame:
+        df = load_banking_metrics('Y')
+        if df.empty:
+            return df
+        if 'Year' in df.columns:
+            df = df.copy()
+            df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+        return df
 
     @lru_cache(maxsize=32)
-    def _load_historical_year_cols(self, columns_key: str):
-        """Projected read of yearly data for specific columns.
-        columns_key is a JSON-encoded, sorted list of column names.
-        """
+    def _load_historical_year_cols(self, columns_key: str) -> pd.DataFrame:
         cols = json.loads(columns_key)
-        path = self.data_dir / 'dfsectoryear.parquet'
-        try:
-            return pd.read_parquet(path, columns=cols)
-        except Exception:
-            return pd.read_parquet(path)
+        base = self._load_historical_year()
+        if base.empty:
+            return base
+        available = [c for c in cols if c in base.columns]
+        if not available:
+            return base
+        return base[available].copy()
 
     @lru_cache(maxsize=1)
-    def _load_historical_quarter(self):
-        """Lazy load historical quarter data"""
-        if 'historical_quarter' not in self.data:
-            self.data['historical_quarter'] = pd.read_parquet(self.data_dir / 'dfsectorquarter.parquet')
-            self._data_loaded['historical_quarter'] = True
-        return self.data['historical_quarter']
+    def _load_historical_quarter(self) -> pd.DataFrame:
+        df = load_banking_metrics('Q')
+        df = df.copy()
+        if 'Date_Quarter' in df.columns:
+            df['Date_Quarter'] = df['Date_Quarter'].astype(str)
+        return df
 
     @lru_cache(maxsize=32)
-    def _load_historical_quarter_cols(self, columns_key: str):
-        """Projected read of quarterly data for specific columns.
-        columns_key is a JSON-encoded, sorted list of column names.
-        """
+    def _load_historical_quarter_cols(self, columns_key: str) -> pd.DataFrame:
         cols = json.loads(columns_key)
-        path = self.data_dir / 'dfsectorquarter.parquet'
-        try:
-            return pd.read_parquet(path, columns=cols)
-        except Exception:
-            return pd.read_parquet(path)
+        base = self._load_historical_quarter()
+        if base.empty:
+            return base
+        available = [c for c in cols if c in base.columns]
+        if not available:
+            return base
+        return base[available].copy()
 
     @lru_cache(maxsize=1)
-    def _load_forecast(self):
-        """Lazy load forecast data"""
-        if 'forecast' not in self.data:
-            self.data['forecast'] = pd.read_parquet(self.data_dir / 'dfsectorforecast.parquet')
-            self._data_loaded['forecast'] = True
-        return self.data['forecast']
-    
+    def _load_forecast(self) -> pd.DataFrame:
+        df = load_banking_forecast()
+        if df.empty:
+            return df
+        if 'Year' in df.columns:
+            df = df.copy()
+            df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+        return df
+
     @lru_cache(maxsize=1)
-    def _load_bank_types(self):
-        """Lazy load bank types data"""
-        if 'bank_types' not in self.data:
-            self.data['bank_types'] = pd.read_excel(self.data_dir / 'Bank_Type.xlsx')
-            self._data_loaded['bank_types'] = True
-        return self.data['bank_types']
-    
+    def _load_bank_types(self) -> pd.DataFrame:
+        df = self._load_historical_quarter()
+        if df.empty or 'Type' not in df.columns:
+            return pd.DataFrame(columns=['TICKER', 'Type'])
+        return df[['TICKER', 'Type']].dropna().drop_duplicates().copy()
+
     @lru_cache(maxsize=1)
-    def _load_comments(self):
-        """Lazy load comments data"""
-        if 'comments' not in self.data:
-            if (self.data_dir / 'banking_comments.parquet').exists():
-                self.data['comments'] = pd.read_parquet(self.data_dir / 'banking_comments.parquet')
-                self._data_loaded['comments'] = True
-            else:
-                return None
-        return self.data.get('comments')
-    
+    def _load_comments(self) -> pd.DataFrame:
+        df = load_comments_table()
+        if df.empty:
+            return df
+        df = df.copy()
+        if 'quarter' in df.columns and 'QUARTER' not in df.columns:
+            df['QUARTER'] = df['quarter']
+        if 'generated_at' in df.columns and 'GENERATED_AT' not in df.columns:
+            df['GENERATED_AT'] = df['generated_at']
+        if 'GENERATED_AT' not in df.columns and 'GENERATED_DATE' in df.columns:
+            df['GENERATED_AT'] = df['GENERATED_DATE']
+        return df
+
     @lru_cache(maxsize=1)
-    def _load_quarterly_analysis(self):
-        """Lazy load quarterly analysis data"""
-        if 'quarterly_analysis' not in self.data:
-            if (self.data_dir / 'quarterly_analysis_results.parquet').exists():
-                self.data['quarterly_analysis'] = pd.read_parquet(self.data_dir / 'quarterly_analysis_results.parquet')
-                self._data_loaded['quarterly_analysis'] = True
-            else:
-                return None
-        return self.data.get('quarterly_analysis')
-    
+    def _load_quarterly_analysis(self) -> pd.DataFrame:
+        df = load_quarterly_analysis_table()
+        if df.empty:
+            return df
+        df = df.copy()
+        if 'quarter' in df.columns and 'QUARTER' not in df.columns:
+            df['QUARTER'] = df['quarter']
+        return df
+
     @lru_cache(maxsize=1)
-    def _load_valuation(self):
-        """Lazy load valuation data - this is a large file (52K lines)"""
-        if 'valuation' not in self.data:
-            if (self.data_dir / 'Valuation_banking.parquet').exists():
-                self.data['valuation'] = pd.read_parquet(self.data_dir / 'Valuation_banking.parquet')
-                self._data_loaded['valuation'] = True
-            else:
-                return None
-        return self.data.get('valuation')
-    
+    def _load_valuation(self) -> pd.DataFrame:
+        df = load_valuation_banking()
+        if df.empty:
+            return df
+        if 'TRADE_DATE' in df.columns:
+            df = df.copy()
+            df['TRADE_DATE'] = pd.to_datetime(df['TRADE_DATE'])
+        return df
+
     @lru_cache(maxsize=1)
-    def _load_earnings_quality_quarterly(self):
-        """Lazy load quarterly earnings quality data"""
-        if 'earnings_quality_quarterly' not in self.data:
-            if (self.data_dir / 'earnings_quality_quarterly.parquet').exists():
-                self.data['earnings_quality_quarterly'] = pd.read_parquet(self.data_dir / 'earnings_quality_quarterly.parquet')
-                self._data_loaded['earnings_quality_quarterly'] = True
-            else:
-                return None
-        return self.data.get('earnings_quality_quarterly')
-    
+    def _load_earnings_quality_quarterly(self) -> pd.DataFrame:
+        return load_earnings_quality('Q')
+
     @lru_cache(maxsize=1)
-    def _load_earnings_quality_yearly(self):
-        """Lazy load yearly earnings quality data"""
-        if 'earnings_quality_yearly' not in self.data:
-            if (self.data_dir / 'earnings_quality_yearly.parquet').exists():
-                self.data['earnings_quality_yearly'] = pd.read_parquet(self.data_dir / 'earnings_quality_yearly.parquet')
-                self._data_loaded['earnings_quality_yearly'] = True
-            else:
-                return None
-        return self.data.get('earnings_quality_yearly')
+    def _load_earnings_quality_yearly(self) -> pd.DataFrame:
+        return load_earnings_quality('Y')
     
     def tool(self, name: str, description: str, parameters: Dict = None):
         """
@@ -226,11 +212,34 @@ class BankingToolSystem:
             quarterly = self._load_historical_quarter()
             yearly = self._load_historical_year()
             forecast = self._load_forecast()
-            
-            # Get unique periods
-            q_periods = sorted(quarterly['Date_Quarter'].unique())[-8:]
-            y_periods = sorted(yearly['Year'].unique())[-5:]
-            f_periods = sorted(forecast['Year'].unique())
+
+            # Get unique periods with safeguards for empty datasets
+            if not quarterly.empty and 'Date_Quarter' in quarterly.columns:
+                q_periods = (
+                    pd.Series(quarterly['Date_Quarter'].dropna().astype(str).unique())
+                    .sort_values()
+                    .tolist()
+                )[-8:]
+            else:
+                q_periods = []
+
+            if not yearly.empty and 'Year' in yearly.columns:
+                y_periods = (
+                    pd.Series(yearly['Year'].dropna().astype(int).unique())
+                    .sort_values()
+                    .tolist()
+                )[-5:]
+            else:
+                y_periods = []
+
+            if not forecast.empty and 'Year' in forecast.columns:
+                f_periods = (
+                    pd.Series(forecast['Year'].dropna().astype(int).unique())
+                    .sort_values()
+                    .tolist()
+                )
+            else:
+                f_periods = []
             
             return {
                 "current_date": datetime.now().strftime("%Y-%m-%d"),
@@ -502,13 +511,24 @@ class BankingToolSystem:
             # Get forecast data
             forecast_df = self._load_forecast().copy()
             historical_df = self._load_historical_year().copy()
-            
+
+            if forecast_df.empty or 'Year' not in forecast_df.columns:
+                return {"error": "No forecast data found", "status": "failed"}
+            if historical_df.empty or 'Year' not in historical_df.columns:
+                return {"error": "Historical data not available", "status": "failed"}
+
+            forecast_df = forecast_df[forecast_df['Year'].notna()].copy()
+            historical_df = historical_df[historical_df['Year'].notna()].copy()
+
+            if forecast_df.empty or historical_df.empty:
+                return {"error": "Insufficient forecast or historical data", "status": "failed"}
+
+            forecast_df['Year'] = forecast_df['Year'].astype(int)
+            historical_df['Year'] = historical_df['Year'].astype(int)
+
             # Dynamically determine the latest historical year
             latest_historical_year = historical_df['Year'].max()
-            
-            # Get available forecast years
-            forecast_years = sorted(forecast_df['Year'].unique())
-            
+
             # Handle single ticker or array
             if tickers:
                 if isinstance(tickers, str):
@@ -516,18 +536,22 @@ class BankingToolSystem:
                 tickers = [t.upper() for t in tickers]
                 forecast_df = forecast_df[forecast_df['TICKER'].isin(tickers)]
                 historical_df = historical_df[historical_df['TICKER'].isin(tickers)]
-            
+                if forecast_df.empty:
+                    return {"error": "No forecast data found for requested tickers", "status": "failed"}
+
+            # Determine forecast years (post-filter)
+            forecast_years = sorted(forecast_df['Year'].unique())
+
             # ALWAYS get ALL forecast years - no year filtering
-            
-            if forecast_df.empty:
-                return {"error": "No forecast data found", "status": "failed"}
-            
+
             # Get latest historical data for comparison
             latest_historical = historical_df[historical_df['Year'] == latest_historical_year]
             
             # Only simple key metrics - for detailed analysis use get_ai_commentary
             key_metrics = ["Loan", "NPL", "ROA", "ROE", "NIM", "PBT"]
             available_metrics = [m for m in key_metrics if m in forecast_df.columns and m in historical_df.columns]
+            if not available_metrics:
+                return {"error": "Forecast metrics not available", "status": "failed"}
             
             # Prepare response
             response = {
@@ -746,12 +770,15 @@ class BankingToolSystem:
                     comment = df[(df['TICKER'] == ticker) & (df['QUARTER'] == quarter)]
                     
                     if not comment.empty:
+                        comment_row = comment.iloc[0]
+                        comment_text = comment_row.get('COMMENT', comment_row.get('comment'))
+                        generated_at = comment_row.get('GENERATED_AT', comment_row.get('generated_at', comment_row.get('GENERATED_DATE')))
                         results[ticker] = {
                             "type": "bank",
                             "ticker": ticker,
                             "quarter": quarter,
-                            "comment": comment.iloc[0]['COMMENT'],
-                            "generated_at": str(comment.iloc[0].get('GENERATED_AT', ''))
+                            "comment": comment_text,
+                            "generated_at": str(generated_at) if generated_at is not None else ""
                         }
                     else:
                         errors.append(f"No commentary for {ticker} in {quarter}")
@@ -979,25 +1006,104 @@ class BankingToolSystem:
         def get_bank_sector_info(tickers=None) -> Dict:
             """Get bank/sector information with component bank queries"""
             bank_types = self._load_bank_types()
-            
+            if bank_types.empty or bank_types['Type'].dropna().empty:
+                return {"error": "Bank sector information not available", "status": "failed"}
+
+            bank_types = bank_types.copy()
+            bank_types['TICKER'] = bank_types['TICKER'].astype(str)
+            bank_types['Type'] = bank_types['Type'].astype(str)
+
             # Define known sector names
             sector_names = ['SOCB', 'Private_1', 'Private_2', 'Private_3', 'Sector']
-            
+            actual_banks = bank_types[bank_types['TICKER'].str.len() == 3]
+
             # If no tickers provided, return all banks grouped by sector
             if tickers is None:
-                sectors = {}
-                for sector in bank_types['Type'].unique():
-                    # Get component banks (excluding the sector aggregate ticker itself)
-                    all_banks = bank_types[bank_types['Type'] == sector]['TICKER'].tolist()
-                    # Filter out the sector aggregate ticker if it exists
-                    component_banks = [b for b in all_banks if b not in sector_names]
-                    sectors[sector] = component_banks
-                
+                sectors: Dict[str, List[str]] = {}
+                for sector, subset in actual_banks.groupby('Type'):
+                    components = sorted(subset['TICKER'].unique().tolist())
+                    sectors[sector] = components
+
+                total_banks = sum(len(v) for v in sectors.values())
                 return {
                     "sectors": sectors,
-                    "total_banks": len([b for b in bank_types['TICKER'] if b not in sector_names]),
+                    "total_banks": total_banks,
                     "status": "success"
                 }
+
+            # Normalize requested tickers
+            if isinstance(tickers, str):
+                tickers = [tickers]
+            tickers = [t.strip() for t in tickers]
+
+            results = []
+            sector_lookup = {s.upper(): s for s in sector_names}
+
+            for ticker in tickers:
+                ticker_upper = ticker.upper()
+
+                if ticker_upper in sector_lookup:
+                    sector_key = sector_lookup[ticker_upper]
+                    if sector_key == 'Sector':
+                        component_banks = sorted(actual_banks['TICKER'].unique().tolist())
+                        results.append({
+                            "query": ticker,
+                            "type": "sector",
+                            "sector_name": "Sector (All Banks)",
+                            "component_banks": component_banks,
+                            "bank_count": len(component_banks)
+                        })
+                    else:
+                        sector_banks = actual_banks[actual_banks['Type'] == sector_key]['TICKER'].unique().tolist()
+                        results.append({
+                            "query": ticker,
+                            "type": "sector",
+                            "sector_name": sector_key,
+                            "component_banks": sorted(sector_banks),
+                            "bank_count": len(sector_banks)
+                        })
+                    continue
+
+                bank_info = actual_banks[actual_banks['TICKER'] == ticker_upper]
+                if not bank_info.empty:
+                    sector = bank_info.iloc[0]['Type']
+                    results.append({
+                        "query": ticker,
+                        "type": "bank",
+                        "ticker": ticker_upper,
+                        "sector": sector
+                    })
+                else:
+                    results.append({
+                        "query": ticker,
+                        "type": "error",
+                        "error": f"'{ticker}' not found"
+                    })
+
+            # Return simplified format for single query
+            if len(results) == 1:
+                result = results[0]
+                if result["type"] == "error":
+                    return {"error": result["error"], "status": "failed"}
+                if result["type"] == "sector":
+                    return {
+                        "sector": result["sector_name"],
+                        "component_banks": result["component_banks"],
+                        "bank_count": result["bank_count"],
+                        "status": "success"
+                    }
+                return {
+                    "ticker": result["ticker"],
+                    "sector": result["sector"],
+                    "status": "success"
+                }
+
+            return {
+                "results": results,
+                "requested": len(tickers),
+                "successful": len([r for r in results if r["type"] != "error"]),
+                "status": "success" if any(r["type"] != "error" for r in results) else "failed"
+            }
 
         # Tool: Technical Analysis (STS/LTS/OBOS)
         @self.tool(
@@ -1068,32 +1174,7 @@ class BankingToolSystem:
                             "error": f"'{ticker}' not found"
                         })
             
-            # Return simplified format for single query
-            if len(tickers) == 1 and len(results) == 1:
-                result = results[0]
-                if result["type"] == "error":
-                    return {"error": result["error"], "status": "failed"}
-                elif result["type"] == "sector":
-                    return {
-                        "sector": result["sector_name"],
-                        "component_banks": result["component_banks"],
-                        "bank_count": result["bank_count"],
-                        "status": "success"
-                    }
-                else:  # bank
-                    return {
-                        "ticker": result["ticker"],
-                        "sector": result["sector"],
-                        "status": "success"
-                    }
-            
-            # Return batch format for multiple queries
-            return {
-                "results": results,
-                "requested": len(tickers),
-                "successful": len([r for r in results if r["type"] != "error"]),
-                "status": "success" if any(r["type"] != "error" for r in results) else "failed"
-            }
+        
         
         # Tool 6: Calculate Growth Metrics (Removed - redundant)
         # OpenAI can calculate growth from raw data returned by query_historical_data

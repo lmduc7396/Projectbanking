@@ -1,256 +1,272 @@
 #%%
-import pyodbc
+"""Data extraction pipeline for migrating legacy pulls into the analytics warehouse.
+
+This module reads from the legacy SQL Server (SOURCE_DB_CONNECTION_STRING) and
+upserts curated datasets into the target warehouse
+(TARGET_DB_CONNECTION_STRING). The transformation logic aligns each dataset
+with the schemas defined in DATABASE_SCHEMA.md.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass
+from typing import Callable, Dict, Optional
+
+import numpy as np
 import pandas as pd
-from pathlib import Path
-import platform
-from typing import Dict, List, Optional
 
-# Helper functions
-def get_base_path():
-    # Use current directory (Data folder) regardless of OS
-    return Path(__file__).parent
+from utilities.data_catalog import get_table
+from utilities.db import get_connection, upsert_dataframe
 
-# Connection string
-DIAMOND_STR = 'DRIVER={ODBC Driver 17 for SQL Server};Server=dcdwh-prod.sql.azuresynapse.net;Database=dcdwhproddedicatedpool;UID=researchlogin;PWD=353fsf*($%#sfsfe;MultipleActiveResultSets=true;Command Timeout=300;'
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-# File name mapping for bank queries to match existing files
-BANK_FILE_MAPPING = {
-    'Bank_BALANCESHEET': 'BS_Bank',
-    'Bank_INCOMESTATEMENT': 'IS_Bank',
-    'Bank_NOTE': 'Note_Bank'
-}
 
-# Query configurations
-QUERY_CONFIG = {
-    'FA_Q_FULL': {
-        'base_query': """SELECT KEYCODE, TICKER, DATE, VALUE FROM SIL.W_F_FIN_FINANCIAL_STATEMENT""",
-        'incremental_filter': "WHERE DATE = '{latest_quarter}'",
-        'dedupe_columns': ['KEYCODE', 'TICKER', 'DATE'],
-        'date_format': 'quarter'
-    },
-    'MARKET_CAP': {
-        'base_query': """SELECT [PRIMARYSECID], [CUR_MKT_CAP], [TRADE_DATE]
-                         FROM [SIL].[S_BBG_DATA_DWH_ADJUSTED]
-                         WHERE [PRIMARYSECID] LIKE '%VN Equity%'
-                         AND TRADE_DATE >= '2025-01-01'""",
-        'incremental_filter': "AND TRADE_DATE >= '{start_date}'",
-        'dedupe_columns': ['PRIMARYSECID', 'TRADE_DATE'],
-        'date_format': 'date',
-        'default_start_date': '2025-01-01'
-    },
-    'VALUATION': {
-        'base_query': """SELECT PRIMARYSECID, TRADE_DATE, PE_RATIO, PX_TO_BOOK_RATIO, PX_TO_SALES_RATIO 
-                         FROM SIL.S_BBG_DATA_DWH_ADJUSTED
-                         WHERE PRIMARYSECID LIKE '%VN Equity'
-                         AND TRADE_DATE >= '2018-01-01'""",
-        'incremental_filter': "AND TRADE_DATE >= '{start_date}'",
-        'dedupe_columns': ['PRIMARYSECID', 'TRADE_DATE'],
-        'date_format': 'date',
-        'default_start_date': '2018-01-01'
-    },
-    'EVEBITDA': {
-        'base_query': """SELECT * FROM SIL.W_F_IRIS_CALCULATE
-                         WHERE DATE >= '2018-01-01'""",
-        'incremental_filter': "AND DATE >= '{start_date}'",
-        'dedupe_columns': ['TICKER', 'DATE'],
-        'date_format': 'date',
-        'default_start_date': '2018-01-01'
-    },
-    'INDEX': {
-        'base_query': """SELECT [COMGROUPCODE], [INDEXVALUE], [TRADINGDATE], [INDEXCHANGE], 
-                         [PERCENTINDEXCHANGE], [REFERENCEINDEX], [OPENINDEX], [CLOSEINDEX],
-                         [HIGHESTINDEX], [LOWESTINDEX], [TOTALMATCHVOLUME], [TOTALMATCHVALUE],
-                         [TOTALDEALVOLUME], [TOTALDEALVALUE], [TOTALVOLUME], [TOTALVALUE],
-                         [TOTALSTOCKUPPRICE], [TOTALSTOCKDOWNPRICE], [TOTALSTOCKNOCHANGEPRICE],
-                         [TOTALUPVOLUME], [TOTALDOWNVOLUME], [TOTALNOCHANGEVOLUME],
-                         [FOREIGNBUYVALUEMATCHED], [FOREIGNBUYVOLUMEMATCHED], [FOREIGNSELLVALUEMATCHED],
-                         [FOREIGNSELLVOLUMEMATCHED], [FOREIGNBUYVALUETOTAL], [FOREIGNBUYVOLUMETOTAL],
-                         [FOREIGNSELLVALUETOTAL], [FOREIGNSELLVOLUMETOTAL]
-                         FROM [dbo].[S_SPS_HOSEINDEX]
-                         WHERE TRADINGDATE >= '2018-01-01'""",
-        'incremental_filter': "AND TRADINGDATE >= '{start_date}'",
-        'dedupe_columns': ['COMGROUPCODE', 'TRADINGDATE'],
-        'date_format': 'date',
-        'default_start_date': '2018-01-01'
-    },
-    'FORECAST': {
-        'base_query': "SELECT * FROM SIL.W_F_IRIS_FORECAST",
-        'incremental_filter': "AND DATE >= '{start_date}'",
-        'dedupe_columns': ['TICKER', 'DATE'],
-        'date_format': 'date',
-        'default_start_date': '2025-01-01'
+# ---------------------------------------------------------------------------
+# Utility helpers
+# ---------------------------------------------------------------------------
+
+def fetch_from_source(query: str, params: Optional[Dict] = None) -> pd.DataFrame:
+    """Execute a query against the legacy source database."""
+    with get_connection(db="source") as conn:
+        return pd.read_sql(query, conn, params=params)
+
+
+def _clean_ticker(value: str) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    match = re.match(r"^([A-Z]{3})\s+VN\s+Equity$", value.strip())
+    return match.group(1) if match else None
+
+
+def _quarter_numeric(label: str) -> Optional[int]:
+    match = re.match(r"^(?P<year>\d{4})Q(?P<quarter>[1-4])$", str(label).strip())
+    if not match:
+        return None
+    return int(match.group("year")) * 10 + int(match.group("quarter"))
+
+
+def _extract_year(label: str) -> Optional[int]:
+    match = re.search(r"(20\d{2})", str(label))
+    return int(match.group(1)) if match else None
+
+
+# ---------------------------------------------------------------------------
+# Financial statements (quarterly + annual)
+# ---------------------------------------------------------------------------
+
+def transform_financial_statements(raw_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+    if raw_df.empty:
+        return {"FA_Quarterly": raw_df, "FA_Annual": raw_df}
+
+    df = raw_df.copy()
+    df['DATE'] = df['DATE'].astype(str).str.strip()
+    df['VALUE'] = pd.to_numeric(df['VALUE'], errors='coerce')
+    df = df.dropna(subset=['TICKER', 'KEYCODE', 'DATE'])
+
+    quarter_mask = df['DATE'].str.contains('Q', na=False)
+
+    quarterly = df[quarter_mask].copy()
+    quarterly['YEAR'] = quarterly['DATE'].str[:4].astype('Int64', errors='ignore')
+    quarterly['quarter_numeric'] = quarterly['DATE'].apply(_quarter_numeric)
+    quarterly = quarterly.dropna(subset=['quarter_numeric'])
+    quarterly = quarterly.sort_values(['TICKER', 'KEYCODE', 'quarter_numeric'])
+    quarterly['YoY'] = (
+        quarterly.groupby(['TICKER', 'KEYCODE'])['VALUE']
+        .transform(lambda s: s.pct_change(4))
+    )
+    quarterly = quarterly.drop(columns=['quarter_numeric'])
+    quarterly = quarterly[['TICKER', 'KEYCODE', 'DATE', 'VALUE', 'YEAR', 'YoY']]
+
+    annual = df[~quarter_mask].copy()
+    annual['YEAR'] = annual['DATE'].apply(_extract_year).astype('Int64')
+    annual = annual.dropna(subset=['YEAR'])
+    annual = annual.sort_values(['TICKER', 'KEYCODE', 'YEAR'])
+    annual['YoY'] = (
+        annual.groupby(['TICKER', 'KEYCODE'])['VALUE']
+        .transform(lambda s: s.pct_change())
+    )
+    annual['DATE'] = annual['YEAR'].astype(str)
+    annual = annual[['TICKER', 'KEYCODE', 'DATE', 'VALUE', 'YEAR', 'YoY']]
+
+    return {
+        'FA_Quarterly': quarterly,
+        'FA_Annual': annual,
     }
+
+
+def load_financial_statements() -> Dict[str, pd.DataFrame]:
+    query = """
+        SELECT KEYCODE, TICKER, DATE, VALUE
+        FROM SIL.W_F_FIN_FINANCIAL_STATEMENT
+        WHERE DATE >= '2016'
+    """
+    raw = fetch_from_source(query)
+    logger.info("Loaded %s financial statement rows", len(raw))
+    return transform_financial_statements(raw)
+
+
+# ---------------------------------------------------------------------------
+# Market data (valuation, market cap, index)
+# ---------------------------------------------------------------------------
+
+def transform_valuation(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    valuation = df.copy()
+    valuation['TICKER'] = valuation['PRIMARYSECID'].apply(_clean_ticker)
+    valuation = valuation.dropna(subset=['TICKER'])
+    valuation['TRADE_DATE'] = pd.to_datetime(valuation['TRADE_DATE']).dt.tz_localize(None)
+
+    valuation = valuation.rename(
+        columns={
+            'PE_RATIO': 'P/E',
+            'PX_TO_BOOK_RATIO': 'P/B',
+            'PX_TO_SALES_RATIO': 'P/S',
+        }
+    )
+
+    for col in ['P/E', 'P/B', 'P/S', 'EV/EBITDA']:
+        if col not in valuation.columns:
+            valuation[col] = np.nan
+        valuation[col] = pd.to_numeric(valuation[col], errors='coerce')
+
+    return valuation[['TICKER', 'TRADE_DATE', 'P/E', 'P/B', 'P/S', 'EV/EBITDA']]
+
+
+def load_valuation() -> pd.DataFrame:
+    query = """
+        SELECT PRIMARYSECID, TRADE_DATE, PE_RATIO, PX_TO_BOOK_RATIO, PX_TO_SALES_RATIO
+        FROM SIL.S_BBG_DATA_DWH_ADJUSTED
+        WHERE PRIMARYSECID LIKE '%VN Equity%'
+          AND TRADE_DATE >= '2018-01-01'
+    """
+    df = fetch_from_source(query)
+    logger.info("Loaded %s valuation rows", len(df))
+    return transform_valuation(df)
+
+
+def transform_market_cap(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    mc = df.copy()
+    mc['TICKER'] = mc['PRIMARYSECID'].apply(_clean_ticker)
+    mc = mc.dropna(subset=['TICKER'])
+    mc['TRADE_DATE'] = pd.to_datetime(mc['TRADE_DATE']).dt.tz_localize(None)
+    mc['CUR_MKT_CAP'] = pd.to_numeric(mc['CUR_MKT_CAP'], errors='coerce')
+    return mc[['TICKER', 'TRADE_DATE', 'CUR_MKT_CAP']]
+
+
+def load_market_cap() -> pd.DataFrame:
+    query = """
+        SELECT PRIMARYSECID, CUR_MKT_CAP, TRADE_DATE
+        FROM SIL.S_BBG_DATA_DWH_ADJUSTED
+        WHERE PRIMARYSECID LIKE '%VN Equity%'
+          AND TRADE_DATE >= DATEADD(year, -5, GETDATE())
+    """
+    df = fetch_from_source(query)
+    logger.info("Loaded %s market cap rows", len(df))
+    return transform_market_cap(df)
+
+
+def transform_market_index(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    idx = df.copy()
+    idx['TRADINGDATE'] = pd.to_datetime(idx['TRADINGDATE']).dt.tz_localize(None)
+
+    rename_map = {
+        'HIGHESTINDEX': 'HIGHEST',
+        'LOWESTINDEX': 'LOWEST',
+        'TOTALMATCHVOLUME': 'TOTALSHARE',
+        'TOTALMATCHVALUE': 'TOTALVALUE',
+        'FOREIGNBUYVOLUMEMATCHED': 'FOREIGNBUYVOLUME',
+        'FOREIGNSELLVOLUMEMATCHED': 'FOREIGNSELLVOLUME',
+    }
+    for src, dest in rename_map.items():
+        if src in idx.columns and dest not in idx.columns:
+            idx = idx.rename(columns={src: dest})
+
+    keep_columns = [
+        'COMGROUPCODE', 'TRADINGDATE', 'INDEXVALUE', 'PRIORINDEXVALUE',
+        'HIGHEST', 'LOWEST', 'TOTALSHARE', 'TOTALVALUE',
+        'FOREIGNBUYVOLUME', 'FOREIGNSELLVOLUME'
+    ]
+    existing = [col for col in keep_columns if col in idx.columns]
+    return idx[existing]
+
+
+def load_market_index() -> pd.DataFrame:
+    query = """
+        SELECT COMGROUPCODE, INDEXVALUE, PRIORINDEXVALUE,
+               HIGHESTINDEX, LOWESTINDEX,
+               TOTALMATCHVOLUME, TOTALMATCHVALUE,
+               FOREIGNBUYVOLUMEMATCHED, FOREIGNSELLVOLUMEMATCHED,
+               TRADINGDATE
+        FROM dbo.S_SPS_HOSEINDEX
+        WHERE TRADINGDATE >= '2016-01-01'
+    """
+    df = fetch_from_source(query)
+    logger.info("Loaded %s market index rows", len(df))
+    return transform_market_index(df)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline execution helpers
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DatasetTask:
+    name: str
+    loader: Callable[[], pd.DataFrame]
+
+
+DATASET_TASKS: Dict[str, DatasetTask] = {
+    'FA_Quarterly': DatasetTask('FA_Quarterly', lambda: load_financial_statements()['FA_Quarterly']),
+    'FA_Annual': DatasetTask('FA_Annual', lambda: load_financial_statements()['FA_Annual']),
+    'Valuation': DatasetTask('Valuation', load_valuation),
+    'MarketCap': DatasetTask('MarketCap', load_market_cap),
+    'MarketIndex': DatasetTask('MarketIndex', load_market_index),
 }
 
-# Bank queries (always full refresh)
-BANK_QUERIES = {
-    'Bank_BALANCESHEET': 'SELECT * FROM S_SPS_BALANCESHEET_BANK',
-    'Bank_INCOMESTATEMENT': 'SELECT * FROM S_SPS_INCOMESTATEMENT_BANK',
-    'Bank_NOTE': 'SELECT * FROM S_SPS_NOTE_BANK'
-}
 
-# Date format requirements:
-# - For quarterly data: 'YYYYQX' format (e.g., '2025Q2')
-# - For daily data: 'YYYY-MM-DD' format (e.g., '2025-07-15')
-
-def load_data(query: str) -> Optional[pd.DataFrame]:
-    """Load data from the database using the provided query."""
-    try:
-        connection = pyodbc.connect(DIAMOND_STR)
-        print("Connection successful!")
-        
-        data = pd.read_sql(query, connection)
-        print(f"Data loaded successfully. Shape: {data.shape}")
-        
-        connection.close()
-        return data
-        
-    except pyodbc.Error as e:
-        print(f"Database error: {e}")
-        return None
-    except Exception as e:
-        print(f"General error: {e}")
-        return None
-
-def to_csv(df: pd.DataFrame, file_name: str):
-    """Export DataFrame to CSV directly to Data folder."""
-    if df is None:
-        print(f"Cannot save {file_name}: No data available")
+def _persist_dataframe(table_name: str, df: pd.DataFrame) -> None:
+    config = get_table(table_name)
+    if df.empty:
+        logger.warning("No data returned for %s; skipping", table_name)
         return
-    
-    output_dir = get_base_path()  # Data folder
-    output_path = output_dir / f"{file_name}.csv"
-    df.to_csv(output_path, index=False)
-    print(f"Saved to {output_path}")
+    inserted = upsert_dataframe(df, table=config.name, key_columns=config.key_columns)
+    logger.info("Upserted %s rows into %s", inserted, config.name)
 
-def merge_and_deduplicate(new_df: pd.DataFrame, existing_file_name: str, 
-                         dedupe_columns: List[str]) -> Optional[pd.DataFrame]:
-    """Merge new dataframe with existing CSV file and remove duplicates."""
-    if new_df is None:
-        print(f"Cannot merge {existing_file_name}: No new data available")
-        return None
-    
-    try:
-        existing_path = get_base_path() / f"{existing_file_name}.csv"
-        existing_df = pd.read_csv(existing_path)
-        merged_df = pd.concat([existing_df, new_df], ignore_index=True)
-        final_df = merged_df.drop_duplicates(subset=dedupe_columns, keep='last')
-        final_df.to_csv(existing_path, index=False)
-        print(f"Merged and saved to {existing_path}")
-        print(f"Previous records: {len(existing_df)}, New records: {len(new_df)}, Final records: {len(final_df)}")
-        return final_df
-    except FileNotFoundError:
-        print(f"Existing file not found, saving new data as {existing_file_name}.csv")
-        to_csv(new_df, existing_file_name)
-        return new_df
 
-def build_query(config: Dict, incremental: bool = False, incremental_date: Optional[str] = None) -> str:
-    """Build the appropriate query based on refresh type."""
-    query = config['base_query']
-    
-    if incremental and 'incremental_filter' in config and incremental_date:
-        if config['date_format'] == 'quarter':
-            filter_clause = config['incremental_filter'].format(latest_quarter=incremental_date)
-        else:
-            filter_clause = config['incremental_filter'].format(start_date=incremental_date)
-        
-        # For queries with default_start_date, replace the default date with the incremental date
-        if 'default_start_date' in config:
-            query = query.replace(config['default_start_date'], incremental_date)
-        else:
-            # Add WHERE clause or append to existing WHERE
-            if 'WHERE' in query.upper():
-                query += f" {filter_clause}"
-            else:
-                query += f" {filter_clause}"
-    
-    return query
-
-#%% Refresh functions
-def full_refresh(query_name: str):
-    """Perform a full refresh for a specific query."""
-    if query_name in QUERY_CONFIG:
-        config = QUERY_CONFIG[query_name]
-        query = build_query(config, incremental=False)
-        df = load_data(query)
-        if df is not None:
-            to_csv(df, query_name)
-    else:
-        print(f"Query {query_name} not found in configuration")
-
-def full_refresh_all():
-    """Perform full refresh for all configured queries."""
-    # Process configured queries
-    for query_name, config in QUERY_CONFIG.items():
-        print(f"\n{'='*60}")
-        print(f"Full refresh: {query_name}")
-        full_refresh(query_name)
-    
-    # Process bank queries (always full refresh)
-    print(f"\n{'='*60}")
-    print("Processing Bank Data")
-    for query_name, query in BANK_QUERIES.items():
-        df = load_data(query)
-        # Use mapped file name for bank data
-        file_name = BANK_FILE_MAPPING.get(query_name, query_name)
-        to_csv(df, file_name)
-
-def incremental_update(query_name: str, date_filter: str):
-    """
-    Perform incremental update for a specific query.
-    
-    Args:
-        query_name: Name of the query from QUERY_CONFIG
-        date_filter: Date filter in appropriate format:
-                    - For quarterly data: 'YYYYQX' (e.g., '2025Q2')
-                    - For daily data: 'YYYY-MM-DD' (e.g., '2025-07-15')
-    """
-    if query_name not in QUERY_CONFIG:
-        print(f"Query {query_name} not found in configuration")
+def full_refresh(table: Optional[str] = None) -> None:
+    if table:
+        task = DATASET_TASKS.get(table)
+        if not task:
+            available = ', '.join(DATASET_TASKS.keys())
+            raise ValueError(f"Unknown dataset '{table}'. Available: {available}")
+        logger.info("Starting full refresh for %s", table)
+        df = task.loader()
+        _persist_dataframe(task.name, df)
         return
-    
-    config = QUERY_CONFIG[query_name]
-    
-    print(f"Incremental update from: {date_filter}")
-    query = build_query(config, incremental=True, incremental_date=date_filter)
-    df = load_data(query)
-    
-    if df is not None:
-        merge_and_deduplicate(df, query_name, config['dedupe_columns'])
 
-def full_refresh_banks():
-    """Perform full refresh for Bank data only."""
-    print(f"\n{'='*60}")
-    print("Processing Bank Data (Full Refresh)")
-    print(f"{'='*60}")
-    
-    for query_name, query in BANK_QUERIES.items():
-        print(f"\nProcessing: {query_name}")
-        df = load_data(query)
-        # Use mapped file name for bank data
-        file_name = BANK_FILE_MAPPING.get(query_name, query_name)
-        to_csv(df, file_name)
-        
-    print(f"\n{'='*60}")
-    print("Bank data refresh completed!")
+    logger.info("Starting full refresh for all datasets")
+    # Avoid re-running the financial statement query twice
+    financial = load_financial_statements()
+    _persist_dataframe('FA_Quarterly', financial['FA_Quarterly'])
+    _persist_dataframe('FA_Annual', financial['FA_Annual'])
 
-#%% Example usage
+    for name in ['Valuation', 'MarketCap', 'MarketIndex']:
+        df = DATASET_TASKS[name].loader()
+        _persist_dataframe(name, df)
+
+    logger.info("Full refresh complete")
+
+
 if __name__ == "__main__":
-    # Examples of different usage patterns:
-    # NOTE: All files will be saved directly to the Data folder
-    
-    # 1. Full refresh everything (includes all data + banks)
-    # full_refresh_all()
-    
-    # 2. Full refresh Bank data only (saves as BS_Bank.csv, IS_Bank.csv, Note_Bank.csv)
-    #full_refresh_banks()
-    
-    # 3. Full refresh specific query
-    full_refresh('VALUATION')
-
-    # 4. Incremental update with date filter
-    # incremental_update('VALUATION', '2025-07-15')  # Daily data from this date
-    # incremental_update('EVEBITDA', '2025-07-15')  # Daily data from this date
-    # incremental_update('FA_Q_FULL', '2025Q2')      # Quarterly data for Q2 2025
-    # incremental_update('MARKET_CAP', '2025-07-15')  # Daily data from this date
-    
+    full_refresh()

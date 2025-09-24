@@ -20,6 +20,7 @@ sys.path.append(project_root)
 # Import and apply Google Fonts
 from utilities.style_utils import apply_google_font
 from utilities.sidebar_style import apply_sidebar_style
+from utilities.data_access import load_banking_metrics, load_comments
 apply_google_font()
 
 # Apply consistent sidebar styling
@@ -33,16 +34,27 @@ from utilities.openai_comments import openai_comment
 load_dotenv()
 
 # Load your data (same as main file)
-@st.cache_data(ttl=3600)  # Refresh cache every hour
+@st.cache_data(ttl=3600)
 def load_data():
-    df_quarter = pd.read_parquet(os.path.join(project_root, 'Data/dfsectorquarter.parquet'))
-    df_year = pd.read_parquet(os.path.join(project_root, 'Data/dfsectoryear.parquet'))
+    df_quarter = load_banking_metrics('Q')
+    df_year = load_banking_metrics('Y')
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
-    bank_type = pd.read_excel(os.path.join(project_root, 'Data/Bank_Type.xlsx'))
+    bank_type = df_quarter[['TICKER', 'Type']].dropna().drop_duplicates()
     return df_quarter, df_year, keyitem, bank_type
 
 df_quarter, df_year, keyitem, bank_type_mapping = load_data()
 color_sequence = px.colors.qualitative.Bold
+
+
+@st.cache_data(ttl=600)
+def load_comments_cache():
+    df = load_comments()
+    if not df.empty and 'GENERATED_AT' in df.columns:
+        df['GENERATED_AT'] = pd.to_datetime(df['GENERATED_AT'], errors='coerce')
+    return df
+
+
+comments_cache = load_comments_cache()
 
 def get_ticker_sector(ticker, df_quarter, bank_type_mapping):
     """Get sector for a ticker with fallback logic"""
@@ -80,8 +92,7 @@ with st.sidebar:
         st.rerun()
 
 # Check if comments cache exists
-comments_file = os.path.join(project_root, 'Data/banking_comments.parquet')
-cache_exists = os.path.exists(comments_file)
+cache_exists = not comments_cache.empty
 
 
 # Main interface
@@ -142,30 +153,28 @@ if ticker:
         
         # Check if cached analysis exists for this ticker and quarter
         if cache_exists and not force_regenerate:
-            try:
-                cached_comments = pd.read_parquet(comments_file)
-                ticker_cache = cached_comments[
-                    (cached_comments['TICKER'] == ticker) & 
-                    (cached_comments['QUARTER'] == selected_quarter)
-                ]
-                if not ticker_cache.empty:
-                    latest_cached = ticker_cache.iloc[-1]
-                    # Safely extract date part
-                    try:
-                        generated_date = pd.to_datetime(latest_cached['GENERATED_DATE']).strftime('%Y-%m-%d')
-                    except:
-                        generated_date = str(latest_cached['GENERATED_DATE'])[:10] if len(str(latest_cached['GENERATED_DATE'])) >= 10 else str(latest_cached['GENERATED_DATE'])
-                    
-                    st.success(f"Cached analysis available for {ticker} - {selected_quarter} "
-                             f"(Generated: {generated_date})")
-                    
-                    # Display the cached comment
-                    st.subheader(f"Analysis for {ticker} - {selected_quarter}")
-                    st.markdown(latest_cached['COMMENT'])
-                else:
-                    st.warning(f"No cached analysis found for {ticker} - {selected_quarter}. Will generate new analysis.")
-            except Exception as e:
-                st.warning(f"Could not check cache: {e}")
+            ticker_cache = comments_cache[
+                (comments_cache['TICKER'] == ticker) &
+                (comments_cache['QUARTER'] == selected_quarter)
+            ]
+            if not ticker_cache.empty:
+                latest_cached = ticker_cache.iloc[-1]
+                generated_col = 'GENERATED_AT' if 'GENERATED_AT' in latest_cached else 'GENERATED_DATE'
+                try:
+                    generated_date = pd.to_datetime(latest_cached[generated_col]).strftime('%Y-%m-%d')
+                except Exception:
+                    generated_date = str(latest_cached[generated_col])
+
+                st.success(
+                    f"Cached analysis available for {ticker} - {selected_quarter} (Generated: {generated_date})"
+                )
+
+                st.subheader(f"Analysis for {ticker} - {selected_quarter}")
+                st.markdown(latest_cached['COMMENT'])
+            else:
+                st.warning(
+                    f"No cached analysis found for {ticker} - {selected_quarter}. Will generate new analysis."
+                )
     else:
         st.error(f"No data found for ticker {ticker}")
 

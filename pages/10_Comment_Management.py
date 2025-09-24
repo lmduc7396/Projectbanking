@@ -1,11 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
-import subprocess
-import time
 from datetime import datetime
 import sys
-import platform
 import openai
 from dotenv import load_dotenv
 
@@ -32,22 +29,31 @@ apply_google_font()
 apply_sidebar_style()
 
 # Import utilities
-from utilities.quarter_utils import quarter_to_numeric
+from utilities.data_access import load_comments, load_banking_metrics
 
-# Define path functions
-def get_data_path():
-    return os.path.join(project_root, 'Data')
 
-def get_comments_file_path():
-    return os.path.join(get_data_path(), 'banking_comments.parquet')
+@st.cache_data(ttl=600)
+def _load_comments():
+    df = load_comments()
+    if df.empty:
+        return df
+    gen_col = 'GENERATED_AT' if 'GENERATED_AT' in df.columns else 'GENERATED_DATE'
+    df['generated_dt'] = pd.to_datetime(df[gen_col], errors='coerce')
+    df['generated_display'] = df['generated_dt'].dt.strftime('%Y-%m-%d %H:%M')
+    return df
+
+
+@st.cache_data(ttl=600)
+def _load_quarter_metrics():
+    df = load_banking_metrics('Q')
+    return df
 
 def show_comment_management():
     st.title("Banking Comment Management")
     st.markdown("Manage bulk generation and cached comments for banking analysis")
     
-    # Check if comments file exists using dynamic path
-    comments_file = get_comments_file_path()
-    comments_exist = os.path.exists(comments_file)
+    comments_df = _load_comments()
+    comments_exist = not comments_df.empty
     
     # Sidebar for navigation
     st.sidebar.subheader("Comment Management")
@@ -62,8 +68,6 @@ def show_comment_management():
         
         if comments_exist:
             try:
-                comments_df = pd.read_parquet(comments_file)
-                
                 # Display summary statistics
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -73,13 +77,8 @@ def show_comment_management():
                 with col3:
                     st.metric("Unique Quarters", comments_df['QUARTER'].nunique())
                 with col4:
-                    # Convert GENERATED_DATE to datetime for finding the latest
-                    if not comments_df.empty:
-                        comments_df_temp = comments_df.copy()
-                        comments_df_temp['GENERATED_DATE'] = pd.to_datetime(comments_df_temp['GENERATED_DATE'])
-                        latest_date = comments_df_temp['GENERATED_DATE'].max().strftime('%Y-%m-%d')
-                    else:
-                        latest_date = "N/A"
+                    latest_dt = comments_df['generated_dt'].dropna()
+                    latest_date = latest_dt.max().strftime('%Y-%m-%d') if not latest_dt.empty else "N/A"
                     st.metric("Latest Update", latest_date)
                 
                 # Filter options
@@ -87,22 +86,25 @@ def show_comment_management():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
+                    tickers = sorted(comments_df['TICKER'].dropna().unique().tolist())
                     selected_ticker = st.selectbox(
                         "Select Bank:", 
-                        ["All"] + sorted(comments_df['TICKER'].unique().tolist())
+                        ["All"] + tickers
                     )
                 
                 with col2:
+                    sectors = sorted(comments_df['SECTOR'].dropna().unique().tolist())
                     selected_sector = st.selectbox(
                         "Select Sector:", 
-                        ["All"] + sorted(comments_df['SECTOR'].unique().tolist())
+                        ["All"] + sectors
                     )
                 
                 with col3:
                     from utilities.quarter_utils import sort_quarters
+                    quarters = sort_quarters(comments_df['QUARTER'].dropna().unique().tolist(), reverse=True)
                     selected_quarter = st.selectbox(
                         "Select Quarter:", 
-                        ["All"] + sort_quarters(comments_df['QUARTER'].unique().tolist(), reverse=True)
+                        ["All"] + quarters
                     )
                 
                 # Apply filters
@@ -119,9 +121,8 @@ def show_comment_management():
                 
                 if not filtered_df.empty:
                     # Create a summary table
-                    summary_df = filtered_df[['TICKER', 'SECTOR', 'QUARTER', 'GENERATED_DATE']].copy()
-                    # Convert to datetime and format for display
-                    summary_df['GENERATED_DATE'] = pd.to_datetime(summary_df['GENERATED_DATE']).dt.strftime('%Y-%m-%d %H:%M')
+                    summary_df = filtered_df[['TICKER', 'SECTOR', 'QUARTER', 'generated_display']].copy()
+                    summary_df = summary_df.rename(columns={'generated_display': 'Generated'})
                     
                     # Display table with row selection
                     selected_rows = st.dataframe(
@@ -138,7 +139,8 @@ def show_comment_management():
                         selected_comment = filtered_df.iloc[selected_idx]
                         
                         st.subheader(f"Analysis: {selected_comment['TICKER']} - {selected_comment['QUARTER']}")
-                        st.info(f"Generated: {selected_comment['GENERATED_DATE']} | Sector: {selected_comment['SECTOR']}")
+                        display_time = selected_comment['generated_display'] or "Unknown"
+                        st.info(f"Generated: {display_time} | Sector: {selected_comment['SECTOR']}")
                         
                         with st.container():
                             st.markdown(selected_comment['COMMENT'])
@@ -156,8 +158,6 @@ def show_comment_management():
         
         if comments_exist:
             try:
-                comments_df = pd.read_parquet(comments_file)
-                
                 # Overall statistics
                 st.subheader("Overall Statistics")
                 col1, col2, col3, col4 = st.columns(4)
@@ -185,31 +185,32 @@ def show_comment_management():
                 # Timeline
                 st.subheader("Generation Timeline")
                 comments_df_timeline = comments_df.copy()
-                comments_df_timeline['GENERATED_DATE'] = pd.to_datetime(comments_df_timeline['GENERATED_DATE'])
-                comments_df_timeline['Generation_Day'] = comments_df_timeline['GENERATED_DATE'].dt.date
+                comments_df_timeline['Generation_Day'] = comments_df_timeline['generated_dt'].dt.date
                 daily_counts = comments_df_timeline['Generation_Day'].value_counts().sort_index()
                 st.line_chart(daily_counts)
                 
                 # Missing data analysis
                 st.subheader("Coverage Analysis")
                 
-                # Load original data to check coverage
-                data_path = get_data_path()
-                df_quarter = pd.read_parquet(os.path.join(data_path, "dfsectorquarter.parquet"))
-                all_banks = df_quarter[df_quarter['TICKER'].str.len() == 3]['TICKER'].unique()
-                all_quarters = df_quarter['Date_Quarter'].unique()
-                
-                coverage_data = []
-                for bank in all_banks:
-                    bank_comments = comments_df[comments_df['TICKER'] == bank]
-                    coverage_data.append({
-                        'Bank': bank,
-                        'Comments': len(bank_comments),
-                        'Coverage': f"{len(bank_comments)}/{len(all_quarters)}"
-                    })
-                
-                coverage_df = pd.DataFrame(coverage_data)
-                st.dataframe(coverage_df, use_container_width=True, hide_index=True)
+                metrics_df = _load_quarter_metrics()
+                if metrics_df.empty:
+                    st.info("Banking metrics unavailable; cannot compute coverage.")
+                else:
+                    all_banks = metrics_df[metrics_df['TICKER'].astype(str).str.len() == 3]['TICKER'].unique()
+                    all_quarters = metrics_df['Date_Quarter'].dropna().unique()
+
+                    coverage_data = []
+                    total_quarters = len(all_quarters)
+                    for bank in all_banks:
+                        bank_comments = comments_df[comments_df['TICKER'] == bank]
+                        coverage_data.append({
+                            'Bank': bank,
+                            'Comments': len(bank_comments),
+                            'Coverage': f"{len(bank_comments)}/{total_quarters}"
+                        })
+
+                    coverage_df = pd.DataFrame(coverage_data)
+                    st.dataframe(coverage_df, use_container_width=True, hide_index=True)
                 
             except Exception as e:
                 st.error(f"Error generating statistics: {e}")
@@ -222,8 +223,6 @@ def show_comment_management():
         
         if comments_exist:
             try:
-                comments_df = pd.read_parquet(comments_file)
-                
                 # Get available quarters (newest first)
                 from utilities.quarter_utils import sort_quarters
                 available_quarters = sort_quarters(comments_df['QUARTER'].unique().tolist(), reverse=True)

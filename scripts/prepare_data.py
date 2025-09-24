@@ -5,30 +5,63 @@ import os
 import re
 from pathlib import Path
 
+from utilities.db import get_connection, upsert_dataframe
+from utilities.data_catalog import get_table
+
 # Get the script directory and project root
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 data_dir = os.path.join(project_root, 'Data')
 
-print("Loading base data files...")
 
-# Read base files using absolute paths
-dfis = pd.read_csv(os.path.join(data_dir, 'IS_Bank.csv'))
-dfbs = pd.read_csv(os.path.join(data_dir, 'BS_Bank.csv'))
-dfnt = pd.read_csv(os.path.join(data_dir, 'Note_Bank.csv'))
+def fetch_from_source(query: str) -> pd.DataFrame:
+    """Execute a query against the legacy banking source database."""
+    with get_connection(db="source") as conn:
+        return pd.read_sql(query, conn)
+
+
+print("Loading base data tables from source database...")
+
+# Read base tables from source SQL Server
+dfis = fetch_from_source("SELECT * FROM dbo.S_SPS_INCOMESTATEMENT_BANK")
+dfbs = fetch_from_source("SELECT * FROM dbo.S_SPS_BALANCESHEET_BANK")
+dfnt = fetch_from_source("SELECT * FROM dbo.S_SPS_NOTE_BANK")
+
+# Reference mappings still maintained in Excel for now
 Type = pd.read_excel(os.path.join(data_dir, 'Bank_Type.xlsx'))
 mapping = pd.read_excel(os.path.join(data_dir, 'IRIS KeyCodes - Bank.xlsx'))
 dfwriteoff = pd.read_excel(os.path.join(data_dir, 'writeoffs.xlsx'))
 
-# Check if forecast data exists
-forecast_file_path = os.path.join(data_dir, 'FORECAST_bank.csv')
-has_forecast = os.path.exists(forecast_file_path)
+# Load forecast directly from source database
+forecast_bank = fetch_from_source("SELECT * FROM SIL.W_F_IRIS_FORECAST")
+has_forecast = not forecast_bank.empty
 
 if has_forecast:
-    print("Loading forecast data...")
-    forecast_bank = pd.read_csv(forecast_file_path)
+    print("Loaded forecast data from source database")
 else:
-    print("No forecast data found, processing historical data only...")
+    print("No forecast data returned, processing historical data only...")
+
+
+def prepare_metrics_for_db(df: pd.DataFrame, *, period_type: str, date_label_col: str) -> pd.DataFrame:
+    """Normalize the dataframe columns to match the BankingMetrics schema."""
+    if df.empty:
+        return df.copy()
+
+    payload = df.copy()
+    payload = payload.rename(columns={'Type': 'BANK_TYPE', 'ENDDATE_x': 'DATE'})
+    payload['DATE'] = pd.to_datetime(payload['DATE']).dt.tz_localize(None)
+    payload['DATE_STRING'] = payload[date_label_col].astype(str)
+    payload = payload.drop(columns=[date_label_col], errors='ignore')
+    payload['PERIOD_TYPE'] = period_type
+
+    if 'BANK_TYPE' not in payload.columns:
+        payload['BANK_TYPE'] = 'Unknown'
+
+    for col in ['YEARREPORT', 'LENGTHREPORT']:
+        if col in payload.columns:
+            payload[col] = payload[col].astype('Int64')
+
+    return payload
 
 #%% Process historical data
 print("Processing historical data...")
@@ -665,6 +698,47 @@ else:
     dfsectoryear_historical = dfsectoryear.copy()
     dfsectorforecast = pd.DataFrame()  # Empty if no forecast
 
+# Prepare dataframes for database upsert before renaming
+print("\nPreparing datasets for database load...")
+db_quarterly = prepare_metrics_for_db(dfsectorquarter, period_type='Q', date_label_col='Date_Quarter')
+db_yearly = prepare_metrics_for_db(dfsectoryear_historical, period_type='Y', date_label_col='Year')
+db_forecast = prepare_metrics_for_db(dfsectorforecast, period_type='F', date_label_col='Year') if has_forecast else pd.DataFrame()
+
+# Upsert quarterly metrics
+banking_metrics_table = get_table('BankingMetrics')
+if not db_quarterly.empty:
+    inserted_quarterly = upsert_dataframe(
+        db_quarterly,
+        table=banking_metrics_table.name,
+        key_columns=banking_metrics_table.key_columns,
+    )
+    print(f"Upserted {inserted_quarterly} quarterly metric rows into {banking_metrics_table.name}")
+else:
+    print("No quarterly data to upsert")
+
+# Upsert yearly metrics
+if not db_yearly.empty:
+    inserted_yearly = upsert_dataframe(
+        db_yearly,
+        table=banking_metrics_table.name,
+        key_columns=banking_metrics_table.key_columns,
+    )
+    print(f"Upserted {inserted_yearly} yearly metric rows into {banking_metrics_table.name}")
+else:
+    print("No yearly data to upsert")
+
+# Upsert forecast metrics to dedicated table
+if not db_forecast.empty:
+    forecast_table = get_table('BankingForecast')
+    inserted_forecast = upsert_dataframe(
+        db_forecast,
+        table=forecast_table.name,
+        key_columns=forecast_table.key_columns,
+    )
+    print(f"Upserted {inserted_forecast} forecast rows into {forecast_table.name}")
+else:
+    print("No forecast data to upsert")
+
 #%% Rename columns to descriptive names
 print("\nRenaming columns to descriptive names...")
 
@@ -706,77 +780,23 @@ else:
 print("Applying column renaming to quarterly data...")
 dfsectorquarter = rename_dataframe_columns(dfsectorquarter, keycode_to_name)
 
-#%% Save files
-print("\nSaving final datasets with descriptive column names...")
-
-# Debug: Check column names before saving
-print("\nDEBUG - Columns before saving:")
-print(f"  dfsectoryear_historical columns (first 10): {dfsectoryear_historical.columns.tolist()[:10]}")
-print(f"  dfsectorquarter columns (first 10): {dfsectorquarter.columns.tolist()[:10]}")
+#%% Reporting
+print("\nDatabase load complete. Column overview (first 10 columns shown):")
+print(f"  Yearly historical dataset: {dfsectoryear_historical.columns.tolist()[:10]}")
+print(f"  Quarterly dataset: {dfsectorquarter.columns.tolist()[:10]}")
 if has_forecast:
-    print(f"  dfsectorforecast columns (first 10): {dfsectorforecast.columns.tolist()[:10]}")
-
-if has_forecast:
-    # Save historical data as Parquet
-    dfsectoryear_historical.to_parquet(os.path.join(data_dir, 'dfsectoryear.parquet'), index=False, engine='pyarrow', compression='snappy')
-    # Save forecast data as Parquet
-    dfsectorforecast.to_parquet(os.path.join(data_dir, 'dfsectorforecast.parquet'), index=False, engine='pyarrow', compression='snappy')
-    
-    print(f"Files saved as Parquet:")
-    print(f"  - dfsectoryear.parquet (historical): {len(dfsectoryear_historical)} rows")
-    print(f"  - dfsectorforecast.parquet (forecast): {len(dfsectorforecast)} rows")
-else:
-    # No forecast data, save only historical as Parquet
-    dfsectoryear_historical.to_parquet(os.path.join(data_dir, 'dfsectoryear.parquet'), index=False, engine='pyarrow', compression='snappy')
-    print(f"Files saved as Parquet:")
-    print(f"  - dfsectoryear.parquet: {len(dfsectoryear)} rows")
-
-# Save quarterly data as Parquet (always historical only)
-dfsectorquarter.to_parquet(os.path.join(data_dir, 'dfsectorquarter.parquet'), index=False, engine='pyarrow', compression='snappy')
-
-# Debug: Verify saved files
-print("\nDEBUG - Verifying saved files:")
-test_yearly = pd.read_parquet(os.path.join(data_dir, 'dfsectoryear.parquet'))
-test_quarterly = pd.read_parquet(os.path.join(data_dir, 'dfsectorquarter.parquet'))
-print(f"  dfsectoryear.csv columns (first 10): {test_yearly.columns.tolist()[:10]}")
-print(f"  dfsectorquarter.csv columns (first 10): {test_quarterly.columns.tolist()[:10]}")
+    print(f"  Forecast dataset: {dfsectorforecast.columns.tolist()[:10]}")
 
 # Summary statistics
 if has_forecast:
-    # Use the already split data for statistics
     historical_rows = len(dfsectoryear_historical)
     forecast_rows_count = len(dfsectorforecast)
-    
+
     print(f"\nSummary:")
     print(f"  Historical rows (2018-{most_recent_full_year}): {historical_rows}")
     print(f"  Forecast rows ({forecast_year_1}-{forecast_year_2}): {forecast_rows_count}")
-    print(f"  Total rows: {len(dfsectoryear)}")
-    print(f"  Quarterly data saved: {len(dfsectorquarter)} rows")
-    
-    # Generate simple coverage report for forecast years
-    print("\nForecast coverage summary:")
-    # Use the already split and renamed forecast data
-    forecast_years_data = dfsectorforecast
-    # Update key metrics to use descriptive names
-    key_metrics_mapping = {
-        'BS.13': 'Loan',
-        'BS.56': 'Deposit', 
-        'IS.22': 'IS.22',  # Keep as is if not in mapping
-        'IS.24': 'NPATMI',
-        'CA.3': 'NPL',
-        'CA.5': 'GROUP 2',
-        'CA.16': 'ROA',
-        'CA.17': 'ROE'
-    }
-    key_metrics = [keycode_to_name.get(m, m) for m in ['BS.13', 'BS.56', 'IS.22', 'IS.24', 'CA.3', 'CA.5', 'CA.16', 'CA.17']]
-    for metric in key_metrics:
-        if metric in forecast_years_data.columns:
-            coverage = forecast_years_data[metric].notna().sum()
-            total = len(forecast_years_data)
-            pct = (coverage / total * 100) if total > 0 else 0
-            print(f"  {metric}: {coverage}/{total} ({pct:.1f}%)")
+    print(f"  Quarterly rows: {len(dfsectorquarter)}")
 else:
-    print(f"\nTotal rows (historical only): {len(dfsectoryear)}")
+    print(f"\nTotal rows (historical only): {len(dfsectoryear_historical)}")
 
-print("\nProcessing complete!")
-print("All CSV files now use descriptive column names instead of keycodes.")
+print("\nProcessing complete! Banking metrics have been loaded into the target database.")

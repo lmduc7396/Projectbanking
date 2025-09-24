@@ -2,35 +2,35 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import openai
-import os
 from dotenv import load_dotenv
 
-def load_cached_comment(ticker, quarter):
-    """Load a previously generated comment from the cache file"""
+from utilities.data_access import load_comments
+from utilities.data_catalog import get_table
+from utilities.db import upsert_dataframe
+
+def load_cached_comment(ticker, quarter, comments_df: pd.DataFrame | None = None):
+    """Load a previously generated comment from the database cache."""
     try:
-        # Get project root dynamically
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        comments_file = os.path.join(project_root, 'Data', 'banking_comments.parquet')
-        
-        if os.path.exists(comments_file):
-            comments_df = pd.read_parquet(comments_file)
-            
-            # Find the comment for this ticker and quarter
-            comment_row = comments_df[
-                (comments_df['TICKER'] == ticker) & 
-                (comments_df['QUARTER'] == quarter)
-            ]
-            
-            if not comment_row.empty:
-                comment_data = comment_row.iloc[0]
-                return {
-                    'comment': comment_data['COMMENT'],
-                    'generated_date': comment_data['GENERATED_DATE'],
-                    'sector': comment_data['SECTOR']
-                }
-        
-        return None
-        
+        if comments_df is None:
+            comments_df = load_comments()
+
+        comment_row = comments_df[
+            (comments_df['TICKER'] == ticker) &
+            (comments_df['QUARTER'] == quarter)
+        ]
+
+        if comment_row.empty:
+            return None
+
+        comment_data = comment_row.iloc[0]
+        generated_col = 'GENERATED_AT' if 'GENERATED_AT' in comment_data else 'GENERATED_DATE'
+
+        return {
+            'comment': comment_data.get('COMMENT'),
+            'generated_date': comment_data.get(generated_col),
+            'sector': comment_data.get('SECTOR')
+        }
+
     except Exception as e:
         st.error(f"Error loading cached comment: {e}")
         return None
@@ -361,43 +361,24 @@ def openai_comment(ticker, sector, df_quarter=None, keyitem=None, force_regenera
         st.info("Please check your API key and internet connection.")
 
 def save_comment_to_cache(ticker, sector, quarter, comment):
-    """Save a newly generated comment to the cache file"""
+    """Persist the generated comment to the warehouse cache."""
     try:
-        # Get project root dynamically
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        comments_file = os.path.join(project_root, 'Data', 'banking_comments.parquet')
-        
-        # Load existing comments or create new DataFrame
-        if os.path.exists(comments_file):
-            comments_df = pd.read_parquet(comments_file)
-        else:
-            comments_df = pd.DataFrame(columns=['TICKER', 'SECTOR', 'QUARTER', 'COMMENT', 'GENERATED_DATE'])
-        
-        # Check if comment already exists
-        existing_entry = comments_df[
-            (comments_df['TICKER'] == ticker) & 
-            (comments_df['QUARTER'] == quarter)
-        ]
-        
-        new_entry = {
-            'TICKER': ticker,
-            'SECTOR': sector,
-            'QUARTER': quarter,
-            'COMMENT': comment,
-            'GENERATED_DATE': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        if not existing_entry.empty:
-            # Update existing entry
-            idx = existing_entry.index[0]
-            for key, value in new_entry.items():
-                comments_df.loc[idx, key] = value
-        else:
-            # Add new entry
-            comments_df = pd.concat([comments_df, pd.DataFrame([new_entry])], ignore_index=True)
-        
-        # Save to Excel
-        comments_df.to_parquet(comments_file, index=False, engine='pyarrow', compression='snappy')
-        
+        comments_table = get_table('Banking_Comments')
+        payload = pd.DataFrame([
+            {
+                'TICKER': ticker,
+                'SECTOR': sector,
+                'DATE': quarter,
+                'COMMENT': comment,
+                'GENERATED_AT': pd.Timestamp.utcnow()
+            }
+        ])
+
+        upsert_dataframe(
+            payload,
+            table=comments_table.name,
+            key_columns=comments_table.key_columns,
+        )
+
     except Exception as e:
-        raise Exception(f"Failed to save comment to cache: {e}")
+        raise Exception(f"Failed to save comment to warehouse cache: {e}")

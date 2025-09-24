@@ -34,6 +34,7 @@ except Exception:
     pass
 
 from utilities.stock_candle import get_cached_stock_data
+from utilities.data_access import load_banking_metrics
 
 
 # -------- Trend & OB/OS scoring per spec --------
@@ -717,32 +718,33 @@ def compute_obos(df: pd.DataFrame, rsi_len: int = 14, macd_fast: int = 12, macd_
 
 @st.cache_data(ttl=1800)
 def load_bank_tickers() -> List[str]:
-    """Load bank tickers from reference file (exclude aggregate sector tickers)."""
-    try:
-        xls = pd.read_excel(os.path.join(project_root, 'Data', 'Bank_Type.xlsx'))
-        tickers = sorted([t for t in xls['TICKER'].dropna().astype(str).unique().tolist() if len(t) == 3])
-        return tickers
-    except Exception:
+    """Load bank tickers from warehouse metrics (exclude sector aggregates)."""
+    df = load_banking_metrics('Q')
+    if df.empty:
         return []
+    tickers = df['TICKER'].dropna().astype(str)
+    tickers = tickers[tickers.str.len() == 3]
+    return sorted(tickers.unique().tolist())
 
 
 @st.cache_data(ttl=1800)
 def load_bank_groups() -> dict[str, List[str]]:
     """Return mapping of bank type/sector to constituent tickers."""
-    try:
-        xls = pd.read_excel(os.path.join(project_root, 'Data', 'Bank_Type.xlsx'))
-        df = xls[['Type', 'TICKER']].dropna()
-        df['TICKER'] = df['TICKER'].astype(str).str.strip()
-        df['Type'] = df['Type'].astype(str).str.strip()
-        df = df[df['TICKER'].str.len() == 3]
-        groups: dict[str, List[str]] = {}
-        for grp, sub in df.groupby('Type'):
-            tickers = sorted(sub['TICKER'].unique().tolist())
-            if tickers:
-                groups[grp] = tickers
-        return groups
-    except Exception:
+    df = load_banking_metrics('Q')
+    if df.empty:
         return {}
+    if 'Type' not in df.columns and 'BANK_TYPE' in df.columns:
+        df['Type'] = df['BANK_TYPE']
+    df = df[['TICKER', 'Type']].dropna()
+    df['TICKER'] = df['TICKER'].astype(str).str.strip()
+    df['Type'] = df['Type'].astype(str).str.strip()
+    df = df[df['TICKER'].str.len() == 3]
+    groups: dict[str, List[str]] = {}
+    for grp, sub in df.groupby('Type'):
+        tickers = sorted(sub['TICKER'].unique().tolist())
+        if tickers:
+            groups[grp] = tickers
+    return groups
 
 
 def compute_sma(series: pd.Series, window: int) -> pd.Series:
