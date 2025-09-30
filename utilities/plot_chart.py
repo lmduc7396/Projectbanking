@@ -67,11 +67,15 @@ def Bankplot(df=None, keyitem=None):
     
     def sort_by_period(df_input: pd.DataFrame) -> pd.DataFrame:
         if date_column == 'Year':
-            return df_input.sort_values(
-                by=date_column,
-                key=lambda s: pd.to_numeric(s, errors='coerce'),
-                ascending=True
+            numeric_years = pd.to_numeric(df_input[date_column], errors='coerce')
+            order = pd.Series(numeric_years).dropna().sort_values().unique()
+            categorical_order = pd.Categorical(
+                numeric_years,
+                categories=order,
+                ordered=True
             )
+            sorted_df = df_input.assign(_order=categorical_order).sort_values('_order')
+            return sorted_df.drop(columns=['_order'])
 
         quarter_strings = df_input[date_column].astype(str).tolist()
         ordered = sort_quarters(quarter_strings)
