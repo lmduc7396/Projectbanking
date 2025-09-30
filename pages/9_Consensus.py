@@ -217,22 +217,13 @@ latest_consensus = latest_per_broker(ticker_data, ticker)
 
 st.subheader("Latest Broker Forecasts")
 
-rating_counts = latest_consensus['RATING'].dropna().value_counts().to_dict()
-cols = st.columns(len(rating_counts) or 1)
-if rating_counts:
-    for (label, count), col in zip(rating_counts.items(), cols):
-        col.metric(label, f"{int(count)} broker{'s' if count != 1 else ''}")
-else:
-    cols[0].info("No ratings submitted.")
-
-display_cols = ['Broker', 'Metric', 'ForecastYear', 'VALUE', 'RATING', 'FORECASTDATE', 'DATE']
+display_cols = ['Broker', 'Metric', 'ForecastYear', 'VALUE', 'FORECASTDATE', 'DATE']
 for c in ['FORECASTDATE', 'DATE']:
     latest_consensus[c] = pd.to_datetime(latest_consensus[c], errors='coerce')
 
 latest_consensus_display = latest_consensus[display_cols].rename(columns={
     'ForecastYear': 'Year',
     'VALUE': 'Value (B VND)',
-    'RATING': 'Rating',
     'FORECASTDATE': 'Published',
     'DATE': 'Target Date'
 })
@@ -244,7 +235,7 @@ latest_consensus_display['Value (B VND)'] = (
 for date_col in ['Published', 'Target Date']:
     latest_consensus_display[date_col] = latest_consensus_display[date_col].dt.date
 
-latest_consensus_styler = latest_consensus_display.style.format({'Value (B VND)': '{:,.2f}'})
+latest_consensus_styler = latest_consensus_display.style.format({'Value (B VND)': '{:,.0f}'})
 
 st.dataframe(latest_consensus_styler, use_container_width=True)
 
@@ -336,10 +327,10 @@ numeric_cols = [
 ]
 percent_cols = ['Difference %']
 
-format_dict = {col: '{:,.2f}' for col in numeric_cols if col in comparison_display.columns}
+format_dict = {col: '{:,.0f}' for col in numeric_cols if col in comparison_display.columns}
 if '# Brokers' in comparison_display.columns:
     format_dict['# Brokers'] = '{:,.0f}'
-percent_format = {col: '{:+,.2f}%' for col in percent_cols if col in comparison_display.columns}
+percent_format = {col: '{:+,.0f}%' for col in percent_cols if col in comparison_display.columns}
 
 comparison_styler = comparison_display.style.format(format_dict).format(percent_format)
 
