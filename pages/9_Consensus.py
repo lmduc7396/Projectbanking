@@ -22,15 +22,16 @@ import importlib
 import utilities.data_access as data_access
 
 # Ensure latest data access helpers are available when running in long-lived sessions
-if not hasattr(data_access, 'load_forecast_consensus'):
+if not hasattr(data_access, 'load_forecast_consensus') or not hasattr(data_access, 'load_banking_metrics'):
     data_access = importlib.reload(data_access)
 
-if not hasattr(data_access, 'load_forecast_consensus'):
-    st.error("`load_forecast_consensus` is not available. Please update `utilities/data_access.py`.")
+if not hasattr(data_access, 'load_forecast_consensus') or not hasattr(data_access, 'load_banking_metrics'):
+    st.error("Consensus data helpers are unavailable. Please update `utilities/data_access.py`.")
     st.stop()
 
 load_forecast_consensus = data_access.load_forecast_consensus
 load_banking_forecast = data_access.load_banking_forecast
+load_banking_metrics = data_access.load_banking_metrics
 
 # Apply styling
 apply_google_font()
@@ -54,10 +55,11 @@ def _normalize_metric_key(value: str) -> str:
 def load_data():
     consensus_df = load_forecast_consensus()
     forecast_df = load_banking_forecast('Y')
-    return consensus_df, forecast_df
+    actual_year_df = load_banking_metrics('Y')
+    return consensus_df, forecast_df, actual_year_df
 
 
-consensus_df, forecast_df = load_data()
+consensus_df, forecast_df, actual_year_df = load_data()
 
 
 def _banking_tickers_from_forecast(df: pd.DataFrame) -> list[str]:
@@ -272,7 +274,26 @@ def prepare_inhouse_forecast(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     return melted
 
 
+def prepare_actuals(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+    data = df[df['TICKER'] == ticker].copy()
+    if data.empty:
+        return data
+    data['Year'] = pd.to_numeric(data.get('Year'), errors='coerce').astype('Int64')
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    unwanted = {'Year', 'Quarter'}
+    numeric_cols = [c for c in numeric_cols if c not in unwanted]
+    if not numeric_cols:
+        return pd.DataFrame()
+    melted = data[['Year'] + numeric_cols].melt(id_vars='Year', var_name='Metric', value_name='ActualValue')
+    melted = melted.dropna(subset=['Year', 'ActualValue'])
+    melted['MetricKey'] = melted['Metric'].apply(_normalize_metric_key)
+    return melted
+
+
 our_forecast_long = prepare_inhouse_forecast(forecast_df, ticker)
+actuals_long = prepare_actuals(actual_year_df, ticker)
 
 comparison = summary_df.merge(
     our_forecast_long,
@@ -295,6 +316,41 @@ comparison['Delta %'] = np.where(
     comparison['Delta'] / comparison['OurForecast'] * 100,
     np.nan
 )
+
+actual_lookup = {}
+if not actuals_long.empty:
+    actual_lookup = actuals_long.set_index(['MetricKey', 'Year'])['ActualValue'].to_dict()
+
+comparison['Consensus YoY %'] = np.nan
+comparison['In-house YoY %'] = np.nan
+
+for metric_key, metric_group in comparison.groupby('MetricKey'):
+    metric_group_sorted = metric_group.sort_values('ForecastYear')
+    prev_consensus = None
+    prev_inhouse = None
+
+    for idx, row in metric_group_sorted.iterrows():
+        year = row['ForecastYear']
+        consensus_value = pd.to_numeric(row['avg'], errors='coerce')
+        inhouse_value = pd.to_numeric(row['OurForecast'], errors='coerce')
+
+        base_consensus = prev_consensus
+        base_inhouse = prev_inhouse
+
+        if base_consensus is None:
+            base_consensus = actual_lookup.get((metric_key, year - 1))
+        if base_inhouse is None:
+            base_inhouse = actual_lookup.get((metric_key, year - 1))
+
+        if pd.notna(consensus_value) and base_consensus not in (None, 0) and pd.notna(base_consensus):
+            comparison.loc[idx, 'Consensus YoY %'] = (consensus_value - base_consensus) / base_consensus * 100
+        if pd.notna(inhouse_value) and base_inhouse not in (None, 0) and pd.notna(base_inhouse):
+            comparison.loc[idx, 'In-house YoY %'] = (inhouse_value - base_inhouse) / base_inhouse * 100
+
+        if pd.notna(consensus_value):
+            prev_consensus = consensus_value
+        if pd.notna(inhouse_value):
+            prev_inhouse = inhouse_value
 
 scale_columns = ['avg', 'median', 'min', 'max', 'OurForecast', 'Delta']
 for col in scale_columns:
