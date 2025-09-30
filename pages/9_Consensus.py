@@ -212,8 +212,15 @@ comparison = summary_df.merge(
     our_forecast_long,
     left_on=['MetricKey', 'ForecastYear'],
     right_on=['MetricKey', 'Year'],
-    how='left'
+    how='left',
+    suffixes=('', '_Inhouse')
 )
+
+if 'Metric_Inhouse' in comparison.columns:
+    comparison = comparison.drop(columns=['Metric_Inhouse'])
+
+if 'Year' in comparison.columns:
+    comparison = comparison.drop(columns=['Year'])
 
 comparison['OurForecast'] = pd.to_numeric(comparison['OurForecast'], errors='coerce')
 comparison['Delta'] = comparison['avg'] - comparison['OurForecast']
