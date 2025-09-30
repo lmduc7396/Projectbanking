@@ -74,15 +74,14 @@ def Bankplot(df=None, keyitem=None):
         # Check if this metric should be in billions
         is_billion_metric = value_col in billion_scale_metrics
         
-        # Create a copy of the data for this metric
+        # Create a copy of the data for this metric and ensure numeric dtype
+        df_display = df.copy()
+        df_display[value_col] = pd.to_numeric(df_display[value_col], errors='coerce')
+
         if is_billion_metric:
-            # Convert to billions for display
-            df_display = df.copy()
             df_display[value_col] = df_display[value_col] / 1e9
-            # Update subplot title to indicate billions
             subplot_title = f"{z_name} (B VND)"
         else:
-            df_display = df
             subplot_title = z_name
         
         # Update the subplot title
