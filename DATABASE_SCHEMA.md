@@ -260,6 +260,31 @@ Valuation ← [TICKER] → BankingMetrics
 4. **BankingMetrics** includes both individual banks and aggregates
 
 ---
+## Consensus data
+CREATE TABLE [dbo].[Forecast_Consensus] (
+    [KEYCODE]        NVARCHAR(100)    NOT NULL,
+    [KEYCODENAME]    NVARCHAR(255)    NULL,
+    [ORGANCODE]      NVARCHAR(100)    NULL,
+    [TICKER]         NVARCHAR(50)     NOT NULL,
+    [DATE]           DATE             NOT NULL,
+    [VALUE]          FLOAT            NULL,
+    [RATING]         NVARCHAR(50)     NULL,
+    [FORECASTDATE]   DATETIME         NULL
+);
+```
+
+| Column         | Type             | Description                                                                 |
+|----------------|------------------|-----------------------------------------------------------------------------|
+| `KEYCODE`      | `NVARCHAR(100)`  | Forecast metric code (e.g., `2025.NPATMI`)                                  |
+| `KEYCODENAME`  | `NVARCHAR(255)`  | Human-readable name of the keycode                                          |
+| `ORGANCODE`    | `NVARCHAR(100)`  | Organization or broker code                                                 |
+| `TICKER`       | `NVARCHAR(50)`   | Stock ticker symbol                                                         |
+| `DATE`         | `DATE`           | Forecast target date (usually a year or quarter)                            |
+| `VALUE`        | `FLOAT`          | Forecasted numeric value                                                    |
+| `RATING`       | `NVARCHAR(50)`   | Rating or recommendation (e.g., Buy / Hold / Sell)                          |
+| `FORECASTDATE` | `DATETIME`       | Date when the forecast was issued                                          
+
+---
 
 ## Data Update Patterns
 

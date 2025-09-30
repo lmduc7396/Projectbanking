@@ -108,6 +108,13 @@ def load_banking_forecast(period: str = 'Y', *, rename: bool = True) -> pd.DataF
     return _normalize_period_columns(df, period)
 
 
+def load_forecast_consensus() -> pd.DataFrame:
+    """Load consensus forecasts from broker houses."""
+    query = "SELECT * FROM dbo.Forecast_Consensus"
+    df = _load_dataframe(query)
+    return df
+
+
 def load_valuation_banking() -> pd.DataFrame:
     """Load last 5 years of PE/PB for banking tickers only.
 
