@@ -70,6 +70,12 @@ def _normalize_period_columns(df: pd.DataFrame, period: str) -> pd.DataFrame:
         if 'DATE_STRING' in df.columns and 'Year' not in df.columns:
             df['Year'] = pd.to_numeric(df['DATE_STRING'], errors='coerce').astype('Int64')
 
+    # Convert Decimal/object numeric columns to floats for downstream math operations
+    for column in df.columns:
+        if df[column].dtype == 'object':
+            converted = pd.to_numeric(df[column], errors='ignore')
+            df[column] = converted
+
     return df
 
 
