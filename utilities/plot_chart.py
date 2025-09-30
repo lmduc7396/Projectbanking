@@ -79,7 +79,9 @@ def Bankplot(df=None, keyitem=None):
         df_display[value_col] = pd.to_numeric(df_display[value_col], errors='coerce')
 
         if is_billion_metric:
-            df_display[value_col] = df_display[value_col] / 1e9
+            df_display[value_col] = df_display[value_col].apply(
+                lambda v: float(v) / 1e9 if pd.notnull(v) else float('nan')
+            )
             subplot_title = f"{z_name} (B VND)"
         else:
             subplot_title = z_name
