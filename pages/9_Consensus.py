@@ -287,7 +287,8 @@ if 'Year' in comparison.columns:
     comparison = comparison.drop(columns=['Year'])
 
 comparison['OurForecast'] = pd.to_numeric(comparison['OurForecast'], errors='coerce')
-comparison['Delta'] = comparison['avg'] - comparison['OurForecast']
+comparison['ConsensusValue'] = pd.to_numeric(comparison['median'], errors='coerce')
+comparison['Delta'] = comparison['ConsensusValue'] - comparison['OurForecast']
 comparison['Delta %'] = np.where(
     comparison['OurForecast'].abs() > 1e-9,
     comparison['Delta'] / comparison['OurForecast'] * 100,
@@ -308,7 +309,7 @@ for metric_key, metric_group in comparison.groupby('MetricKey'):
 
     for idx, row in metric_group_sorted.iterrows():
         year = row['ForecastYear']
-        consensus_value = pd.to_numeric(row['avg'], errors='coerce')
+        consensus_value = pd.to_numeric(row['ConsensusValue'], errors='coerce')
         inhouse_value = pd.to_numeric(row['OurForecast'], errors='coerce')
 
         base_consensus = prev_consensus
@@ -373,16 +374,15 @@ latest_consensus_styler = latest_consensus_display.style.format({
 
 st.dataframe(latest_consensus_styler, use_container_width=True)
 
-scale_columns = ['avg', 'median', 'min', 'max', 'OurForecast', 'Delta']
+scale_columns = ['median', 'min', 'max', 'OurForecast', 'Delta', 'ConsensusValue']
 for col in scale_columns:
     if col in comparison.columns:
         comparison[col] = pd.to_numeric(comparison[col], errors='coerce') / 1e9
 
-comparison_display = comparison[['Metric', 'ForecastYear', 'brokers', 'avg', 'median', 'min', 'max', 'OurForecast', 'Delta', 'Delta %', 'Consensus YoY %', 'In-house YoY %']]
+comparison_display = comparison[['Metric', 'ForecastYear', 'brokers', 'median', 'min', 'max', 'OurForecast', 'Delta', 'Delta %', 'Consensus YoY %', 'In-house YoY %']]
 comparison_display = comparison_display.rename(columns={
     'ForecastYear': 'Year',
     'brokers': '# Brokers',
-    'avg': 'Consensus Avg (B VND)',
     'median': 'Consensus Median (B VND)',
     'min': 'Low (B VND)',
     'max': 'High (B VND)',
@@ -395,9 +395,12 @@ comparison_display = comparison_display.rename(columns={
 
 
 st.subheader("Consensus Summary vs In-house Forecast")
+# Drop helper column
+if 'ConsensusValue' in comparison.columns:
+    comparison_display = comparison_display.drop(columns=['ConsensusValue'], errors='ignore')
+
 numeric_cols = [
     '# Brokers',
-    'Consensus Avg (B VND)',
     'Consensus Median (B VND)',
     'Low (B VND)',
     'High (B VND)',
@@ -411,7 +414,7 @@ if '# Brokers' in comparison_display.columns:
     format_dict['# Brokers'] = '{:,.0f}'
 percent_format = {col: '{:+,.0f}%' for col in percent_cols if col in comparison_display.columns}
 
-comparison_styler = comparison_display.style.format(format_dict).format(percent_format)
+comparison_styler = comparison_display.set_index(['Metric', 'Year']).style.format(format_dict).format(percent_format)
 
 st.dataframe(comparison_styler, use_container_width=True)
 
