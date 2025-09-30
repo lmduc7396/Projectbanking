@@ -65,8 +65,25 @@ def Bankplot(df=None, keyitem=None):
         'Interbank Assets', 'Securities', 'Other Income'
     ]
     
+    def sort_by_period(df_input: pd.DataFrame) -> pd.DataFrame:
+        if date_column == 'Year':
+            return df_input.sort_values(
+                by=date_column,
+                key=lambda s: pd.to_numeric(s, errors='coerce'),
+                ascending=True
+            )
+
+        quarter_strings = df_input[date_column].astype(str).tolist()
+        ordered = sort_quarters(quarter_strings)
+        categorical = pd.Categorical(
+            df_input[date_column].astype(str),
+            categories=ordered,
+            ordered=True
+        )
+        return df_input.assign(_order=categorical).sort_values('_order').drop(columns='_order')
+
     #Draw chart
-    
+
     for idx, z_name in enumerate(Z):
         # Use the name directly since columns already have descriptive names
         value_col = z_name
@@ -111,9 +128,10 @@ def Bankplot(df=None, keyitem=None):
         for i, x in enumerate(X):
             show_legend = (idx == 0)
             if len(x) == 3:  # Stock ticker
-                matched_rows = df_display[df_display['TICKER'] == x]
+                matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
                 if not matched_rows.empty:
                     df_temp = matched_rows.tail(Y)
+                    df_temp = sort_by_period(df_temp)
                     
                     # Check if forecast data is included
                     if include_forecast and 'is_forecast' in df_temp.columns:
@@ -187,9 +205,10 @@ def Bankplot(df=None, keyitem=None):
                         
             else:  # Bank type
                 # For aggregated bank types, TICKER column contains the bank type name directly
-                matched_rows = df_display[df_display['TICKER'] == x]
+                matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
                 if not matched_rows.empty:
                     df_temp = matched_rows.tail(Y)
+                    df_temp = sort_by_period(df_temp)
                     
                     # Check if forecast data is included
                     if include_forecast and 'is_forecast' in df_temp.columns:
