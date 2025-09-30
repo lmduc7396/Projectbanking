@@ -231,16 +231,20 @@ for c in ['FORECASTDATE', 'DATE']:
 
 latest_consensus_display = latest_consensus[display_cols].rename(columns={
     'ForecastYear': 'Year',
-    'VALUE': 'Value',
+    'VALUE': 'Value (B VND)',
     'RATING': 'Rating',
     'FORECASTDATE': 'Published',
     'DATE': 'Target Date'
 })
 
+latest_consensus_display['Value (B VND)'] = (
+    pd.to_numeric(latest_consensus_display['Value (B VND)'], errors='coerce') / 1e9
+)
+
 for date_col in ['Published', 'Target Date']:
     latest_consensus_display[date_col] = latest_consensus_display[date_col].dt.date
 
-latest_consensus_styler = latest_consensus_display.style.format({'Value': '{:,.2f}'})
+latest_consensus_styler = latest_consensus_display.style.format({'Value (B VND)': '{:,.2f}'})
 
 st.dataframe(latest_consensus_styler, use_container_width=True)
 
@@ -301,22 +305,35 @@ comparison['Delta %'] = np.where(
     np.nan
 )
 
+scale_columns = ['avg', 'median', 'min', 'max', 'OurForecast', 'Delta']
+for col in scale_columns:
+    if col in comparison.columns:
+        comparison[col] = pd.to_numeric(comparison[col], errors='coerce') / 1e9
+
 comparison_display = comparison[['Metric', 'ForecastYear', 'brokers', 'avg', 'median', 'min', 'max', 'OurForecast', 'Delta', 'Delta %']]
 comparison_display = comparison_display.rename(columns={
     'ForecastYear': 'Year',
     'brokers': '# Brokers',
-    'avg': 'Consensus Avg',
-    'median': 'Consensus Median',
-    'min': 'Low',
-    'max': 'High',
-    'OurForecast': 'In-house Forecast',
-    'Delta': 'Difference',
+    'avg': 'Consensus Avg (B VND)',
+    'median': 'Consensus Median (B VND)',
+    'min': 'Low (B VND)',
+    'max': 'High (B VND)',
+    'OurForecast': 'In-house Forecast (B VND)',
+    'Delta': 'Difference (B VND)',
     'Delta %': 'Difference %'
 }).sort_values(['Metric', 'Year'])
 
 
 st.subheader("Consensus Summary vs In-house Forecast")
-numeric_cols = ['# Brokers', 'Consensus Avg', 'Consensus Median', 'Low', 'High', 'In-house Forecast', 'Difference']
+numeric_cols = [
+    '# Brokers',
+    'Consensus Avg (B VND)',
+    'Consensus Median (B VND)',
+    'Low (B VND)',
+    'High (B VND)',
+    'In-house Forecast (B VND)',
+    'Difference (B VND)'
+]
 percent_cols = ['Difference %']
 
 format_dict = {col: '{:,.2f}' for col in numeric_cols if col in comparison_display.columns}
