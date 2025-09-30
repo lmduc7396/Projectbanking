@@ -43,21 +43,30 @@ def load_data():
 df_quarter, df_year, df_forecast, keyitem = load_data()
 color_sequence = px.colors.qualitative.Bold
 
+forecast_years = []
+if df_forecast is not None and not df_forecast.empty:
+    forecast_years = sorted(
+        pd.to_numeric(df_forecast['Year'], errors='coerce')
+        .dropna()
+        .astype(int)
+        .unique()
+    )
+
 # Function to detect the last complete year from historical data
 @st.cache_data(ttl=3600)  # Refresh cache every hour
 def get_last_historical_year():
     """Detect the last completed historical year from prepared Parquet data (flexible, data-driven)."""
-    try:
-        return int(pd.to_numeric(df_year['Year']).max())
-    except Exception:
-        # Derive from quarterly data if yearly not available
-        try:
-            years = pd.to_numeric(df_quarter['Date_Quarter'].str.extract(r'(\d{4})')[0])
-            return int(years.max())
-        except Exception:
-            # Fallback to current year - 1 as a flexible heuristic
-            from datetime import datetime
-            return datetime.now().year - 1
+    years = pd.to_numeric(df_year.get('Year'), errors='coerce').dropna()
+    if not years.empty:
+        return int(years.max())
+
+    years_quarter = pd.to_numeric(df_quarter.get('Year'), errors='coerce').dropna()
+    if not years_quarter.empty:
+        return int(years_quarter.max())
+
+    # Fallback to current year - 1 as a flexible heuristic
+    from datetime import datetime
+    return datetime.now().year - 1
 
 # Get the last historical year
 last_historical_year = get_last_historical_year()
@@ -69,117 +78,115 @@ db_option = st.sidebar.radio("Choose database:", ("Quarterly", "Yearly"))
 include_forecast = st.sidebar.checkbox(
     "Include Forecast Data", 
     value=False,
-    help="Show forecast data (2025-2026) with dotted lines"
+    help="Show available forecast data with dotted lines"
 )
 
 # Process data based on selections
 if db_option == "Quarterly":
     df = df_quarter.copy()
-    
-    # If forecast is included and available, append yearly forecast to quarterly data
-    if include_forecast and df_forecast is not None:
-        # For quarterly view, append yearly forecast data directly
-        # The forecast data will show as years (2025, 2026) after quarters
-        # Rename Year column to Date_Quarter for consistency
+    df['is_forecast'] = False
+
+    if include_forecast and df_forecast is not None and forecast_years:
         df_forecast_quarterly = df_forecast.copy()
-        df_forecast_quarterly['Date_Quarter'] = df_forecast_quarterly['Year'].astype(str)
-        
-        # Get forecast years dynamically
-        forecast_years = sorted(df_forecast_quarterly['Year'].unique())
-        
-        # Identify available quarters for each year in the quarterly data
-        # Parse year from Date_Quarter format (e.g., "2025-Q1" -> 2025)
-        df['Year_from_quarter'] = df['Date_Quarter'].str.extract(r'(\d{4})-Q', expand=False).astype(float)
-        
-        # For each forecast year, count available quarters
+        df_forecast_quarterly['Year'] = pd.to_numeric(
+            df_forecast_quarterly['Year'], errors='coerce'
+        ).astype('Int64')
+        df_forecast_quarterly['Date_Quarter'] = df_forecast_quarterly['Year'].apply(
+            lambda x: f"{int(x)}" if pd.notna(x) else None
+        )
+        df_forecast_quarterly['Quarter'] = pd.NA
+
         available_quarters = {}
-        for year in forecast_years:
-            year_int = int(year)
-            quarters_in_year = df[df['Year_from_quarter'] == year_int]['Date_Quarter'].nunique()
-            available_quarters[year] = quarters_in_year
-        
-        # Clean up temporary column
-        df = df.drop('Year_from_quarter', axis=1)
-        
-        # Define metrics that need quarterly adjustment (income/expense flow metrics)
-        income_expense_metrics = ['PBT', 'TOI', 'OPEX', 'PPOP', 'Provision expense', 
-                                  'NPATMI', 'Write-off', 'Fees Income']
-        
-        # For flow/formation metrics, divide annual values by 4 to get quarterly average
-        # This applies only to "New NPL" and "New G2" which are cumulative annual metrics
+        quarter_counts = (
+            df.dropna(subset=['TICKER', 'Year', 'Quarter'])
+            .groupby(['TICKER', 'Year'])['Quarter']
+            .nunique()
+        )
+        for (ticker_key, year_key), count in quarter_counts.items():
+            if pd.isna(year_key) or ticker_key is None:
+                continue
+            available_quarters[(ticker_key, int(year_key))] = int(count)
+
+        income_expense_metrics = [
+            'PBT', 'TOI', 'OPEX', 'PPOP', 'Provision expense',
+            'NPATMI', 'Write-off', 'Fees Income'
+        ]
         flow_metrics = ['New NPL', 'New G2']
-        
-        # Process adjustments for each ticker
-        for ticker in df_forecast_quarterly['TICKER'].unique():
+
+        actual_quarter = df.copy()
+
+        for ticker in df_forecast_quarterly['TICKER'].dropna().unique():
             ticker_mask = df_forecast_quarterly['TICKER'] == ticker
-            
-            for i, year in enumerate(forecast_years):
+
+            for idx, year in enumerate(forecast_years):
                 year_mask = ticker_mask & (df_forecast_quarterly['Year'] == year)
-                
-                if i == 0:  # First forecast year (e.g., 2025)
-                    # Calculate remaining quarters
-                    qtrs_available = available_quarters.get(year, 0)
-                    remaining_qtrs = max(4 - qtrs_available, 1)  # At least 1 to avoid division by 0
-                    
-                    # For income/expense metrics, calculate remaining quarter average
+                if not year_mask.any():
+                    continue
+
+                if idx == 0:
+                    qtrs_available = available_quarters.get((ticker, year), 0)
+                    remaining_qtrs = max(4 - qtrs_available, 1)
+
                     for metric in income_expense_metrics:
                         if metric in df_forecast_quarterly.columns:
-                            # Get YTD sum from quarterly data for this ticker and year
-                            year_int = int(year)
-                            ytd_mask = (df['TICKER'] == ticker) & \
-                                      (df['Date_Quarter'].str.contains(str(year_int)))
-                            ytd_sum = df.loc[ytd_mask, metric].sum() if metric in df.columns else 0
-                            
-                            # Adjust forecast value: (Annual - YTD) / remaining quarters
+                            ytd_mask = (
+                                (actual_quarter['TICKER'] == ticker)
+                                & (actual_quarter['Year'] == year)
+                            )
+                            ytd_sum = (
+                                actual_quarter.loc[ytd_mask, metric].sum()
+                                if metric in actual_quarter.columns
+                                else 0
+                            )
                             annual_value = df_forecast_quarterly.loc[year_mask, metric].values
-                            if len(annual_value) > 0:
+                            if len(annual_value) > 0 and pd.notna(annual_value[0]):
                                 adjusted_value = (annual_value[0] - ytd_sum) / remaining_qtrs
                                 df_forecast_quarterly.loc[year_mask, metric] = adjusted_value
-                else:  # Second forecast year (e.g., 2026)
-                    # Simply divide by 4 for quarterly average
+                else:
                     for metric in income_expense_metrics:
                         if metric in df_forecast_quarterly.columns:
-                            df_forecast_quarterly.loc[year_mask, metric] = \
+                            df_forecast_quarterly.loc[year_mask, metric] = (
                                 df_forecast_quarterly.loc[year_mask, metric] / 4
-                
-                # Handle flow metrics (New NPL, New G2) - always divide by 4
+                            )
+
                 for metric in flow_metrics:
                     if metric in df_forecast_quarterly.columns:
-                        df_forecast_quarterly.loc[year_mask, metric] = \
+                        df_forecast_quarterly.loc[year_mask, metric] = (
                             df_forecast_quarterly.loc[year_mask, metric] / 4
-        
-        # Add is_forecast flag
-        df['is_forecast'] = False
+                        )
+
         df_forecast_quarterly['is_forecast'] = True
-        
-        # Combine the dataframes
         df = pd.concat([df, df_forecast_quarterly], ignore_index=True)
 else:
     df = df_year.copy()
     
-    if include_forecast and df_forecast is not None:
-        # For yearly view, combine historical and forecast
+    if include_forecast and df_forecast is not None and not df_forecast.empty:
         df['is_forecast'] = False
-        df_forecast['is_forecast'] = True
-        df = pd.concat([df, df_forecast], ignore_index=True)
+        df_forecast_copy = df_forecast.copy()
+        df_forecast_copy['is_forecast'] = True
+        df = pd.concat([df, df_forecast_copy], ignore_index=True)
     else:
-        # Filter out any forecast years if not including forecast (coerce Year to numeric)
-        year_num = pd.to_numeric(df['Year'], errors='coerce')
-        df = df[year_num <= last_historical_year]
         df['is_forecast'] = False
+        if 'Year' in df.columns:
+            df = df[df['Year'].isna() | (df['Year'] <= last_historical_year)]
 
 # Make the data available globally for the Bankplot function
 st.session_state.df = df
 st.session_state.keyitem = keyitem
 st.session_state.include_forecast = include_forecast
 st.session_state.last_historical_year = last_historical_year
+st.session_state.forecast_years = forecast_years
 
 st.title("Banking Plot")
 st.markdown("---")
 
 # Show a note if forecast is included
 if include_forecast:
-    st.info("📊 Forecast data (2025-2026) is shown with dotted lines")
+    if forecast_years:
+        year_label = ", ".join(str(year) for year in forecast_years)
+        st.info(f"📊 Forecast data ({year_label}) is shown with dotted lines")
+    else:
+        st.info("📊 Forecast data is shown with dotted lines")
 
 # Call the banking plot function
 Bankplot(df, keyitem)

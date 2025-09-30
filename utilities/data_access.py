@@ -38,32 +38,68 @@ def _load_dataframe(query: str, params: Optional[list] = None) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=params)
 
 
+def _normalize_period_columns(df: pd.DataFrame, period: str) -> pd.DataFrame:
+    """Ensure common period columns exist regardless of source schema."""
+    period = period.upper()
+
+    if 'BANK_TYPE' in df.columns and 'Type' not in df.columns:
+        df['Type'] = df['BANK_TYPE']
+
+    year_source = None
+    if 'YEARREPORT' in df.columns:
+        year_source = pd.to_numeric(df['YEARREPORT'], errors='coerce')
+    elif 'YEAR' in df.columns:
+        year_source = pd.to_numeric(df['YEAR'], errors='coerce')
+
+    if year_source is not None:
+        df['Year'] = year_source.astype('Int64')
+
+    if period == 'Q':
+        if 'LENGTHREPORT' in df.columns and 'Quarter' not in df.columns:
+            df['Quarter'] = pd.to_numeric(df['LENGTHREPORT'], errors='coerce').astype('Int64')
+
+        if 'DATE_STRING' in df.columns:
+            df['Date_Quarter'] = df['DATE_STRING']
+        elif 'Year' in df.columns and 'Quarter' in df.columns:
+            df['Date_Quarter'] = (
+                df['Year'].astype(str).str.replace('<NA>', '', regex=False)
+                + '-Q'
+                + df['Quarter'].astype(str).str.replace('<NA>', '', regex=False)
+            )
+    else:
+        if 'DATE_STRING' in df.columns and 'Year' not in df.columns:
+            df['Year'] = pd.to_numeric(df['DATE_STRING'], errors='coerce').astype('Int64')
+
+    return df
+
+
 def load_banking_metrics(period: str, *, rename: bool = True) -> pd.DataFrame:
-    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = %s"
+    period = period.upper()
+    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = %s AND ACTUAL = 1"
     df = _load_dataframe(query, params=[period])
 
     if rename:
         df = _rename_metrics(df)
 
-    if 'BANK_TYPE' in df.columns and 'Type' not in df.columns:
-        df['Type'] = df['BANK_TYPE']
-
-    if 'DATE_STRING' in df.columns:
-        label = 'Date_Quarter' if period.upper() == 'Q' else 'Year'
-        df[label] = df['DATE_STRING']
-
-    return df
+    return _normalize_period_columns(df, period)
 
 
-def load_banking_forecast(*, rename: bool = True) -> pd.DataFrame:
-    df = _load_dataframe("SELECT * FROM dbo.BankingForecast")
+def load_banking_forecast(period: str = 'Y', *, rename: bool = True) -> pd.DataFrame:
+    period = (period or 'Y').upper()
+    query = "SELECT * FROM dbo.BankingMetrics WHERE ACTUAL = 0"
+    params: list = []
+    if period:
+        query += " AND PERIOD_TYPE = %s"
+        params.append(period)
+
+    df = _load_dataframe(query, params=params or None)
+    if df.empty:
+        return df
+
     if rename:
         df = _rename_metrics(df)
-    if 'BANK_TYPE' in df.columns and 'Type' not in df.columns:
-        df['Type'] = df['BANK_TYPE']
-    if 'DATE_STRING' in df.columns and 'Year' not in df.columns:
-        df['Year'] = df['DATE_STRING']
-    return df
+
+    return _normalize_period_columns(df, period)
 
 
 def load_valuation_banking() -> pd.DataFrame:

@@ -65,15 +65,7 @@ def get_last_historical_year():
         st.error("No historical data found in BankingMetrics")
         st.stop()
     
-    # Handle both string and numeric Year values
-    if df_year_historical['Year'].dtype == 'object':
-        # If Year is string, extract numeric year
-        years = df_year_historical['Year'].astype(str).str.extract(r'(\d{4})', expand=False)
-        years = years.dropna().astype(int)
-    else:
-        # If Year is already numeric
-        years = df_year_historical['Year']
-    
+    years = pd.to_numeric(df_year_historical.get('Year'), errors='coerce').dropna()
     if len(years) == 0:
         st.error("No valid years found in historical data")
         st.stop()
@@ -85,21 +77,32 @@ def get_last_historical_year():
 def load_data():
     """Load all required data in one optimized function"""
     # Load historical data
-    df_year_historical = load_banking_metrics('Y')
+    df_year_historical = load_banking_metrics('Y').copy()
+    if 'Year' in df_year_historical.columns:
+        df_year_historical['Year'] = (
+            pd.to_numeric(df_year_historical['Year'], errors='coerce').astype('Int64')
+        )
 
-    df_forecast = load_banking_forecast()
-    if not df_forecast.empty:
-        df_year = pd.concat([df_year_historical, df_forecast], ignore_index=True)
-    else:
+    df_forecast_raw = load_banking_forecast()
+    if df_forecast_raw.empty:
         df_forecast = None
-        df_year = df_year_historical
+        df_year = df_year_historical.copy()
+    else:
+        df_forecast = df_forecast_raw.copy()
+        if 'Year' in df_forecast.columns:
+            df_forecast['Year'] = (
+                pd.to_numeric(df_forecast['Year'], errors='coerce').astype('Int64')
+            )
+        df_year = pd.concat([df_year_historical, df_forecast], ignore_index=True)
 
-    df_quarter = load_banking_metrics('Q')
+    df_quarter = load_banking_metrics('Q').copy()
+    if 'Year' in df_quarter.columns:
+        df_quarter['Year'] = pd.to_numeric(df_quarter['Year'], errors='coerce').astype('Int64')
+    if 'Quarter' in df_quarter.columns:
+        df_quarter['Quarter'] = pd.to_numeric(df_quarter['Quarter'], errors='coerce').astype('Int64')
+
     keyitem = pd.read_excel(os.path.join(project_root, 'Data/Key_items.xlsx'))
-    
-    # Pre-process quarter data
-    df_quarter['Year'] = 2000 + df_quarter['Date_Quarter'].str.extract(r'Q(\d+)', expand=False).astype(int)
-    
+
     # Return both historical and combined data
     return df_year, df_quarter, df_forecast, keyitem, df_year_historical
 
@@ -109,18 +112,19 @@ df_year, df_quarter, df_forecast, keyitem, df_year_historical = load_data()
 last_complete_year = get_last_historical_year()
 
 # Determine forecast years from the forecast data
+forecast_years = []
 if df_forecast is not None:
-    forecast_years = sorted(df_forecast['Year'].unique())
-    # Convert string years to integers for calculations
-    forecast_year_1 = int(forecast_years[0]) if len(forecast_years) > 0 else last_complete_year + 1
-    forecast_year_2 = int(forecast_years[1]) if len(forecast_years) > 1 else forecast_year_1 + 1
+    forecast_years = sorted(
+        pd.to_numeric(df_forecast['Year'], errors='coerce').dropna().astype(int).unique()
+    )
+    forecast_year_1 = forecast_years[0] if len(forecast_years) > 0 else last_complete_year + 1
+    forecast_year_2 = forecast_years[1] if len(forecast_years) > 1 else forecast_year_1 + 1
 else:
     forecast_year_1 = last_complete_year + 1
     forecast_year_2 = last_complete_year + 2
 
 # OPTIMIZED: Vectorized filtering for banks with forecast
-# Convert forecast years to strings for comparison
-forecast_mask = df_year['Year'].isin([str(forecast_year_1), str(forecast_year_2)])
+forecast_mask = df_year['Year'].isin([forecast_year_1, forecast_year_2])
 ticker_mask = df_year['TICKER'].str.len() == 3
 banks_with_forecast = sorted(df_year[forecast_mask & ticker_mask]['TICKER'].unique())
 
@@ -227,25 +231,25 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
     if is_sector:
         if ticker == 'Sector':
             # For 'Sector', aggregate only banks with forecast data
-            # Convert forecast years to strings for comparison
-            banks_with_forecast = df_year[(df_year['Year'].isin([str(forecast_year_1), str(forecast_year_2)])) & 
-                                         (df_year['TICKER'].str.len() == 3)]['TICKER'].unique()
-            
-            # Get historical data for these banks - convert years to strings
-            years = [str(last_complete_year-2), str(last_complete_year-1), str(last_complete_year)]
+            banks_with_forecast = df_year[
+                (df_year['Year'].isin([forecast_year_1, forecast_year_2])) &
+                (df_year['TICKER'].str.len() == 3)
+            ]['TICKER'].unique()
+
+            # Get historical data for these banks (last three completed years)
+            years = [last_complete_year - 2, last_complete_year - 1, last_complete_year]
             historical = aggregate_sector_data(df_year_historical, None, banks_with_forecast, years)
-            
-            # Get forecast data - aggregate from banks (use string years)
-            forecast_years = [str(forecast_year_1), str(forecast_year_2)]
-            forecast_data = aggregate_sector_data(df_year, None, banks_with_forecast, forecast_years)
-            
+
+            # Get forecast data - aggregate from banks (future years)
+            forecast_year_list = [forecast_year_1, forecast_year_2]
+            forecast_data = aggregate_sector_data(df_year, None, banks_with_forecast, forecast_year_list)
+
             forecast_1 = pd.DataFrame()
             forecast_2 = pd.DataFrame()
-            # Convert forecast years to strings for index lookup
-            if str(forecast_year_1) in forecast_data.index:
-                forecast_1 = pd.DataFrame([forecast_data.loc[str(forecast_year_1)]])
-            if str(forecast_year_2) in forecast_data.index:
-                forecast_2 = pd.DataFrame([forecast_data.loc[str(forecast_year_2)]])
+            if forecast_year_1 in forecast_data.index:
+                forecast_1 = pd.DataFrame([forecast_data.loc[forecast_year_1]])
+            if forecast_year_2 in forecast_data.index:
+                forecast_2 = pd.DataFrame([forecast_data.loc[forecast_year_2]])
             
             # Get quarterly data
             quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
@@ -274,17 +278,17 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
                 quarterly_prev = quarterly_prev.drop('index', axis=1)
         else:
             # For other sectors (Private_1, Private_2, SOCB), use pre-calculated data
-            # Convert years to strings for comparison
-            hist_years = [str(last_complete_year-2), str(last_complete_year-1), str(last_complete_year)]
+            hist_years = [last_complete_year - 2, last_complete_year - 1, last_complete_year]
             hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin(hist_years)
             historical = df_year_historical[hist_mask].copy()
-            # Convert Year to int for indexing
+            historical['Year'] = pd.to_numeric(historical['Year'], errors='coerce')
+            historical = historical.dropna(subset=['Year'])
             historical['Year'] = historical['Year'].astype(int)
             historical = historical.set_index('Year')
             
-            # Use string years for forecast queries
-            forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_1))]
-            forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_2))]
+            # Filter forecast rows for target years
+            forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
+            forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
             
             quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
             quarterly = df_quarter[
@@ -301,17 +305,17 @@ def get_bank_data(df_year, df_quarter, ticker, last_complete_year, forecast_year
             ]
     else:
         # Individual bank - original logic
-        # Convert years to strings for comparison
-        hist_years = [str(last_complete_year-2), str(last_complete_year-1), str(last_complete_year)]
+        hist_years = [last_complete_year - 2, last_complete_year - 1, last_complete_year]
         hist_mask = (df_year_historical['TICKER'] == ticker) & df_year_historical['Year'].isin(hist_years)
         historical = df_year_historical[hist_mask].copy()
-        # Convert Year to int for indexing
+        historical['Year'] = pd.to_numeric(historical['Year'], errors='coerce')
+        historical = historical.dropna(subset=['Year'])
         historical['Year'] = historical['Year'].astype(int)
         historical = historical.set_index('Year')
         
-        # Use string years for forecast queries
-        forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_1))]
-        forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == str(forecast_year_2))]
+        # Filter forecast rows for target years
+        forecast_1 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_1)]
+        forecast_2 = df_year[(df_year['TICKER'] == ticker) & (df_year['Year'] == forecast_year_2)]
         
         quarter_codes = [f'1Q{str(forecast_year_1)[2:]}', f'2Q{str(forecast_year_1)[2:]}']
         quarterly = df_quarter[
