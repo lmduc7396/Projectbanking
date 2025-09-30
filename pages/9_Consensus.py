@@ -59,6 +59,26 @@ def load_data():
 
 consensus_df, forecast_df = load_data()
 
+
+def _banking_tickers_from_forecast(df: pd.DataFrame) -> list[str]:
+    if df.empty or 'TICKER' not in df.columns:
+        return []
+    tickers = [
+        t.strip() for t in df['TICKER'].dropna().astype(str).unique()
+        if isinstance(t, str) and t.strip()
+    ]
+    banking = [t for t in tickers if len(t) == 3 and t.isalpha()]
+    return sorted(banking)
+
+
+banking_tickers = _banking_tickers_from_forecast(forecast_df)
+if banking_tickers:
+    consensus_df = consensus_df[consensus_df['TICKER'].isin(banking_tickers)]
+
+if consensus_df.empty:
+    st.warning("No consensus data available for banking tickers.")
+    st.stop()
+
 st.title("Broker Consensus vs In-house Forecast")
 st.markdown("Analyze the latest broker projections, consensus statistics, and how they compare with your current forecast.")
 
@@ -134,17 +154,46 @@ if ticker_data.empty:
     st.stop()
 
 
-def latest_per_broker(df: pd.DataFrame) -> pd.DataFrame:
+BROKER_STOPWORDS = {
+    'BUY', 'SELL', 'HOLD', 'OUTPERFORM', 'UNDERPERFORM', 'NEUTRAL', 'ADD',
+    'OVERWEIGHT', 'UNDERWEIGHT', 'ACCUMULATE', 'REDUCE', 'OUTLOOK', 'FORECAST',
+    'TARGET', 'PRICE', 'CONSENSUS'
+}
+
+
+def _extract_broker_label(row: pd.Series, ticker: str) -> str:
+    raw_org = str(row.get('ORGANCODE') or '').strip()
+    ticker_upper = ticker.upper()
+    if raw_org and not raw_org.upper().startswith(ticker_upper):
+        return raw_org
+
+    keycodename = str(row.get('KEYCODENAME') or '')
+    tokens = re.findall(r'[A-Z]{2,6}', keycodename.upper())
+    for token in reversed(tokens):
+        if token == ticker_upper:
+            continue
+        if token in BROKER_STOPWORDS:
+            continue
+        if token.isalpha() and len(token) >= 2:
+            return token
+
+    if raw_org:
+        return raw_org
+    return 'Unknown'
+
+
+def latest_per_broker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     work = df.copy()
     group_cols = ['ORGANCODE', 'MetricKey', 'ForecastYear']
     idx = work.groupby(group_cols, dropna=False)['EffectiveDate'].idxmax()
     latest = work.loc[idx].copy()
     latest = latest.sort_values(['ForecastYear', 'Metric', 'ORGANCODE']).reset_index(drop=True)
     latest['VALUE'] = pd.to_numeric(latest['VALUE'], errors='coerce')
+    latest['Broker'] = latest.apply(lambda row: _extract_broker_label(row, ticker), axis=1)
     return latest
 
 
-latest_consensus = latest_per_broker(ticker_data)
+latest_consensus = latest_per_broker(ticker_data, ticker)
 
 st.subheader("Latest Broker Forecasts")
 
@@ -156,22 +205,24 @@ if rating_counts:
 else:
     cols[0].info("No ratings submitted.")
 
-display_cols = ['ORGANCODE', 'Metric', 'ForecastYear', 'VALUE', 'RATING', 'FORECASTDATE', 'DATE']
+display_cols = ['Broker', 'Metric', 'ForecastYear', 'VALUE', 'RATING', 'FORECASTDATE', 'DATE']
 for c in ['FORECASTDATE', 'DATE']:
     latest_consensus[c] = pd.to_datetime(latest_consensus[c], errors='coerce')
 
-st.dataframe(
-    latest_consensus[display_cols].rename(columns={
-        'ORGANCODE': 'Broker',
-        'Metric': 'Metric',
-        'ForecastYear': 'Year',
-        'VALUE': 'Value',
-        'RATING': 'Rating',
-        'FORECASTDATE': 'Published',
-        'DATE': 'Target Date'
-    }),
-    use_container_width=True
-)
+latest_consensus_display = latest_consensus[display_cols].rename(columns={
+    'ForecastYear': 'Year',
+    'VALUE': 'Value',
+    'RATING': 'Rating',
+    'FORECASTDATE': 'Published',
+    'DATE': 'Target Date'
+})
+
+for date_col in ['Published', 'Target Date']:
+    latest_consensus_display[date_col] = latest_consensus_display[date_col].dt.date
+
+latest_consensus_styler = latest_consensus_display.style.format({'Value': '{:,.2f}'})
+
+st.dataframe(latest_consensus_styler, use_container_width=True)
 
 
 def consensus_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -245,7 +296,17 @@ comparison_display = comparison_display.rename(columns={
 
 
 st.subheader("Consensus Summary vs In-house Forecast")
-st.dataframe(comparison_display, use_container_width=True)
+numeric_cols = ['# Brokers', 'Consensus Avg', 'Consensus Median', 'Low', 'High', 'In-house Forecast', 'Difference']
+percent_cols = ['Difference %']
+
+format_dict = {col: '{:,.2f}' for col in numeric_cols if col in comparison_display.columns}
+if '# Brokers' in comparison_display.columns:
+    format_dict['# Brokers'] = '{:,.0f}'
+percent_format = {col: '{:+,.2f}%' for col in percent_cols if col in comparison_display.columns}
+
+comparison_styler = comparison_display.style.format(format_dict).format(percent_format)
+
+st.dataframe(comparison_styler, use_container_width=True)
 
 
 st.caption("Consensus statistics use the most recent forecast from each broker for the selected ticker, metric, and year. Differences are calculated as Consensus Avg minus your in-house forecast.")
