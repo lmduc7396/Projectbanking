@@ -409,10 +409,17 @@ numeric_cols = [
 ]
 percent_cols = ['Difference %', 'Consensus YoY %', 'In-house YoY %']
 
-format_dict = {col: '{:,.0f}' for col in numeric_cols if col in comparison_display.columns}
-if '# Brokers' in comparison_display.columns:
-    format_dict['# Brokers'] = '{:,.0f}'
-percent_format = {col: '{:+,.0f}%' for col in percent_cols if col in comparison_display.columns}
+numeric_cols_existing = [col for col in numeric_cols if col in comparison_display.columns]
+percent_cols_existing = [col for col in percent_cols if col in comparison_display.columns]
+
+for col in numeric_cols_existing:
+    comparison_display[col] = pd.to_numeric(comparison_display[col], errors='coerce').round(0)
+
+for col in percent_cols_existing:
+    comparison_display[col] = pd.to_numeric(comparison_display[col], errors='coerce').round(0)
+
+format_dict = {col: '{:,.0f}' for col in numeric_cols_existing}
+percent_format = {col: '{:+,.0f}%' for col in percent_cols_existing}
 
 comparison_styler = comparison_display.set_index(['Metric', 'Year']).style.format(format_dict).format(percent_format)
 
