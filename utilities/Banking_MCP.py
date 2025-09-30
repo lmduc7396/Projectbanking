@@ -93,7 +93,7 @@ class BankingToolSystem:
             return df
         if 'Year' in df.columns:
             df = df.copy()
-            df['Year'] = pd.to_numeric(df['Year'], errors='coerce')
+            df['Year'] = pd.to_numeric(df['Year'], errors='coerce').astype('Int64')
         return df
 
     @lru_cache(maxsize=1)
@@ -1497,8 +1497,29 @@ class BankingToolSystem:
             """Calculate PBT impact from metric adjustments for multiple banks"""
             
             # Load required data
-            historical_year = self._load_historical_year()
-            forecast_data = self._load_forecast()
+            historical_year = self._load_historical_year().copy()
+            forecast_data = self._load_forecast().copy()
+
+            if historical_year.empty or forecast_data.empty:
+                return {
+                    "error": "Historical or forecast data unavailable",
+                    "status": "failed"
+                }
+
+            if 'Year' in historical_year.columns:
+                historical_year['Year'] = pd.to_numeric(historical_year['Year'], errors='coerce').astype('Int64')
+            forecast_data['Year'] = pd.to_numeric(forecast_data['Year'], errors='coerce').astype('Int64')
+            forecast_data = forecast_data.dropna(subset=['Year'])
+            historical_year = historical_year.dropna(subset=['Year'])
+
+            if forecast_data.empty:
+                return {
+                    "error": "Forecast data missing year values",
+                    "status": "failed"
+                }
+
+            forecast_data['Year'] = forecast_data['Year'].astype(int)
+            historical_year['Year'] = historical_year['Year'].astype(int)
             
             # Process each ticker
             results = {}
@@ -1510,7 +1531,7 @@ class BankingToolSystem:
                 if len(ticker) == 3:
                     # Individual bank
                     bank_forecast = forecast_data[(forecast_data['TICKER'] == ticker) & 
-                                                 (forecast_data['Year'] == str(year))]
+                                                 (forecast_data['Year'] == year)]
                     if bank_forecast.empty:
                         results[ticker] = {
                             "error": f"No forecast data for {ticker} in {year}",
@@ -1522,14 +1543,14 @@ class BankingToolSystem:
                     # Sector analysis
                     if ticker == 'Sector':
                         # Aggregate all banks with forecast
-                        banks = forecast_data[(forecast_data['Year'] == str(year)) & 
+                        banks = forecast_data[(forecast_data['Year'] == year) & 
                                              (forecast_data['TICKER'].str.len() == 3)]['TICKER'].unique()
                         sector_data = forecast_data[(forecast_data['TICKER'].isin(banks)) & 
-                                                   (forecast_data['Year'] == str(year))]
+                                                   (forecast_data['Year'] == year)]
                     else:
                         # Specific sector (SOCB, Private_1, etc.)
                         sector_data = forecast_data[(forecast_data['TICKER'] == ticker) & 
-                                                   (forecast_data['Year'] == str(year))]
+                                                   (forecast_data['Year'] == year)]
                     
                     if sector_data.empty:
                         results[ticker] = {
@@ -1568,13 +1589,13 @@ class BankingToolSystem:
                 prev_year = year - 1
                 if len(ticker) == 3:
                     prev_data = historical_year[(historical_year['TICKER'] == ticker) & 
-                                               (historical_year['Year'] == str(prev_year))]
+                                               (historical_year['Year'] == prev_year)]
                 else:
                     if ticker == 'Sector':
-                        banks = historical_year[(historical_year['Year'] == str(prev_year)) & 
+                        banks = historical_year[(historical_year['Year'] == prev_year) & 
                                                (historical_year['TICKER'].str.len() == 3)]['TICKER'].unique()
                         prev_data = historical_year[(historical_year['TICKER'].isin(banks)) & 
-                                                   (historical_year['Year'] == str(prev_year))]
+                                                   (historical_year['Year'] == prev_year)]
                         if not prev_data.empty:
                             prev_data = pd.DataFrame([{
                                 'Loan': prev_data['Loan'].sum(),
@@ -1582,7 +1603,7 @@ class BankingToolSystem:
                             }])
                     else:
                         prev_data = historical_year[(historical_year['TICKER'] == ticker) & 
-                                                   (historical_year['Year'] == str(prev_year))]
+                                                   (historical_year['Year'] == prev_year)]
                 
                 prev_loan = prev_data.iloc[0]['Loan'] if not prev_data.empty else loan * 0.85
                 prev_opex = prev_data.iloc[0]['OPEX'] if not prev_data.empty else opex * 0.9
