@@ -154,42 +154,62 @@ if ticker_data.empty:
     st.stop()
 
 
+
 BROKER_STOPWORDS = {
-    'BUY', 'SELL', 'HOLD', 'OUTPERFORM', 'UNDERPERFORM', 'NEUTRAL', 'ADD',
-    'OVERWEIGHT', 'UNDERWEIGHT', 'ACCUMULATE', 'REDUCE', 'OUTLOOK', 'FORECAST',
-    'TARGET', 'PRICE', 'CONSENSUS'
+    'BUY', 'SELL', 'HOLD', 'OUTPERFORM', 'UNDERPERFORM', 'NEUTRAL', 'ADD', 'TRADING',
+    'OVERWEIGHT', 'UNDERWEIGHT', 'ACCUMULATE', 'REDUCE', 'OUTLOOK', 'FORECAST', 'TARGET',
+    'PRICE', 'CONSENSUS', 'ESTIMATE', 'BASE', 'SCENARIO', 'NPATMI', 'PBT', 'NIM', 'NPL',
+    'LOAN', 'ROA', 'ROE', 'CIR', 'TOI', 'EBIT', 'EBITDA'
 }
 
 
-def _extract_broker_label(row: pd.Series, ticker: str) -> str:
-    raw_org = str(row.get('ORGANCODE') or '').strip()
+def _tokenize_candidate(*values: str) -> list[str]:
+    tokens: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        parts = re.split(r'[^A-Z]', value.upper())
+        tokens.extend([p for p in parts if p])
+    return tokens
+
+
+def _derive_broker_code(row: pd.Series, ticker: str) -> str:
     ticker_upper = ticker.upper()
-    if raw_org and not raw_org.upper().startswith(ticker_upper):
-        return raw_org
+    raw_org = str(row.get('ORGANCODE') or '').strip()
+    candidates = []
+
+    if raw_org:
+        cleaned = re.sub(rf'\b{ticker_upper}\b', '', raw_org.upper())
+        candidates.extend(_tokenize_candidate(cleaned))
+        if cleaned.strip() and cleaned.strip() != raw_org.upper():
+            candidates.append(cleaned.strip())
 
     keycodename = str(row.get('KEYCODENAME') or '')
-    tokens = re.findall(r'[A-Z]{2,6}', keycodename.upper())
-    for token in reversed(tokens):
+    keycode = str(row.get('KEYCODE') or '')
+    candidates.extend(_tokenize_candidate(keycodename, keycode))
+
+    for token in reversed(candidates):
         if token == ticker_upper:
             continue
         if token in BROKER_STOPWORDS:
             continue
-        if token.isalpha() and len(token) >= 2:
+        if token.isalpha() and 2 <= len(token) <= 6:
             return token
 
     if raw_org:
-        return raw_org
+        return raw_org.strip()
     return 'Unknown'
 
 
 def latest_per_broker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     work = df.copy()
-    group_cols = ['ORGANCODE', 'MetricKey', 'ForecastYear']
+    work['BrokerCode'] = work.apply(lambda row: _derive_broker_code(row, ticker), axis=1)
+    group_cols = ['BrokerCode', 'MetricKey', 'ForecastYear']
     idx = work.groupby(group_cols, dropna=False)['EffectiveDate'].idxmax()
     latest = work.loc[idx].copy()
     latest = latest.sort_values(['ForecastYear', 'Metric', 'ORGANCODE']).reset_index(drop=True)
     latest['VALUE'] = pd.to_numeric(latest['VALUE'], errors='coerce')
-    latest['Broker'] = latest.apply(lambda row: _extract_broker_label(row, ticker), axis=1)
+    latest['Broker'] = latest['BrokerCode'].fillna('Unknown')
     return latest
 
 
@@ -227,7 +247,7 @@ st.dataframe(latest_consensus_styler, use_container_width=True)
 
 def consensus_summary(df: pd.DataFrame) -> pd.DataFrame:
     aggregated = df.groupby(['Metric', 'MetricKey', 'ForecastYear']).agg(
-        brokers=('ORGANCODE', 'nunique'),
+        brokers=('BrokerCode', 'nunique'),
         avg=('VALUE', 'mean'),
         median=('VALUE', 'median'),
         min=('VALUE', 'min'),
