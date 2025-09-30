@@ -216,28 +216,7 @@ def latest_per_broker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
 
 
 latest_consensus = latest_per_broker(ticker_data, ticker)
-
-st.subheader("Latest Broker Forecasts")
-
-display_cols = ['Broker', 'Metric', 'ForecastYear', 'VALUE', 'FORECASTDATE', 'DATE']
-for c in ['FORECASTDATE', 'DATE']:
-    latest_consensus[c] = pd.to_datetime(latest_consensus[c], errors='coerce')
-
-latest_consensus_display = latest_consensus[display_cols].rename(columns={
-    'ForecastYear': 'Year',
-    'VALUE': 'Value (B VND)',
-    'FORECASTDATE': 'Published'
-})
-
-latest_consensus_display['Value (B VND)'] = (
-    pd.to_numeric(latest_consensus_display['Value (B VND)'], errors='coerce') / 1e9
-)
-
-latest_consensus_display['Published'] = latest_consensus_display['Published'].dt.date
-
-latest_consensus_styler = latest_consensus_display.style.format({'Value (B VND)': '{:,.0f}'})
-
-st.dataframe(latest_consensus_styler, use_container_width=True)
+latest_consensus['YoY %'] = np.nan
 
 
 def consensus_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -349,6 +328,50 @@ for metric_key, metric_group in comparison.groupby('MetricKey'):
             prev_consensus = consensus_value
         if pd.notna(inhouse_value):
             prev_inhouse = inhouse_value
+
+# Compute broker-level YoY growth
+for (broker_code, metric_key), broker_group in latest_consensus.groupby(['BrokerCode', 'MetricKey']):
+    broker_group_sorted = broker_group.sort_values('ForecastYear')
+    prev_value = None
+
+    for idx, row in broker_group_sorted.iterrows():
+        year = row['ForecastYear']
+        forecast_value = pd.to_numeric(row['VALUE'], errors='coerce')
+
+        base_value = prev_value
+        if base_value is None:
+            base_value = actual_lookup.get((metric_key, year - 1))
+
+        if pd.notna(forecast_value) and pd.notna(base_value) and base_value not in (None, 0):
+            latest_consensus.loc[idx, 'YoY %'] = (forecast_value - base_value) / base_value * 100
+
+        if pd.notna(forecast_value):
+            prev_value = forecast_value
+
+st.subheader("Latest Broker Forecasts")
+
+display_cols = ['Broker', 'Metric', 'ForecastYear', 'VALUE', 'YoY %', 'FORECASTDATE']
+latest_consensus['FORECASTDATE'] = pd.to_datetime(latest_consensus['FORECASTDATE'], errors='coerce')
+
+latest_consensus_display = latest_consensus[display_cols].rename(columns={
+    'ForecastYear': 'Year',
+    'VALUE': 'Value (B VND)',
+    'YoY %': 'YoY %',
+    'FORECASTDATE': 'Published'
+})
+
+latest_consensus_display['Value (B VND)'] = (
+    pd.to_numeric(latest_consensus_display['Value (B VND)'], errors='coerce') / 1e9
+)
+latest_consensus_display['YoY %'] = pd.to_numeric(latest_consensus_display['YoY %'], errors='coerce')
+latest_consensus_display['Published'] = latest_consensus_display['Published'].dt.date
+
+latest_consensus_styler = latest_consensus_display.style.format({
+    'Value (B VND)': '{:,.0f}',
+    'YoY %': '{:+,.0f}%'
+})
+
+st.dataframe(latest_consensus_styler, use_container_width=True)
 
 scale_columns = ['avg', 'median', 'min', 'max', 'OurForecast', 'Delta']
 for col in scale_columns:
