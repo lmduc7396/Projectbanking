@@ -226,16 +226,14 @@ for c in ['FORECASTDATE', 'DATE']:
 latest_consensus_display = latest_consensus[display_cols].rename(columns={
     'ForecastYear': 'Year',
     'VALUE': 'Value (B VND)',
-    'FORECASTDATE': 'Published',
-    'DATE': 'Target Date'
+    'FORECASTDATE': 'Published'
 })
 
 latest_consensus_display['Value (B VND)'] = (
     pd.to_numeric(latest_consensus_display['Value (B VND)'], errors='coerce') / 1e9
 )
 
-for date_col in ['Published', 'Target Date']:
-    latest_consensus_display[date_col] = latest_consensus_display[date_col].dt.date
+latest_consensus_display['Published'] = latest_consensus_display['Published'].dt.date
 
 latest_consensus_styler = latest_consensus_display.style.format({'Value (B VND)': '{:,.0f}'})
 
@@ -357,7 +355,7 @@ for col in scale_columns:
     if col in comparison.columns:
         comparison[col] = pd.to_numeric(comparison[col], errors='coerce') / 1e9
 
-comparison_display = comparison[['Metric', 'ForecastYear', 'brokers', 'avg', 'median', 'min', 'max', 'OurForecast', 'Delta', 'Delta %']]
+comparison_display = comparison[['Metric', 'ForecastYear', 'brokers', 'avg', 'median', 'min', 'max', 'OurForecast', 'Delta', 'Delta %', 'Consensus YoY %', 'In-house YoY %']]
 comparison_display = comparison_display.rename(columns={
     'ForecastYear': 'Year',
     'brokers': '# Brokers',
@@ -367,7 +365,9 @@ comparison_display = comparison_display.rename(columns={
     'max': 'High (B VND)',
     'OurForecast': 'In-house Forecast (B VND)',
     'Delta': 'Difference (B VND)',
-    'Delta %': 'Difference %'
+    'Delta %': 'Difference %',
+    'Consensus YoY %': 'Consensus YoY %',
+    'In-house YoY %': 'In-house YoY %'
 }).sort_values(['Metric', 'Year'])
 
 
@@ -381,7 +381,7 @@ numeric_cols = [
     'In-house Forecast (B VND)',
     'Difference (B VND)'
 ]
-percent_cols = ['Difference %']
+percent_cols = ['Difference %', 'Consensus YoY %', 'In-house YoY %']
 
 format_dict = {col: '{:,.0f}' for col in numeric_cols if col in comparison_display.columns}
 if '# Brokers' in comparison_display.columns:
