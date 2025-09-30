@@ -122,7 +122,7 @@ with st.sidebar:
 
     ticker_data = consensus_df[consensus_df['TICKER'] == ticker]
     year_options = sorted(ticker_data['ForecastYear'].dropna().unique())
-    default_years = year_options[-2:] if len(year_options) > 2 else year_options
+    default_years = year_options
     selected_years = st.multiselect(
         "Forecast Years",
         options=year_options,
