@@ -18,7 +18,19 @@ sys.path.append(project_root)
 
 from utilities.style_utils import apply_google_font
 from utilities.sidebar_style import apply_sidebar_style
-from utilities.data_access import load_forecast_consensus, load_banking_forecast
+import importlib
+import utilities.data_access as data_access
+
+# Ensure latest data access helpers are available when running in long-lived sessions
+if not hasattr(data_access, 'load_forecast_consensus'):
+    data_access = importlib.reload(data_access)
+
+if not hasattr(data_access, 'load_forecast_consensus'):
+    st.error("`load_forecast_consensus` is not available. Please update `utilities/data_access.py`.")
+    st.stop()
+
+load_forecast_consensus = data_access.load_forecast_consensus
+load_banking_forecast = data_access.load_banking_forecast
 
 # Apply styling
 apply_google_font()
