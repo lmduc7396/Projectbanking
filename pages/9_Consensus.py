@@ -51,6 +51,18 @@ def _normalize_metric_key(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", label).upper()
 
 
+def _format_int(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return f"{int(round(float(value))):,}"
+
+
+def _format_pct(value: float | int | None) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return f"{int(round(float(value))):+d}%"
+
+
 @st.cache_data(ttl=1800)
 def load_data():
     consensus_df = load_forecast_consensus()
@@ -361,31 +373,25 @@ latest_consensus_display = latest_consensus[display_cols].rename(columns={
     'FORECASTDATE': 'Published'
 })
 
-latest_consensus_display['Value (B VND)'] = (
-    pd.to_numeric(latest_consensus_display['Value (B VND)'], errors='coerce') / 1e9
-)
-latest_consensus_display['YoY %'] = pd.to_numeric(latest_consensus_display['YoY %'], errors='coerce')
-latest_consensus_display['Published'] = latest_consensus_display['Published'].dt.date
+value_numeric = pd.to_numeric(latest_consensus_display['Value (B VND)'], errors='coerce') / 1e9
+latest_consensus_display['Value (B VND)'] = value_numeric.apply(_format_int)
+latest_consensus_display['YoY %'] = pd.to_numeric(latest_consensus_display['YoY %'], errors='coerce').apply(_format_pct)
+latest_consensus_display['Published'] = latest_consensus_display['Published'].dt.date.apply(lambda d: d.isoformat() if pd.notna(d) else "")
 
-latest_consensus_styler = latest_consensus_display.style.format({
-    'Value (B VND)': '{:,.0f}',
-    'YoY %': '{:+,.0f}%'
-})
+st.dataframe(latest_consensus_display, use_container_width=True)
 
-st.dataframe(latest_consensus_styler, use_container_width=True)
-
-scale_columns = ['median', 'min', 'max', 'OurForecast', 'Delta', 'ConsensusValue']
+scale_columns = ['median', 'OurForecast', 'Delta', 'ConsensusValue']
 for col in scale_columns:
     if col in comparison.columns:
         comparison[col] = pd.to_numeric(comparison[col], errors='coerce') / 1e9
 
-comparison_display = comparison[['Metric', 'ForecastYear', 'brokers', 'median', 'min', 'max', 'OurForecast', 'Delta', 'Delta %', 'Consensus YoY %', 'In-house YoY %']]
+comparison_display = comparison[
+    ['Metric', 'ForecastYear', 'brokers', 'median', 'OurForecast', 'Delta', 'Delta %', 'Consensus YoY %', 'In-house YoY %']
+]
 comparison_display = comparison_display.rename(columns={
     'ForecastYear': 'Year',
     'brokers': '# Brokers',
     'median': 'Consensus Median (B VND)',
-    'min': 'Low (B VND)',
-    'max': 'High (B VND)',
     'OurForecast': 'In-house Forecast (B VND)',
     'Delta': 'Difference (B VND)',
     'Delta %': 'Difference %',
@@ -402,28 +408,34 @@ if 'ConsensusValue' in comparison.columns:
 numeric_cols = [
     '# Brokers',
     'Consensus Median (B VND)',
-    'Low (B VND)',
-    'High (B VND)',
     'In-house Forecast (B VND)',
     'Difference (B VND)'
 ]
 percent_cols = ['Difference %', 'Consensus YoY %', 'In-house YoY %']
 
-numeric_cols_existing = [col for col in numeric_cols if col in comparison_display.columns]
-percent_cols_existing = [col for col in percent_cols if col in comparison_display.columns]
+formatted_rows = []
+for metric, metric_group in comparison_display.groupby('Metric'):
+    metric_group = metric_group.sort_values('Year')
+    table_rows = []
+    for _, record in metric_group.iterrows():
+        table_rows.append({
+            'Year': int(record['Year']),
+            '# Brokers': _format_int(record['# Brokers']),
+            'Consensus Median (B VND)': _format_int(record['Consensus Median (B VND)']),
+            'In-house Forecast (B VND)': _format_int(record['In-house Forecast (B VND)']),
+            'Difference (B VND)': _format_int(record['Difference (B VND)']),
+            'Difference %': _format_pct(record['Difference %']),
+            'Consensus YoY %': _format_pct(record['Consensus YoY %']),
+            'In-house YoY %': _format_pct(record['In-house YoY %'])
+        })
+    formatted_rows.append((metric, table_rows))
 
-for col in numeric_cols_existing:
-    comparison_display[col] = pd.to_numeric(comparison_display[col], errors='coerce').round(0)
-
-for col in percent_cols_existing:
-    comparison_display[col] = pd.to_numeric(comparison_display[col], errors='coerce').round(0)
-
-format_dict = {col: '{:,.0f}' for col in numeric_cols_existing}
-percent_format = {col: '{:+,.0f}%' for col in percent_cols_existing}
-
-comparison_styler = comparison_display.set_index(['Metric', 'Year']).style.format(format_dict).format(percent_format)
-
-st.dataframe(comparison_styler, use_container_width=True)
+for metric, rows in formatted_rows:
+    st.markdown(f"#### {metric}")
+    metric_df = pd.DataFrame(rows)
+    metric_df = metric_df[['Year', '# Brokers', 'Consensus Median (B VND)', 'In-house Forecast (B VND)',
+                           'Difference (B VND)', 'Difference %', 'Consensus YoY %', 'In-house YoY %']]
+    st.dataframe(metric_df, use_container_width=True, hide_index=True)
 
 
-st.caption("Consensus statistics use the most recent forecast from each broker for the selected ticker, metric, and year. Differences are calculated as Consensus Avg minus your in-house forecast.")
+st.caption("Consensus statistics use the most recent forecast from each broker for the selected ticker, metric, and year. Differences are calculated as Consensus Median minus your in-house forecast.")
