@@ -139,14 +139,21 @@ if db_option == "Quarterly":
                                 (actual_quarter['TICKER'] == ticker)
                                 & (actual_quarter['Year'] == year)
                             )
-                            ytd_sum = (
-                                actual_quarter.loc[ytd_mask, metric].sum()
-                                if metric in actual_quarter.columns
-                                else 0
-                            )
+                            if metric in actual_quarter.columns:
+                                ytd_series = pd.to_numeric(
+                                    actual_quarter.loc[ytd_mask, metric],
+                                    errors='coerce'
+                                )
+                                ytd_sum = ytd_series.sum(skipna=True)
+                                if pd.isna(ytd_sum):
+                                    ytd_sum = 0.0
+                            else:
+                                ytd_sum = 0.0
                             annual_value = forecast_series.iloc[0]
                             if pd.notna(annual_value):
-                                adjusted_value = (float(annual_value) - float(ytd_sum)) / remaining_qtrs
+                                adjusted_value = (
+                                    float(annual_value) - float(ytd_sum)
+                                ) / remaining_qtrs
                                 df_forecast_quarterly.loc[year_mask, metric] = adjusted_value
                 else:
                     for metric in income_expense_metrics:
