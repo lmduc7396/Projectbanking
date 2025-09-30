@@ -129,6 +129,12 @@ if db_option == "Quarterly":
 
                     for metric in income_expense_metrics:
                         if metric in df_forecast_quarterly.columns:
+                            forecast_series = pd.to_numeric(
+                                df_forecast_quarterly.loc[year_mask, metric],
+                                errors='coerce'
+                            )
+                            if forecast_series.empty:
+                                continue
                             ytd_mask = (
                                 (actual_quarter['TICKER'] == ticker)
                                 & (actual_quarter['Year'] == year)
@@ -138,22 +144,26 @@ if db_option == "Quarterly":
                                 if metric in actual_quarter.columns
                                 else 0
                             )
-                            annual_value = df_forecast_quarterly.loc[year_mask, metric].values
-                            if len(annual_value) > 0 and pd.notna(annual_value[0]):
-                                adjusted_value = (annual_value[0] - ytd_sum) / remaining_qtrs
+                            annual_value = forecast_series.iloc[0]
+                            if pd.notna(annual_value):
+                                adjusted_value = (float(annual_value) - float(ytd_sum)) / remaining_qtrs
                                 df_forecast_quarterly.loc[year_mask, metric] = adjusted_value
                 else:
                     for metric in income_expense_metrics:
                         if metric in df_forecast_quarterly.columns:
-                            df_forecast_quarterly.loc[year_mask, metric] = (
-                                df_forecast_quarterly.loc[year_mask, metric] / 4
+                            forecast_series = pd.to_numeric(
+                                df_forecast_quarterly.loc[year_mask, metric],
+                                errors='coerce'
                             )
+                            df_forecast_quarterly.loc[year_mask, metric] = forecast_series / 4
 
                 for metric in flow_metrics:
                     if metric in df_forecast_quarterly.columns:
-                        df_forecast_quarterly.loc[year_mask, metric] = (
-                            df_forecast_quarterly.loc[year_mask, metric] / 4
+                        flow_series = pd.to_numeric(
+                            df_forecast_quarterly.loc[year_mask, metric],
+                            errors='coerce'
                         )
+                        df_forecast_quarterly.loc[year_mask, metric] = flow_series / 4
 
         df_forecast_quarterly['is_forecast'] = True
         df = pd.concat([df, df_forecast_quarterly], ignore_index=True)
