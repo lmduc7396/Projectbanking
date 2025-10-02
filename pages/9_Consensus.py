@@ -96,6 +96,8 @@ if consensus_df.empty:
 st.title("Broker Consensus vs In-house Forecast")
 st.markdown("Analyze the latest broker projections, consensus statistics, and how they compare with your current forecast.")
 
+summary_container = st.container()
+
 if consensus_df.empty:
     st.warning("Consensus database is empty. Please refresh the data pipeline and try again.")
     st.stop()
@@ -215,6 +217,24 @@ def _derive_broker_code(row: pd.Series, ticker: str) -> str:
     return 'Unknown'
 
 
+def latest_consensus_all_tickers(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+
+    work = df.copy()
+    if 'BrokerCode' not in work.columns:
+        work['BrokerCode'] = work.apply(
+            lambda row: _derive_broker_code(row, str(row.get('TICKER', ''))),
+            axis=1
+        )
+
+    group_cols = ['TICKER', 'BrokerCode', 'MetricKey', 'ForecastYear']
+    idx = work.groupby(group_cols, dropna=False)['EffectiveDate'].idxmax()
+    latest = work.loc[idx].copy()
+    latest['VALUE'] = pd.to_numeric(latest['VALUE'], errors='coerce')
+    return latest
+
+
 def latest_per_broker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     work = df.copy()
     work['BrokerCode'] = work.apply(lambda row: _derive_broker_code(row, ticker), axis=1)
@@ -225,6 +245,228 @@ def latest_per_broker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
     latest['VALUE'] = pd.to_numeric(latest['VALUE'], errors='coerce')
     latest['Broker'] = latest['BrokerCode'].fillna('Unknown')
     return latest
+
+
+def aggregate_consensus(latest_df: pd.DataFrame) -> pd.DataFrame:
+    if latest_df.empty:
+        return pd.DataFrame()
+
+    aggregated = latest_df.groupby(['TICKER', 'Metric', 'MetricKey', 'ForecastYear']).agg(
+        brokers=('BrokerCode', 'nunique'),
+        consensus_median=('VALUE', 'median')
+    ).reset_index()
+    return aggregated
+
+
+def prepare_inhouse_forecast(df: pd.DataFrame, ticker: str | None = None) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+
+    data = df.copy()
+    if ticker is not None and 'TICKER' in data.columns:
+        data = data[data['TICKER'] == ticker]
+
+    if data.empty:
+        return pd.DataFrame()
+
+    data['Year'] = pd.to_numeric(data.get('Year'), errors='coerce').astype('Int64')
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    unwanted = {'Year', 'Quarter', 'is_forecast'}
+    numeric_cols = [c for c in numeric_cols if c not in unwanted]
+    if not numeric_cols:
+        return pd.DataFrame()
+
+    id_vars = ['Year']
+    if 'TICKER' in data.columns:
+        id_vars.insert(0, 'TICKER')
+
+    melted = data[id_vars + numeric_cols].melt(id_vars=id_vars, var_name='Metric', value_name='OurForecast')
+    melted = melted.dropna(subset=['Year', 'OurForecast'])
+    melted['MetricKey'] = melted['Metric'].apply(_normalize_metric_key)
+
+    if ticker is not None and 'TICKER' in melted.columns:
+        melted = melted.drop(columns=['TICKER'])
+
+    return melted
+
+
+def prepare_actuals(df: pd.DataFrame, ticker: str | None = None) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+
+    data = df.copy()
+    if ticker is not None and 'TICKER' in data.columns:
+        data = data[data['TICKER'] == ticker]
+
+    if data.empty:
+        return pd.DataFrame()
+
+    data['Year'] = pd.to_numeric(data.get('Year'), errors='coerce').astype('Int64')
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    unwanted = {'Year', 'Quarter'}
+    numeric_cols = [c for c in numeric_cols if c not in unwanted]
+    if not numeric_cols:
+        return pd.DataFrame()
+
+    id_vars = ['Year']
+    if 'TICKER' in data.columns:
+        id_vars.insert(0, 'TICKER')
+
+    melted = data[id_vars + numeric_cols].melt(id_vars=id_vars, var_name='Metric', value_name='ActualValue')
+    melted = melted.dropna(subset=['Year', 'ActualValue'])
+    melted['MetricKey'] = melted['Metric'].apply(_normalize_metric_key)
+
+    if ticker is not None and 'TICKER' in melted.columns:
+        melted = melted.drop(columns=['TICKER'])
+
+    return melted
+
+
+latest_consensus_all = latest_consensus_all_tickers(consensus_df)
+consensus_all_summary = aggregate_consensus(latest_consensus_all)
+our_forecast_long_all = prepare_inhouse_forecast(forecast_df)
+actuals_long_all = prepare_actuals(actual_year_df)
+
+global_summary_enriched = pd.DataFrame()
+actual_lookup_all = {}
+
+if not actuals_long_all.empty:
+    actual_lookup_all = actuals_long_all.set_index(['TICKER', 'MetricKey', 'Year'])['ActualValue'].to_dict()
+
+if not consensus_all_summary.empty:
+    summary_combined = consensus_all_summary.copy()
+
+    if not our_forecast_long_all.empty:
+        summary_combined = summary_combined.merge(
+            our_forecast_long_all,
+            left_on=['TICKER', 'MetricKey', 'ForecastYear'],
+            right_on=['TICKER', 'MetricKey', 'Year'],
+            how='left'
+        )
+        summary_combined = summary_combined.drop(columns=['Year'], errors='ignore')
+
+    summary_combined['consensus_median'] = pd.to_numeric(summary_combined['consensus_median'], errors='coerce')
+    summary_combined['OurForecast'] = pd.to_numeric(summary_combined.get('OurForecast'), errors='coerce')
+
+    summary_combined['Consensus YoY %'] = np.nan
+    summary_combined['In-house YoY %'] = np.nan
+
+    for (ticker_key, metric_key), metric_group in summary_combined.groupby(['TICKER', 'MetricKey']):
+        metric_group = metric_group.sort_values('ForecastYear')
+        prev_consensus = None
+        prev_inhouse = None
+
+        for idx, row in metric_group.iterrows():
+            year = row['ForecastYear']
+            consensus_value = row['consensus_median']
+            inhouse_value = row.get('OurForecast')
+
+            base_consensus = actual_lookup_all.get((ticker_key, metric_key, year - 1))
+            base_inhouse = actual_lookup_all.get((ticker_key, metric_key, year - 1))
+
+            if base_consensus is None and prev_consensus is not None:
+                base_consensus = prev_consensus
+            if base_inhouse is None and prev_inhouse is not None:
+                base_inhouse = prev_inhouse
+
+            if pd.notna(consensus_value) and pd.notna(base_consensus) and base_consensus not in (None, 0):
+                summary_combined.loc[idx, 'Consensus YoY %'] = (consensus_value - base_consensus) / base_consensus * 100
+
+            if pd.notna(inhouse_value) and pd.notna(base_inhouse) and base_inhouse not in (None, 0):
+                summary_combined.loc[idx, 'In-house YoY %'] = (inhouse_value - base_inhouse) / base_inhouse * 100
+
+            if pd.notna(consensus_value):
+                prev_consensus = consensus_value
+            if pd.notna(inhouse_value):
+                prev_inhouse = inhouse_value
+
+    global_summary_enriched = summary_combined
+
+
+with summary_container:
+    st.subheader("Banking Forecast Overview")
+    if global_summary_enriched.empty:
+        st.info("Consensus summary is unavailable. Refresh data sources and retry.")
+    else:
+        year_options_overview = sorted(global_summary_enriched['ForecastYear'].dropna().unique())
+        if not year_options_overview:
+            st.info("No forecast years available for summary display.")
+        else:
+            default_year_index = len(year_options_overview) - 1
+            selected_year_overview = st.selectbox(
+                "Forecast Year",
+                options=year_options_overview,
+                index=default_year_index,
+                key="overview_year_select"
+            )
+
+            metric_options_df = (
+                global_summary_enriched[['MetricKey', 'Metric']]
+                .drop_duplicates()
+                .sort_values('Metric')
+            )
+            metric_keys = metric_options_df['MetricKey'].tolist()
+
+            if not metric_keys:
+                st.info("No metrics available for consensus overview.")
+            else:
+                def _metric_label_lookup(key: str) -> str:
+                    match = metric_options_df[metric_options_df['MetricKey'] == key]
+                    if not match.empty:
+                        value = match.iloc[0]['Metric']
+                        if isinstance(value, str) and value.strip():
+                            return value
+                    return key
+
+                default_metric_key = next((k for k in metric_keys if k == 'NPATMI'), None)
+                if default_metric_key is None and metric_keys:
+                    default_metric_key = metric_keys[0]
+                default_metric_index = metric_keys.index(default_metric_key) if default_metric_key in metric_keys else 0
+
+                selected_metric_key = st.selectbox(
+                    "Metric",
+                    options=metric_keys,
+                    index=default_metric_index,
+                    key="overview_metric_select",
+                    format_func=_metric_label_lookup
+                )
+
+                overview_filtered = global_summary_enriched[
+                    (global_summary_enriched['ForecastYear'] == selected_year_overview)
+                    & (global_summary_enriched['MetricKey'] == selected_metric_key)
+                ].copy()
+
+                if overview_filtered.empty:
+                    st.info("No consensus records match the selected year and metric.")
+                else:
+                    overview_filtered = overview_filtered.sort_values('TICKER')
+                    display_df = overview_filtered[[
+                        'TICKER',
+                        'brokers',
+                        'consensus_median',
+                        'OurForecast',
+                        'Consensus YoY %',
+                        'In-house YoY %'
+                    ]].rename(columns={
+                        'TICKER': 'Ticker',
+                        'brokers': '# Brokers',
+                        'consensus_median': 'Consensus Median (B VND)',
+                        'OurForecast': 'In-house Forecast (B VND)'
+                    })
+
+                    for value_col in ['Consensus Median (B VND)', 'In-house Forecast (B VND)']:
+                        if value_col in display_df.columns:
+                            display_df[value_col] = pd.to_numeric(display_df[value_col], errors='coerce') / 1e9
+                            display_df[value_col] = display_df[value_col].apply(_format_int)
+
+                    for pct_col in ['Consensus YoY %', 'In-house YoY %']:
+                        if pct_col in display_df.columns:
+                            display_df[pct_col] = pd.to_numeric(display_df[pct_col], errors='coerce').apply(_format_pct)
+
+                    if '# Brokers' in display_df.columns:
+                        display_df['# Brokers'] = pd.to_numeric(display_df['# Brokers'], errors='coerce').apply(_format_int)
+
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 
 latest_consensus = latest_per_broker(ticker_data, ticker)
@@ -245,44 +487,13 @@ def consensus_summary(df: pd.DataFrame) -> pd.DataFrame:
 summary_df = consensus_summary(latest_consensus)
 
 
-def prepare_inhouse_forecast(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame()
-    data = df[df['TICKER'] == ticker].copy()
-    if data.empty:
-        return data
-    data['Year'] = pd.to_numeric(data.get('Year'), errors='coerce').astype('Int64')
-    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-    unwanted = {'Year', 'Quarter', 'is_forecast'}
-    numeric_cols = [c for c in numeric_cols if c not in unwanted]
-    if not numeric_cols:
-        return pd.DataFrame()
-    melted = data[['Year'] + numeric_cols].melt(id_vars='Year', var_name='Metric', value_name='OurForecast')
-    melted = melted.dropna(subset=['Year', 'OurForecast'])
-    melted['MetricKey'] = melted['Metric'].apply(_normalize_metric_key)
-    return melted
+our_forecast_long = pd.DataFrame()
+if not our_forecast_long_all.empty:
+    our_forecast_long = our_forecast_long_all[our_forecast_long_all['TICKER'] == ticker].drop(columns=['TICKER'], errors='ignore')
 
-
-def prepare_actuals(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
-    if df.empty:
-        return pd.DataFrame()
-    data = df[df['TICKER'] == ticker].copy()
-    if data.empty:
-        return data
-    data['Year'] = pd.to_numeric(data.get('Year'), errors='coerce').astype('Int64')
-    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
-    unwanted = {'Year', 'Quarter'}
-    numeric_cols = [c for c in numeric_cols if c not in unwanted]
-    if not numeric_cols:
-        return pd.DataFrame()
-    melted = data[['Year'] + numeric_cols].melt(id_vars='Year', var_name='Metric', value_name='ActualValue')
-    melted = melted.dropna(subset=['Year', 'ActualValue'])
-    melted['MetricKey'] = melted['Metric'].apply(_normalize_metric_key)
-    return melted
-
-
-our_forecast_long = prepare_inhouse_forecast(forecast_df, ticker)
-actuals_long = prepare_actuals(actual_year_df, ticker)
+actuals_long = pd.DataFrame()
+if not actuals_long_all.empty:
+    actuals_long = actuals_long_all[actuals_long_all['TICKER'] == ticker].drop(columns=['TICKER'], errors='ignore')
 
 comparison = summary_df.merge(
     our_forecast_long,
