@@ -82,6 +82,15 @@ def _highlight_inhouse(row: pd.Series) -> list[str]:
             if gap_ratio is not None and pd.notna(gap_ratio) and abs(gap_ratio) <= 0.02:
                 return styles
 
+            if gap_ratio is not None and pd.notna(gap_ratio):
+                gap_ratio = gap_ratio / 100
+
+            if gap_ratio is None and abs(consensus) > 1e-9:
+                gap_ratio = (inhouse - consensus) / consensus
+
+            if gap_ratio is not None and pd.notna(gap_ratio) and abs(gap_ratio) <= 0.02:
+                return styles
+
             if inhouse > consensus:
                 styles[consensus_idx] = 'background-color: rgba(220, 20, 60, 0.12)'
                 styles[inhouse_idx] = 'background-color: rgba(34, 139, 34, 0.15)'
@@ -457,7 +466,7 @@ with summary_container:
                     display_df['GapRatio'] = np.where(
                         display_df['Consensus Median (B VND)'].abs() > 1e-9,
                         (display_df['In-house Forecast (B VND)'] - display_df['Consensus Median (B VND)'])
-                        / display_df['Consensus Median (B VND)'],
+                        / display_df['Consensus Median (B VND)'] * 100,
                         np.nan
                     )
 
@@ -478,8 +487,8 @@ with summary_container:
 
                     gap_stats = display_df[['Ticker', 'GapRatio']].dropna()
                     if not gap_stats.empty:
-                        above_mask = gap_stats['GapRatio'] > 0.02
-                        below_mask = gap_stats['GapRatio'] < -0.02
+                        above_mask = gap_stats['GapRatio'] > 2
+                        below_mask = gap_stats['GapRatio'] < -2
                         above_count = int(above_mask.sum())
                         below_count = int(below_mask.sum())
                         neutral_count = int((~above_mask & ~below_mask).sum())
