@@ -63,6 +63,24 @@ def _format_pct(value: float | int | None) -> str:
     return f"{int(round(float(value))):+d}%"
 
 
+def _highlight_inhouse(row: pd.Series) -> list[str]:
+    styles = [''] * len(row)
+    columns = list(row.index)
+    if 'Consensus Median (B VND)' in columns and 'In-house Forecast (B VND)' in columns:
+        consensus = row['Consensus Median (B VND)']
+        inhouse = row['In-house Forecast (B VND)']
+        if pd.notna(consensus) and pd.notna(inhouse):
+            consensus_idx = columns.index('Consensus Median (B VND)')
+            inhouse_idx = columns.index('In-house Forecast (B VND)')
+            if inhouse > consensus:
+                styles[consensus_idx] = 'background-color: rgba(220, 20, 60, 0.12)'
+                styles[inhouse_idx] = 'background-color: rgba(34, 139, 34, 0.15)'
+            elif inhouse < consensus:
+                styles[consensus_idx] = 'background-color: rgba(34, 139, 34, 0.15)'
+                styles[inhouse_idx] = 'background-color: rgba(220, 20, 60, 0.12)'
+    return styles
+
+
 @st.cache_data(ttl=1800)
 def load_data():
     consensus_df = load_forecast_consensus()
@@ -148,27 +166,10 @@ with filters_container:
         key="year_multiselect"
     )
 
-    metric_options = sorted(ticker_data['Metric'].dropna().unique())
-    default_metrics = [m for m in metric_options if _normalize_metric_key(m) in {
-        'PBT', 'NPATMI', 'LOAN', 'NIM', 'NPL'
-    }]
-    if not default_metrics:
-        default_metrics = metric_options
-    selected_metrics = st.multiselect(
-        "Metrics",
-        options=metric_options,
-        default=default_metrics if default_metrics else metric_options,
-        key="metric_multiselect"
-    )
-
     st.caption("Latest record per broker × metric × year is displayed below.")
 
 if selected_years:
     ticker_data = ticker_data[ticker_data['ForecastYear'].isin(selected_years)]
-
-if selected_metrics:
-    selected_metric_keys = {_normalize_metric_key(m) for m in selected_metrics}
-    ticker_data = ticker_data[ticker_data['MetricKey'].isin(selected_metric_keys)]
 
 if ticker_data.empty:
     st.info("No consensus entries match the selected filters.")
@@ -433,19 +434,37 @@ with summary_container:
                         'OurForecast': 'In-house Forecast (B VND)'
                     })
 
-                    for value_col in ['Consensus Median (B VND)', 'In-house Forecast (B VND)']:
-                        if value_col in display_df.columns:
-                            display_df[value_col] = pd.to_numeric(display_df[value_col], errors='coerce') / 1e9
-                            display_df[value_col] = display_df[value_col].apply(_format_int)
+                    display_df['# Brokers'] = pd.to_numeric(display_df['# Brokers'], errors='coerce')
+                    display_df['Consensus Median (B VND)'] = pd.to_numeric(
+                        display_df['Consensus Median (B VND)'], errors='coerce'
+                    ) / 1e9
+                    display_df['In-house Forecast (B VND)'] = pd.to_numeric(
+                        display_df['In-house Forecast (B VND)'], errors='coerce'
+                    ) / 1e9
+                    display_df['Consensus YoY %'] = pd.to_numeric(display_df['Consensus YoY %'], errors='coerce')
+                    display_df['In-house YoY %'] = pd.to_numeric(display_df['In-house YoY %'], errors='coerce')
 
-                    for pct_col in ['Consensus YoY %', 'In-house YoY %']:
-                        if pct_col in display_df.columns:
-                            display_df[pct_col] = pd.to_numeric(display_df[pct_col], errors='coerce').apply(_format_pct)
+                    styled_df = (
+                        display_df.style
+                        .format({
+                            '# Brokers': _format_int,
+                            'Consensus Median (B VND)': _format_int,
+                            'In-house Forecast (B VND)': _format_int,
+                            'Consensus YoY %': _format_pct,
+                            'In-house YoY %': _format_pct
+                        })
+                        .apply(_highlight_inhouse, axis=1)
+                    )
 
-                    if '# Brokers' in display_df.columns:
-                        display_df['# Brokers'] = pd.to_numeric(display_df['# Brokers'], errors='coerce').apply(_format_int)
+                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    comparison_stats = overview_filtered[['TICKER', 'consensus_median', 'OurForecast']].dropna()
+                    if not comparison_stats.empty:
+                        above_count = int((comparison_stats['OurForecast'] > comparison_stats['consensus_median']).sum())
+                        below_count = int((comparison_stats['OurForecast'] < comparison_stats['consensus_median']).sum())
+                        st.caption(
+                            f"In-house forecast exceeds consensus for {above_count} tickers and trails for {below_count}."
+                        )
 
 
 latest_consensus = latest_per_broker(ticker_data, ticker)
