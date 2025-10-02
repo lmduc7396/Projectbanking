@@ -460,10 +460,21 @@ with summary_container:
 
                     comparison_stats = overview_filtered[['TICKER', 'consensus_median', 'OurForecast']].dropna()
                     if not comparison_stats.empty:
-                        above_count = int((comparison_stats['OurForecast'] > comparison_stats['consensus_median']).sum())
-                        below_count = int((comparison_stats['OurForecast'] < comparison_stats['consensus_median']).sum())
+                        pct_gap = (
+                            (comparison_stats['OurForecast'] - comparison_stats['consensus_median'])
+                            / comparison_stats['consensus_median']
+                        ).replace([np.inf, -np.inf], np.nan)
+                        above_mask = pct_gap > 0.02
+                        below_mask = pct_gap < -0.02
+                        above_count = int(above_mask.sum())
+                        below_count = int(below_mask.sum())
+                        neutral_count = int((~above_mask & ~below_mask & pct_gap.notna()).sum())
                         st.caption(
-                            f"In-house forecast exceeds consensus for {above_count} tickers and trails for {below_count}."
+                            " | ".join([
+                                f"In-house > consensus: {above_count}",
+                                f"In-house < consensus: {below_count}",
+                                f"Within ±2% gap: {neutral_count}"
+                            ])
                         )
 
 
