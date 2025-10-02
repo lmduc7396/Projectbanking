@@ -13,6 +13,7 @@ from functools import wraps, lru_cache
 from scipy import stats
 import requests
 import os
+import re
 from .tech_analysis import analyze_tickers
 from .data_access import (
     load_banking_metrics,
@@ -21,7 +22,65 @@ from .data_access import (
     load_quarterly_analysis as load_quarterly_analysis_table,
     load_valuation_banking,
     load_earnings_quality,
+    load_forecast_consensus,
 )
+
+
+BROKER_STOPWORDS = {
+    'BUY', 'SELL', 'HOLD', 'OUTPERFORM', 'UNDERPERFORM', 'NEUTRAL', 'ADD', 'TRADING',
+    'OVERWEIGHT', 'UNDERWEIGHT', 'ACCUMULATE', 'REDUCE', 'OUTLOOK', 'FORECAST', 'TARGET',
+    'PRICE', 'CONSENSUS', 'ESTIMATE', 'BASE', 'SCENARIO', 'NPATMI', 'PBT', 'NIM', 'NPL',
+    'LOAN', 'ROA', 'ROE', 'CIR', 'TOI', 'EBIT', 'EBITDA'
+}
+
+
+def _normalize_metric_label(value: Any) -> str:
+    label = str(value) if value is not None else ""
+    label = label.replace("_", " ").strip()
+    return label if label else "Unknown"
+
+
+def _normalize_metric_key(value: Any) -> str:
+    label = str(value) if value is not None else ""
+    return re.sub(r"[^A-Za-z0-9]", "", label).upper()
+
+
+def _tokenize_candidate(*values: str) -> List[str]:
+    tokens: List[str] = []
+    for value in values:
+        if not value:
+            continue
+        parts = re.split(r'[^A-Z]', value.upper())
+        tokens.extend([p for p in parts if p])
+    return tokens
+
+
+def _derive_broker_code(row: pd.Series) -> str:
+    ticker_upper = str(row.get('TICKER') or '').strip().upper()
+    raw_org = str(row.get('ORGANCODE') or '').strip()
+    candidates: List[str] = []
+
+    if raw_org:
+        cleaned = re.sub(rf'\b{ticker_upper}\b', '', raw_org.upper())
+        candidates.extend(_tokenize_candidate(cleaned))
+        if cleaned.strip() and cleaned.strip() != raw_org.upper():
+            candidates.append(cleaned.strip())
+
+    keycodename = str(row.get('KEYCODENAME') or '')
+    keycode = str(row.get('KEYCODE') or '')
+    candidates.extend(_tokenize_candidate(keycodename, keycode))
+
+    for token in reversed(candidates):
+        if token == ticker_upper:
+            continue
+        if token in BROKER_STOPWORDS:
+            continue
+        if token.isalpha() and 2 <= len(token) <= 6:
+            return token
+
+    if raw_org:
+        return raw_org
+    return 'Unknown'
 
 
 class BankingToolSystem:
@@ -95,6 +154,192 @@ class BankingToolSystem:
             df = df.copy()
             df['Year'] = pd.to_numeric(df['Year'], errors='coerce').astype('Int64')
         return df
+
+    @lru_cache(maxsize=1)
+    def _load_consensus(self) -> pd.DataFrame:
+        df = load_forecast_consensus()
+        if df.empty:
+            return df
+
+        df = df.copy()
+        df['FORECASTDATE'] = pd.to_datetime(df['FORECASTDATE'], errors='coerce')
+        df['DATE'] = pd.to_datetime(df['DATE'], errors='coerce')
+        df['KEYCODE'] = df['KEYCODE'].astype(str)
+        df['Metric'] = df['KEYCODE'].str.split('.', n=1).str[-1]
+        df.loc[df['Metric'] == df['KEYCODE'], 'Metric'] = df['KEYCODENAME']
+        df['Metric'] = df['Metric'].fillna(df['KEYCODENAME'])
+        df['Metric'] = df['Metric'].apply(_normalize_metric_label)
+        df['MetricKey'] = df['Metric'].apply(_normalize_metric_key)
+
+        keycode_year = pd.to_numeric(df['KEYCODE'].str.extract(r'(\d{4})')[0], errors='coerce')
+        df['ForecastYear'] = keycode_year.astype('Int64')
+        needs_year = df['ForecastYear'].isna() & df['DATE'].notna()
+        df.loc[needs_year, 'ForecastYear'] = df.loc[needs_year, 'DATE'].dt.year
+        df['ForecastYear'] = df['ForecastYear'].astype('Int64')
+
+        df['EffectiveDate'] = df['FORECASTDATE'].where(df['FORECASTDATE'].notna(), df['DATE'])
+        df['EffectiveDate'] = df['EffectiveDate'].fillna(pd.Timestamp.min)
+
+        return df
+
+    def _melt_metrics(self, df: pd.DataFrame, tickers: List[str], drop_numeric: set, value_name: str) -> pd.DataFrame:
+        if df.empty:
+            return pd.DataFrame()
+
+        subset = df[df['TICKER'].isin(tickers)].copy()
+        if subset.empty:
+            return pd.DataFrame()
+
+        if 'Year' not in subset.columns:
+            subset['Year'] = pd.NA
+        subset['Year'] = pd.to_numeric(subset['Year'], errors='coerce').astype('Int64')
+        numeric_cols = subset.select_dtypes(include=[np.number]).columns.tolist()
+        numeric_cols = [c for c in numeric_cols if c not in drop_numeric]
+        if not numeric_cols:
+            return pd.DataFrame()
+
+        id_vars = ['TICKER', 'Year']
+        melted = subset[id_vars + numeric_cols].melt(id_vars=id_vars, var_name='Metric', value_name=value_name)
+        melted = melted.dropna(subset=['Year', value_name])
+        melted['MetricKey'] = melted['Metric'].apply(_normalize_metric_key)
+        return melted
+
+    def _prepare_inhouse_forecast_long(self, tickers: List[str]) -> pd.DataFrame:
+        df = self._load_forecast()
+        return self._melt_metrics(df, tickers, drop_numeric={'Year', 'Quarter'}, value_name='OurForecast')
+
+    def _prepare_actuals_long(self, tickers: List[str]) -> pd.DataFrame:
+        df = self._load_historical_year()
+        return self._melt_metrics(df, tickers, drop_numeric={'Year', 'Quarter'}, value_name='ActualValue')
+
+    def _latest_consensus_per_broker(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+
+        work = df.copy()
+        if 'BrokerCode' not in work.columns:
+            work['BrokerCode'] = work.apply(_derive_broker_code, axis=1)
+
+        group_cols = ['TICKER', 'BrokerCode', 'MetricKey', 'ForecastYear']
+        idx = work.groupby(group_cols, dropna=False)['EffectiveDate'].idxmax()
+        latest = work.loc[idx].copy()
+        latest['VALUE'] = pd.to_numeric(latest['VALUE'], errors='coerce')
+        return latest
+
+    def _build_consensus_summary(self, tickers: tuple) -> Dict[str, Any]:
+        consensus = self._load_consensus()
+        if consensus.empty:
+            return {"status": "failed", "error": "Consensus dataset is empty"}
+
+        data = consensus[consensus['TICKER'].isin(tickers)].copy()
+        if data.empty:
+            return {"status": "failed", "error": "No consensus records for requested tickers"}
+
+        latest = self._latest_consensus_per_broker(data)
+        latest = latest[latest['MetricKey'] == 'NPATMI']
+        if latest.empty:
+            return {"status": "failed", "error": "Consensus NPATMI data is unavailable for requested tickers"}
+
+        summary = latest.groupby(['TICKER', 'Metric', 'MetricKey', 'ForecastYear']).agg(
+            brokers=('BrokerCode', 'nunique'),
+            consensus_median=('VALUE', 'median')
+        ).reset_index()
+
+        forecast_long = self._prepare_inhouse_forecast_long(list(tickers))
+        if not forecast_long.empty:
+            forecast_long = forecast_long[forecast_long['MetricKey'] == 'NPATMI']
+            summary = summary.merge(
+                forecast_long[['TICKER', 'MetricKey', 'Year', 'OurForecast']],
+                left_on=['TICKER', 'MetricKey', 'ForecastYear'],
+                right_on=['TICKER', 'MetricKey', 'Year'],
+                how='left'
+            ).drop(columns=['Year'], errors='ignore')
+        else:
+            summary['OurForecast'] = np.nan
+
+        actuals_long = self._prepare_actuals_long(list(tickers))
+        actual_lookup = {}
+        if not actuals_long.empty:
+            actuals_long = actuals_long[actuals_long['MetricKey'] == 'NPATMI']
+            actual_lookup = actuals_long.set_index(['TICKER', 'MetricKey', 'Year'])['ActualValue'].to_dict()
+
+        summary['Consensus YoY %'] = np.nan
+        summary['In-house YoY %'] = np.nan
+
+        for ticker in tickers:
+            ticker_slice = summary[summary['TICKER'] == ticker].sort_values('ForecastYear')
+            prev_consensus = None
+            prev_inhouse = None
+
+            for idx, row in ticker_slice.iterrows():
+                year = row['ForecastYear']
+                consensus_value = pd.to_numeric(row['consensus_median'], errors='coerce')
+                inhouse_value = pd.to_numeric(row.get('OurForecast'), errors='coerce')
+
+                base_consensus = actual_lookup.get((ticker, 'NPATMI', year - 1))
+                base_inhouse = actual_lookup.get((ticker, 'NPATMI', year - 1))
+
+                if base_consensus is None and prev_consensus is not None:
+                    base_consensus = prev_consensus
+                if base_inhouse is None and prev_inhouse is not None:
+                    base_inhouse = prev_inhouse
+
+                if pd.notna(consensus_value) and pd.notna(base_consensus) and base_consensus not in (None, 0):
+                    summary.loc[idx, 'Consensus YoY %'] = (consensus_value - base_consensus) / base_consensus * 100
+                if pd.notna(inhouse_value) and pd.notna(base_inhouse) and base_inhouse not in (None, 0):
+                    summary.loc[idx, 'In-house YoY %'] = (inhouse_value - base_inhouse) / base_inhouse * 100
+
+                if pd.notna(consensus_value):
+                    prev_consensus = consensus_value
+                if pd.notna(inhouse_value):
+                    prev_inhouse = inhouse_value
+
+        def _safe_number(value: Any, decimals: Optional[int] = None) -> Optional[float]:
+            if value is None or pd.isna(value):
+                return None
+            number = float(value)
+            if decimals is not None:
+                return round(number, decimals)
+            return number
+
+        result_data: List[Dict[str, Any]] = []
+        missing: List[str] = []
+
+        for ticker in tickers:
+            ticker_rows = summary[summary['TICKER'] == ticker].sort_values('ForecastYear')
+            if ticker_rows.empty:
+                missing.append(ticker)
+                continue
+
+            years: List[Dict[str, Any]] = []
+            for _, row in ticker_rows.iterrows():
+                years.append({
+                    "year": int(row['ForecastYear']),
+                    "consensus_median": _safe_number(row['consensus_median']),
+                    "inhouse_forecast": _safe_number(row.get('OurForecast')),
+                    "consensus_yoy_pct": _safe_number(row.get('Consensus YoY %'), 2),
+                    "inhouse_yoy_pct": _safe_number(row.get('In-house YoY %'), 2),
+                    "brokers": int(row['brokers']) if not pd.isna(row['brokers']) else None
+                })
+
+            result_data.append({
+                "ticker": ticker,
+                "metric": "NPATMI",
+                "years": years
+            })
+
+        response: Dict[str, Any] = {
+            "status": "success",
+            "metric": "NPATMI",
+            "units": "VND",
+            "description": "Consensus median and in-house NPATMI forecasts with YoY change (vs prior actual or latest forecast).",
+            "data": result_data
+        }
+
+        if missing:
+            response["warnings"] = [f"No consensus NPATMI data for: {', '.join(sorted(set(missing)))}"]
+
+        return response
 
     @lru_cache(maxsize=1)
     def _load_bank_types(self) -> pd.DataFrame:
@@ -249,6 +494,28 @@ class BankingToolSystem:
                 "forecast_years": [str(y) for y in f_periods],
                 "status": "success"
             }
+        
+        @self.tool(
+            name="get_consensus_forecast_summary",
+            description="Return NPATMI consensus medians versus in-house forecasts with YoY change for selected tickers.",
+            parameters={
+                "tickers": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of bank tickers (e.g., ['VCB', 'ACB']).",
+                    "required": True
+                }
+            }
+        )
+        def get_consensus_forecast_summary(tickers: List[str]) -> Dict:
+            if not tickers:
+                return {"status": "failed", "error": "Provide at least one ticker."}
+
+            normalized = sorted({str(t).strip().upper() for t in tickers if str(t).strip()})
+            if not normalized:
+                return {"status": "failed", "error": "No valid tickers supplied."}
+
+            return self._build_consensus_summary(tuple(normalized))
         
         
         # Tool 2: List All Banks (Deprecated - merged into get_bank_info)

@@ -79,7 +79,7 @@ def _highlight_inhouse(row: pd.Series) -> list[str]:
             elif abs(consensus) > 1e-9:
                 gap_ratio = (inhouse - consensus) / consensus
 
-            if gap_ratio is not None and pd.notna(gap_ratio) and abs(gap_ratio) <= 0.02:
+            if gap_ratio is not None and pd.notna(gap_ratio) and abs(gap_ratio) <= 2:
                 return styles
 
             if gap_ratio is not None and pd.notna(gap_ratio):
