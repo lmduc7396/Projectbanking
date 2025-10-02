@@ -72,6 +72,13 @@ def _highlight_inhouse(row: pd.Series) -> list[str]:
         if pd.notna(consensus) and pd.notna(inhouse):
             consensus_idx = columns.index('Consensus Median (B VND)')
             inhouse_idx = columns.index('In-house Forecast (B VND)')
+            gap = None
+            if abs(consensus) > 1e-9:
+                gap = (inhouse - consensus) / consensus
+
+            if gap is not None and abs(gap) <= 0.02:
+                return styles
+
             if inhouse > consensus:
                 styles[consensus_idx] = 'background-color: rgba(220, 20, 60, 0.12)'
                 styles[inhouse_idx] = 'background-color: rgba(34, 139, 34, 0.15)'
