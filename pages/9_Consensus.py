@@ -327,6 +327,9 @@ consensus_all_summary = aggregate_consensus(latest_consensus_all)
 our_forecast_long_all = prepare_inhouse_forecast(forecast_df)
 actuals_long_all = prepare_actuals(actual_year_df)
 
+if not our_forecast_long_all.empty:
+    our_forecast_long_all = our_forecast_long_all.drop(columns=['Metric'], errors='ignore')
+
 global_summary_enriched = pd.DataFrame()
 actual_lookup_all = {}
 
