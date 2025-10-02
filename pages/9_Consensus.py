@@ -130,17 +130,22 @@ if not available_tickers:
     st.warning("No tickers found in the consensus database.")
     st.stop()
 
-with st.sidebar:
+filters_container = st.container()
+
+with filters_container:
     st.header("Configure View")
-    ticker = st.selectbox("Ticker", available_tickers, index=available_tickers.index('VCB') if 'VCB' in available_tickers else 0)
+    col_ticker, col_years = st.columns(2)
+    ticker_default_index = available_tickers.index('VCB') if 'VCB' in available_tickers else 0
+    ticker = col_ticker.selectbox("Ticker", available_tickers, index=ticker_default_index, key="ticker_select")
 
     ticker_data = consensus_df[consensus_df['TICKER'] == ticker]
     year_options = sorted(ticker_data['ForecastYear'].dropna().unique())
     default_years = year_options
-    selected_years = st.multiselect(
+    selected_years = col_years.multiselect(
         "Forecast Years",
         options=year_options,
-        default=default_years if default_years else year_options
+        default=default_years if default_years else year_options,
+        key="year_multiselect"
     )
 
     metric_options = sorted(ticker_data['Metric'].dropna().unique())
@@ -152,10 +157,10 @@ with st.sidebar:
     selected_metrics = st.multiselect(
         "Metrics",
         options=metric_options,
-        default=default_metrics if default_metrics else metric_options
+        default=default_metrics if default_metrics else metric_options,
+        key="metric_multiselect"
     )
 
-    st.markdown("---")
     st.caption("Latest record per broker × metric × year is displayed below.")
 
 if selected_years:
@@ -391,56 +396,27 @@ with summary_container:
     if global_summary_enriched.empty:
         st.info("Consensus summary is unavailable. Refresh data sources and retry.")
     else:
-        year_options_overview = sorted(global_summary_enriched['ForecastYear'].dropna().unique())
-        if not year_options_overview:
-            st.info("No forecast years available for summary display.")
+        overview_npatmi = global_summary_enriched[global_summary_enriched['MetricKey'] == 'NPATMI'].copy()
+        if overview_npatmi.empty:
+            st.info("NPATMI consensus data is unavailable for the summary table.")
         else:
-            default_year_index = len(year_options_overview) - 1
-            selected_year_overview = st.selectbox(
-                "Forecast Year",
-                options=year_options_overview,
-                index=default_year_index,
-                key="overview_year_select"
-            )
-
-            metric_options_df = (
-                global_summary_enriched[['MetricKey', 'Metric']]
-                .drop_duplicates()
-                .sort_values('Metric')
-            )
-            metric_keys = metric_options_df['MetricKey'].tolist()
-
-            if not metric_keys:
-                st.info("No metrics available for consensus overview.")
+            year_options_overview = sorted(overview_npatmi['ForecastYear'].dropna().unique())
+            if not year_options_overview:
+                st.info("No forecast years available for summary display.")
             else:
-                def _metric_label_lookup(key: str) -> str:
-                    match = metric_options_df[metric_options_df['MetricKey'] == key]
-                    if not match.empty:
-                        value = match.iloc[0]['Metric']
-                        if isinstance(value, str) and value.strip():
-                            return value
-                    return key
-
-                default_metric_key = next((k for k in metric_keys if k == 'NPATMI'), None)
-                if default_metric_key is None and metric_keys:
-                    default_metric_key = metric_keys[0]
-                default_metric_index = metric_keys.index(default_metric_key) if default_metric_key in metric_keys else 0
-
-                selected_metric_key = st.selectbox(
-                    "Metric",
-                    options=metric_keys,
-                    index=default_metric_index,
-                    key="overview_metric_select",
-                    format_func=_metric_label_lookup
+                selected_year_overview = st.selectbox(
+                    "Forecast Year",
+                    options=year_options_overview,
+                    index=0,
+                    key="overview_year_select"
                 )
 
-                overview_filtered = global_summary_enriched[
-                    (global_summary_enriched['ForecastYear'] == selected_year_overview)
-                    & (global_summary_enriched['MetricKey'] == selected_metric_key)
+                overview_filtered = overview_npatmi[
+                    overview_npatmi['ForecastYear'] == selected_year_overview
                 ].copy()
 
                 if overview_filtered.empty:
-                    st.info("No consensus records match the selected year and metric.")
+                    st.info("No consensus records match the selected year.")
                 else:
                     overview_filtered = overview_filtered.sort_values('TICKER')
                     display_df = overview_filtered[[
