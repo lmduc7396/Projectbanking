@@ -72,11 +72,14 @@ def _highlight_inhouse(row: pd.Series) -> list[str]:
         if pd.notna(consensus) and pd.notna(inhouse):
             consensus_idx = columns.index('Consensus Median (B VND)')
             inhouse_idx = columns.index('In-house Forecast (B VND)')
-            gap = None
-            if abs(consensus) > 1e-9:
-                gap = (inhouse - consensus) / consensus
 
-            if gap is not None and abs(gap) <= 0.02:
+            gap_ratio = None
+            if 'GapRatio' in columns:
+                gap_ratio = row['GapRatio']
+            elif abs(consensus) > 1e-9:
+                gap_ratio = (inhouse - consensus) / consensus
+
+            if gap_ratio is not None and pd.notna(gap_ratio) and abs(gap_ratio) <= 0.02:
                 return styles
 
             if inhouse > consensus:
@@ -451,6 +454,13 @@ with summary_container:
                     display_df['Consensus YoY %'] = pd.to_numeric(display_df['Consensus YoY %'], errors='coerce')
                     display_df['In-house YoY %'] = pd.to_numeric(display_df['In-house YoY %'], errors='coerce')
 
+                    display_df['GapRatio'] = np.where(
+                        display_df['Consensus Median (B VND)'].abs() > 1e-9,
+                        (display_df['In-house Forecast (B VND)'] - display_df['Consensus Median (B VND)'])
+                        / display_df['Consensus Median (B VND)'],
+                        np.nan
+                    )
+
                     styled_df = (
                         display_df.style
                         .format({
@@ -461,21 +471,18 @@ with summary_container:
                             'In-house YoY %': _format_pct
                         })
                         .apply(_highlight_inhouse, axis=1)
+                        .hide(axis='columns', subset=['GapRatio'])
                     )
 
                     st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-                    comparison_stats = overview_filtered[['TICKER', 'consensus_median', 'OurForecast']].dropna()
-                    if not comparison_stats.empty:
-                        pct_gap = (
-                            (comparison_stats['OurForecast'] - comparison_stats['consensus_median'])
-                            / comparison_stats['consensus_median']
-                        ).replace([np.inf, -np.inf], np.nan)
-                        above_mask = pct_gap > 0.02
-                        below_mask = pct_gap < -0.02
+                    gap_stats = display_df[['Ticker', 'GapRatio']].dropna()
+                    if not gap_stats.empty:
+                        above_mask = gap_stats['GapRatio'] > 0.02
+                        below_mask = gap_stats['GapRatio'] < -0.02
                         above_count = int(above_mask.sum())
                         below_count = int(below_mask.sum())
-                        neutral_count = int((~above_mask & ~below_mask & pct_gap.notna()).sum())
+                        neutral_count = int((~above_mask & ~below_mask).sum())
                         st.caption(
                             " | ".join([
                                 f"In-house > consensus: {above_count}",
