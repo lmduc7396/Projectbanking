@@ -22,6 +22,7 @@ sys.path.append(project_root)
 
 # Import from utilities
 from utilities.quarter_utils import format_quarter_for_display
+from utilities.data_access import load_earnings_quality
 try:
     from utilities.style_utils import apply_google_font
     from utilities.sidebar_style import apply_sidebar_style
@@ -37,15 +38,15 @@ st.title("Bank Earnings Drivers Analysis Dashboard")
 st.markdown("### Analyze earnings drivers through revenue growth, cost efficiency, and non-recurring items")
 
 # Load data
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_data():
-    """Load quarterly and yearly data"""
+    """Load quarterly and yearly earnings driver data from the warehouse."""
     try:
-        quarterly_df = pd.read_parquet(os.path.join(project_root, 'Data/earnings_quality_quarterly.parquet'))
-        yearly_df = pd.read_parquet(os.path.join(project_root, 'Data/earnings_quality_yearly.parquet'))
+        quarterly_df = load_earnings_quality('Q')
+        yearly_df = load_earnings_quality('Y')
         return quarterly_df, yearly_df
-    except FileNotFoundError:
-        st.error("Data files not found. Please run scripts/Prepare_earnings_driver.py first.")
+    except Exception as exc:
+        st.error(f"Error loading earnings driver data from the database: {exc}")
         return None, None
 
 # Load the data
@@ -735,8 +736,8 @@ if quarterly_df is not None and yearly_df is not None:
                 st.info("Sub-component columns not available for this selection.")
 
 else:
-    st.error("Unable to load data files. Please ensure earnings_quality_quarterly.parquet and earnings_quality_yearly.parquet exist in the Data folder.")
-    st.info("Run the scripts/Prepare_earnings_driver.py script first to generate the required data files.")
+    st.error("Unable to load earnings driver data from the database.")
+    st.info("Verify the SQL connection settings and that the dbo.EarningsQualityQuarterly and dbo.EarningsQualityYearly tables are populated.")
 
 # Footer
 st.markdown("---")

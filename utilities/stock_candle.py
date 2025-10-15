@@ -141,6 +141,21 @@ def Stock_price_plot(ticker: str):
         tickvals = list(range(0, len(df), tick_interval))
         ticktext = [df.iloc[i]['date_str'] for i in tickvals]
         
+        # Pre-compute hover text for candlestick trace (hovertemplate not supported)
+        def _format_numeric(value):
+            return f"{value:,.0f}" if pd.notna(value) else "N/A"
+
+        candlestick_hover_text = [
+            (
+                f"<b>Date: {row['date_str']}</b><br>"
+                f"Open: {_format_numeric(row['open'])}<br>"
+                f"High: {_format_numeric(row['high'])}<br>"
+                f"Low: {_format_numeric(row['low'])}<br>"
+                f"Close: {_format_numeric(row['close'])}"
+            )
+            for _, row in df.iterrows()
+        ]
+
         # Add candlestick chart using continuous index with custom hover
         fig.add_trace(
             go.Candlestick(
@@ -152,13 +167,8 @@ def Stock_price_plot(ticker: str):
                 name='Price',
                 increasing_line_color='green',
                 decreasing_line_color='red',
-                customdata=df['date_str'].tolist(),  # Add date strings as custom data
-                hovertemplate='<b>Date: %{customdata}</b><br>' +
-                             'Open: %{open:,.0f}<br>' +
-                             'High: %{high:,.0f}<br>' +
-                             'Low: %{low:,.0f}<br>' +
-                             'Close: %{close:,.0f}<br>' +
-                             '<extra></extra>'
+                text=candlestick_hover_text,
+                hoverinfo='text'
             ),
             row=1, col=1
         )
