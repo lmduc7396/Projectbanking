@@ -144,8 +144,44 @@ def load_valuation_banking() -> pd.DataFrame:
 
 
 def load_earnings_quality(period: str) -> pd.DataFrame:
-    table = 'EarningsQualityQuarterly' if period.upper() == 'Q' else 'EarningsQualityYearly'
-    df = _load_dataframe(f"SELECT * FROM dbo.{table}")
+    """Load earnings driver datasets.
+
+    Prefers the consolidated dbo.Banking_Drivers table and falls back to
+    legacy materialized tables when necessary so existing workflows continue
+    to operate during the migration window.
+    """
+
+    if not period:
+        raise ValueError('period must be provided ("Q" or "Y")')
+
+    period = period.upper()
+    if period not in {"Q", "Y"}:
+        raise ValueError("period must be 'Q' for quarterly or 'Y' for yearly")
+
+    query = "SELECT * FROM dbo.Banking_Drivers WHERE PERIOD_TYPE = %s"
+
+    try:
+        df = _load_dataframe(query, params=[period])
+    except Exception:
+        table = 'EarningsQualityQuarterly' if period == 'Q' else 'EarningsQualityYearly'
+        df = _load_dataframe(f"SELECT * FROM dbo.{table}")
+
+    if df.empty:
+        return df
+
+    # Ensure downstream consumers have consistent period helper columns
+    if period == 'Q' and 'Date_Quarter' not in df.columns:
+        if 'DATE_STRING' in df.columns:
+            df['Date_Quarter'] = df['DATE_STRING']
+        elif 'DATE' in df.columns:
+            df['Date_Quarter'] = df['DATE']
+
+    if period == 'Y' and 'Year' not in df.columns:
+        if 'DATE_STRING' in df.columns:
+            df['Year'] = pd.to_numeric(df['DATE_STRING'], errors='ignore')
+        elif 'DATE' in df.columns:
+            df['Year'] = pd.to_numeric(df['DATE'], errors='ignore')
+
     return df
 
 
