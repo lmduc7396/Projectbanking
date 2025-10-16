@@ -193,4 +193,17 @@ def load_comments() -> pd.DataFrame:
 
 
 def load_quarterly_analysis() -> pd.DataFrame:
-    return _load_dataframe("SELECT * FROM dbo.QuarterlyAnalysis")
+    query = "SELECT * FROM dbo.QuarterlyAnalysis"
+
+    try:
+        return _load_dataframe(query)
+    except Exception:
+        fallback_path = DATA_DIR / 'quarterly_analysis_results.parquet'
+        if fallback_path.exists():
+            return pd.read_parquet(fallback_path)
+
+        fallback_csv = DATA_DIR / 'quarterly_analysis_results.csv'
+        if fallback_csv.exists():
+            return pd.read_csv(fallback_csv)
+
+        return pd.DataFrame()
