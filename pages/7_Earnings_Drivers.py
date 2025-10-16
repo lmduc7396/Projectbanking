@@ -157,7 +157,25 @@ if quarterly_df is not None and yearly_df is not None:
                 loan_impact_col = 'Loan_Impact'
                 nim_impact_col = 'NIM_Impact'
                 total_impact_col = 'Total_Impact'
-            
+
+            numeric_cols = [
+                pbt_growth_col,
+                revenue_impact_col,
+                cost_impact_col,
+                nonrec_impact_col,
+                nii_impact_col,
+                fee_impact_col,
+                opex_impact_col,
+                prov_impact_col,
+                loan_impact_col,
+                nim_impact_col,
+                total_impact_col,
+            ]
+
+            for col in numeric_cols:
+                if col in filtered_df.columns:
+                    filtered_df[col] = pd.to_numeric(filtered_df[col], errors='coerce')
+
             # Display metrics
             st.subheader(f"Weighted Impact Analysis for {selected_period}")
             st.caption("Shows how much each component contributes to the PBT growth rate (in percentage points)")
@@ -413,6 +431,7 @@ if quarterly_df is not None and yearly_df is not None:
                 prov_impact_col = f'Provision_Impact{comparison_suffix}'
                 loan_impact_col = f'Loan_Impact{comparison_suffix}'
                 nim_impact_col = f'NIM_Impact{comparison_suffix}'
+                total_impact_col = f'Total_Impact{comparison_suffix}'
             else:
                 pbt_growth_col = 'PBT_Growth_%'
                 revenue_impact_col = 'Top_Line_Impact'
@@ -424,13 +443,32 @@ if quarterly_df is not None and yearly_df is not None:
                 prov_impact_col = 'Provision_Impact'
                 loan_impact_col = 'Loan_Impact'
                 nim_impact_col = 'NIM_Impact'
-            
+                total_impact_col = 'Total_Impact'
+
             # Format quarters for display if quarterly data
             if period_col == 'Date_Quarter':
                 trend_df['Date_Quarter_Display'] = trend_df['Date_Quarter'].apply(format_quarter_for_display)
                 display_col = 'Date_Quarter_Display'
             else:
                 display_col = period_col
+
+            trend_numeric_cols = [
+                pbt_growth_col,
+                revenue_impact_col,
+                cost_impact_col,
+                nonrec_impact_col,
+                nii_impact_col,
+                fee_impact_col,
+                opex_impact_col,
+                prov_impact_col,
+                loan_impact_col,
+                nim_impact_col,
+                total_impact_col,
+            ]
+
+            for col in trend_numeric_cols:
+                if col in trend_df.columns:
+                    trend_df[col] = pd.to_numeric(trend_df[col], errors='coerce')
             
             # Create subplots
             fig = make_subplots(
@@ -640,6 +678,10 @@ if quarterly_df is not None and yearly_df is not None:
             window = periods_sorted[-n_periods:]
             base = df_with_impacts[df_with_impacts[period_col].isin(window)][['TICKER', 'Type', period_col] + use_cols].copy()
             st.caption(f"Window: {window[0]} → {window[-1]} ({len(window)} periods)")
+
+        for col in use_cols:
+            if col in base.columns:
+                base[col] = pd.to_numeric(base[col], errors='coerce')
 
         # Aggregate by Type
         if scope == "Latest period":
