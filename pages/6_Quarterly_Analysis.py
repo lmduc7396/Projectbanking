@@ -9,6 +9,7 @@ st.set_page_config(
 
 import pandas as pd
 import os
+from pathlib import Path
 from datetime import datetime
 import sys
 import openai
@@ -34,11 +35,30 @@ from utilities.quarter_utils import quarter_sort_key, sort_quarters
 from utilities.data_access import load_comments, load_quarterly_analysis
 
 
+DATA_DIR = Path(project_root) / 'Data'
+
+
 @st.cache_data(ttl=1800)
 def _load_quarterly_analysis():
-    df = load_quarterly_analysis()
-    if not df.empty:
+    try:
+        df = load_quarterly_analysis()
+    except Exception:
+        df = pd.DataFrame()
+
+    if df is None or df.empty:
+        fallback_parquet = DATA_DIR / 'quarterly_analysis_results.parquet'
+        fallback_csv = DATA_DIR / 'quarterly_analysis_results.csv'
+
+        if fallback_parquet.exists():
+            df = pd.read_parquet(fallback_parquet)
+        elif fallback_csv.exists():
+            df = pd.read_csv(fallback_csv)
+        else:
+            df = pd.DataFrame()
+
+    if not df.empty and 'generated_date' in df.columns:
         df['generated_date'] = pd.to_datetime(df['generated_date'], errors='coerce')
+
     return df
 
 
