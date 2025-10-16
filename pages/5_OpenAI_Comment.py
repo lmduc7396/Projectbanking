@@ -178,51 +178,9 @@ if ticker:
                 st.markdown(latest_cached['COMMENT'])
             else:
                 st.warning(
-                    f"No cached analysis found for {ticker} - {selected_quarter}. Will generate new analysis."
+                    f"No cached analysis found for {ticker} - {selected_quarter}. Run the offline generator to create a fresh analysis."
                 )
     else:
         st.error(f"No data found for ticker {ticker}")
 
-# Generate button
-col1, col2, col3 = st.columns([1, 1, 2])
-
-with col1:
-    generate_button = st.button("Generate Analysis", type="primary")
-
-with col2:
-    if cache_exists:
-        view_cache_button = st.button("View All Cached", help="View all cached analyses")
-    else:
-        view_cache_button = False
-
-# Generation logic
-if generate_button and ticker and selected_quarter:
-    # Get sector from database using fallback logic
-    ticker_data = df_quarter[df_quarter['TICKER'] == ticker]
-    if not ticker_data.empty:
-        sector = get_ticker_sector(ticker, df_quarter, bank_type_mapping)
-        
-        # Check if data exists for the selected quarter
-        quarter_data = ticker_data[ticker_data['Date_Quarter'] == selected_quarter]
-        if quarter_data.empty:
-            st.error(f"No data available for {ticker} in quarter {selected_quarter}. Please select a different quarter.")
-        else:
-            with st.spinner(f"Generating banking analysis for {ticker} - {selected_quarter}..."):
-                try:
-                    # Call the openai_comment function with force_regenerate parameter
-                    openai_comment(
-                        ticker=ticker, 
-                        sector=sector, 
-                        df_quarter=df_quarter,
-                        keyitem=keyitem,
-                        force_regenerate=force_regenerate
-                    )
-                except Exception as e:
-                    st.error(f"Error generating analysis: {e}")
-                    st.info("Please check your OpenAI API key and try again.")
-    else:
-        st.error(f"No data found for ticker {ticker}")
-
-# View cached comments
-if view_cache_button:
-    st.switch_page("pages/4_Comment_Management.py")
+st.info("In-app generation is disabled. Run the offline generator script to refresh analyses when needed.")
