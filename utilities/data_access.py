@@ -192,18 +192,125 @@ def load_comments() -> pd.DataFrame:
     return df
 
 
+def _determine_period_column() -> Optional[str]:
+    """Inspect the Banking_Comments table to determine the quarter column name."""
+    try:
+        preview = _load_dataframe("SELECT TOP 0 * FROM dbo.Banking_Comments")
+    except Exception:
+        return None
+
+    candidates = ['QUARTER', 'Quarter', 'quarter', 'DATE', 'Date', 'date', 'Date_Quarter']
+    columns = {col.lower(): col for col in preview.columns}
+    for candidate in candidates:
+        key = candidate.lower()
+        if key in columns:
+            return columns[key]
+    return None
+
+
 def load_quarterly_analysis() -> pd.DataFrame:
-    query = "SELECT * FROM dbo.QuarterlyAnalysis"
+    period_column = _determine_period_column()
+    period_column = period_column or 'QUARTER'
+
+    def _wrap(col: str) -> str:
+        return col if col.startswith('[') and col.endswith(']') else f'[{col}]'
+
+    wrapped_period_col = _wrap(period_column)
+
+    sector_query = (
+        "SELECT "
+        f"{wrapped_period_col} AS quarter_label, "
+        "COMMENT AS analysis_text, "
+        "GENERATED_DATE, GENERATED_AT "
+        "FROM dbo.Banking_Comments "
+        "WHERE LOWER(TICKER) = 'sector'"
+    )
 
     try:
-        return _load_dataframe(query)
+        sector_df = _load_dataframe(sector_query)
     except Exception:
-        fallback_path = DATA_DIR / 'quarterly_analysis_results.parquet'
-        if fallback_path.exists():
-            return pd.read_parquet(fallback_path)
+        sector_df = pd.DataFrame()
 
-        fallback_csv = DATA_DIR / 'quarterly_analysis_results.csv'
-        if fallback_csv.exists():
-            return pd.read_csv(fallback_csv)
+    if not sector_df.empty:
+        sector_df = sector_df.rename(columns={'quarter_label': 'quarter'})
+        sector_df['quarter'] = sector_df['quarter'].astype(str)
 
-        return pd.DataFrame()
+        # Normalise generated timestamp
+        generated_cols = [col for col in ['GENERATED_DATE', 'generated_date', 'GENERATED_AT', 'generated_at'] if col in sector_df.columns]
+        generated_series = pd.Series(pd.NaT, index=sector_df.index)
+        for col in generated_cols:
+            generated_series = generated_series.fillna(pd.to_datetime(sector_df[col], errors='coerce'))
+        sector_df['generated_date'] = generated_series
+
+        sector_df = sector_df[['quarter', 'analysis_text', 'generated_date']]
+
+        # Fetch bank counts excluding sector aggregate
+        bank_count_query = (
+            "SELECT "
+            f"{wrapped_period_col} AS quarter_label, "
+            "COUNT(*) AS bank_count "
+            "FROM dbo.Banking_Comments "
+            "WHERE LOWER(TICKER) <> 'sector' "
+            f"GROUP BY {wrapped_period_col}"
+        )
+        try:
+            bank_counts = _load_dataframe(bank_count_query)
+            bank_counts = bank_counts.rename(columns={'quarter_label': 'quarter'})
+            bank_counts['quarter'] = bank_counts['quarter'].astype(str)
+        except Exception:
+            bank_counts = pd.DataFrame(columns=['quarter', 'bank_count'])
+
+        df = sector_df.merge(bank_counts, on='quarter', how='left')
+        df['status'] = 'success'
+    else:
+        # Attempt legacy consolidated table if available
+        try:
+            legacy_query = (
+                "SELECT quarter, analysis_text, bank_count, generated_date, status "
+                "FROM dbo.QuarterlyAnalysis"
+            )
+            df = _load_dataframe(legacy_query)
+        except Exception:
+            df = pd.DataFrame()
+
+        if df.empty:
+            # Final fallback for local development environments
+            fallback_path = DATA_DIR / 'quarterly_analysis_results.parquet'
+            if fallback_path.exists():
+                df = pd.read_parquet(fallback_path)
+            else:
+                fallback_csv = DATA_DIR / 'quarterly_analysis_results.csv'
+                if fallback_csv.exists():
+                    df = pd.read_csv(fallback_csv)
+
+        if df.empty:
+            return df
+
+        rename_map = {
+            'QUARTER': 'quarter',
+            'Quarter': 'quarter',
+            'DATE': 'quarter',
+            'Date': 'quarter',
+            'analysis_text': 'analysis_text',
+            'ANALYSIS_TEXT': 'analysis_text',
+            'BANK_COUNT': 'bank_count',
+            'bank_count': 'bank_count',
+            'GENERATED_DATE': 'generated_date',
+            'generated_date': 'generated_date',
+            'status': 'status',
+            'STATUS': 'status',
+        }
+        df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+        if 'generated_date' in df.columns:
+            df['generated_date'] = pd.to_datetime(df['generated_date'], errors='coerce')
+
+        if 'status' not in df.columns:
+            df['status'] = 'success'
+
+        if 'bank_count' not in df.columns:
+            df['bank_count'] = pd.NA
+
+    df = df[['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status']].copy()
+    df = df.sort_values('quarter', ascending=False).reset_index(drop=True)
+    return df
