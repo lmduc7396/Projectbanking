@@ -178,9 +178,7 @@ if ticker:
                 st.markdown(latest_cached['COMMENT'])
             else:
                 st.warning(
-                    f"No cached analysis found for {ticker} - {selected_quarter}. Run the offline generator to create a fresh analysis."
+                    f"No cached analysis found for {ticker} - {selected_quarter}."
                 )
     else:
         st.error(f"No data found for ticker {ticker}")
-
-st.info("In-app generation is disabled. Run the offline generator script to refresh analyses when needed.")
