@@ -2,192 +2,209 @@
 
 ## Overview
 
-The MCP Banking Analysis System integrates OpenAI's GPT models with Vietnamese banking data to provide intelligent, context-aware analysis. The system uses a modular tool architecture that allows OpenAI to access specialized functions and chain them together to answer complex banking questions.
+The MCP Banking Analysis System now blends OpenAI's GPT models with curated SQL datasets, technical market feeds, and scenario simulators to deliver context-aware Vietnamese banking analysis. The expanded tool suite supports broker consensus benchmarking, “what-if” forecasting, technical scoring, and chart rendering while keeping the modular design that lets OpenAI compose multiple tools per answer.
 
 ## Current Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│        Streamlit UI (pages/7_DucGPT_Chatbot.py) │
-│  - Natural language chat interface               │
-│  - Tool execution visualization                  │
-│  - Conversation memory with compression          │
-│  - Results display with formatting               │
-└────────────────┬────────────────────────────────┘
+┌────────────────────────────────────────────────────┐
+│ Streamlit UI (pages/10_Duc_Chatbot.py + dashboards) │
+│  - Chat assistant, consensus, scenario, TA pages     │
+│  - Tool execution logging & cache inspection         │
+│  - Conversation memory with compression              │
+│  - Chart previews rendered from MCP responses        │
+└────────────────┬────────────────────────────────────┘
                  │
-┌────────────────▼────────────────────────────────┐
-│         OpenAI Integration Layer                 │
-│  - GPT-5 model (configurable via .env)           │
-│  - Manages conversation flow                     │
-│  - Handles multiple tool calls in parallel       │
-│  - Chains tools until answer is complete         │
-└────────────────┬────────────────────────────────┘
+┌────────────────▼────────────────────────────────────┐
+│        OpenAI Integration Layer (streamlit_app.py)   │
+│  - GPT model configurable via environment            │
+│  - Orchestrates parallel tool invocations            │
+│  - Enforces data-availability handshake              │
+└────────────────┬────────────────────────────────────┘
                  │
-┌────────────────▼────────────────────────────────┐
-│      Tool System (utilities/Banking_MCP.py)      │
-│  - 8 modular tools with decorator pattern        │
-│  - Lazy data loading with caching                │
-│  - Universal single/multiple ticker support      │
-│  - 5-minute result caching (TTL)                 │
-└────────────────┬────────────────────────────────┘
+┌────────────────▼────────────────────────────────────┐
+│    Tool System (utilities/Banking_MCP.py)            │
+│  - 12 modular tools registered via decorators        │
+│  - Lazy SQL + API loading with configurable caches   │
+│  - Universal single/multi ticker responses           │
+│  - Chart + scenario generation engines               │
+└────────────────┬────────────────────────────────────┘
                  │
-┌────────────────▼────────────────────────────────┐
-│              Data Layer                          │
-│  Primary Data Files:                             │
-│  - dfsectorquarter.csv (Historical quarterly)    │
-│  - dfsectoryear.csv (Historical yearly)          │
-│  - dfsectorforecast.csv (2025-2026 forecasts)   │
-│                                                  │
-│  Aggregated/Sector Data:                         │
-│  - Sector tickers: Sector, SOCB, Private_1/2/3   │
-│  - Pre-calculated in same data files             │
-│                                                  │
-│  Analysis Files:                                 │
-│  - earnings_quality_quarterly.csv (QoQ, YoY, T12M)│
-│  - earnings_quality_yearly.csv                   │
-│  - banking_comments.xlsx (AI commentary)         │
-│  - quarterly_analysis_results.xlsx               │
-│  - Valuation_banking.csv (52K historical points) │
-│                                                  │
-│  Reference Files:                                │
-│  - Bank_Type.xlsx (Bank classifications)         │
-│  - Key_items.xlsx (Metric definitions)           │
-└──────────────────────────────────────────────────┘
+┌────────────────▼────────────────────────────────────┐
+│                   Data Layer                         │
+│  - dbo.BankingMetrics (actual + forecast lenses)     │
+│  - dbo.Forecast_Consensus (broker submissions)       │
+│  - dbo.Banking_Drivers (earnings driver impacts)     │
+│  - dbo.Banking_Comments & Quarterly Analysis         │
+│  - dbo.Market_Data (PE/PB history)                   │
+│  - Data/Key_items.xlsx (metric dictionary)           │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## Core Concepts
 
-### 1. Universal Tool Pattern
+### 1. Data Availability Handshake
 
-Most tools support both single and multiple entity queries:
+Every "latest" or "current" request must anchor on `get_data_availability()`. The Streamlit assistant enforces this so GPT knows the freshest completed quarter/year, supported forecast horizons, and when to fall back from YTD to quarterly views.
+
+### 2. Universal Tool Pattern
+
+Most tools accept single tickers, sector aggregates, or mixed lists and adapt the payload automatically:
 ```python
-# Single ticker
-get_bank_info(tickers=["VCB"])
-
-# Multiple tickers  
-get_bank_info(tickers=["VCB", "ACB", "BID"])
-
-# Response adapts: single returns simple dict, multiple returns batch format
+query_historical_data(
+    frequency="quarterly",
+    tickers=["VCB", "ACB"],
+    periods=["2024-Q3", "2024-Q4"],
+    metric="NIM"
+)
 ```
+Single entities return flat dicts for easy narration; arrays return batched dictionaries with record counts and optional warnings.
 
-### 2. Sector Ticker Support
+### 3. Aggregate Entity Support
 
-`query_historical_data` now supports pre-aggregated sector data:
-- **"Sector"** - Overall banking sector aggregate
-- **"SOCB"** - State-owned commercial banks aggregate
-- **"Private_1"** - Tier 1 private banks aggregate
-- **"Private_2"** - Tier 2 private banks aggregate
-- **"Private_3"** - Tier 3 private banks aggregate
+- **Sector** – all Vietnamese banks (median aggregations)
+- **SOCB** – state-owned commercial banks
+- **Private_1/2/3** – private bank tiers
 
-These can be mixed with individual bank tickers in the same query.
+These aggregates can be mixed with 3-letter tickers across historical, forecast, valuation, and scenario tools.
 
-### 3. Tool Chaining
+### 4. Insight Modules
 
-OpenAI chains tools automatically to build complete answers:
-1. `get_data_availability()` → Understand available periods
-2. `query_historical_data()` → Get specific metrics
-3. `get_earnings_drivers()` → Analyze profit drivers
-4. Continue until analysis is complete (up to 20 tool calls)
+- **Consensus vs in-house**: `get_consensus_forecast_summary` reconciles broker medians, YoY deltas, and internal forecasts.
+- **Scenario engine**: `forecast_scenario` models PBT sensitivity to NIM/NPL/loan/OPEX uplifts for banks and sectors.
+- **Technical stack**: `technical_analysis` delivers STS/LTS/OBOS scores fed by cached candles.
+- **Chart rendering**: `render_chart` returns Vega-lite-ready specs for Streamlit to visualize tool output without dumping raw tables.
 
-### 4. Data Caching Strategy
+### 5. Configurable Caching & Limits
 
-- **Lazy Loading**: Data files loaded only when needed
-- **Memory Cache**: Data kept in memory after first load
-- **Result Cache**: Tool results cached for 5 minutes (TTL)
-- **Cache Key**: Based on tool name + sorted arguments
+- **Dataset caches**: `@lru_cache` wraps SQL fetchers so repeated queries stay in-memory.
+- **Result TTLs**: `MCP_RESULT_TTL` governs tool-response caching (default 300s).
+- **Market data TTLs**: `MCP_STOCK_TTL` controls TCBS price cache (default 30 minutes).
+- **Tool budget**: GPT is still capped at ~20 tool calls per turn; the assistant prunes redundant invocations.
 
-## Current Tools (8 Active)
+## Current Tools (12 Active)
 
 ### 1. get_data_availability()
-**Purpose**: Discover what data periods are available  
-**Parameters**: None  
-**Returns**: 
-- Current date
-- Latest quarterly data (last 8 quarters)
-- Latest yearly data (last 5 years)
-- Forecast years available
-**Usage**: MUST be called first for any "latest", "recent", or "current" data queries
-
-### 2. get_bank_sector_info()
-**Purpose**: Get bank/sector information - lists banks, identifies sectors, or returns component banks  
-**Parameters**:
-- `tickers` (optional): Array of bank tickers OR sector names (SOCB, Private_1, etc.)
-**Returns**: 
-- No params: All banks grouped by sector
-- Bank ticker: Sector classification
-- Sector name: Component banks within that sector
-**Note**: Merged functionality of list_all_banks and get_bank_info
-
-### 3. query_historical_data()
-**Purpose**: Query historical banking metrics with optional filtering  
-**Parameters**:
-- `frequency` (required): "quarterly" or "yearly"
-- `tickers` (optional): Array of bank/sector tickers
-- `period` (optional): Single period like "2024-Q3" or "2024"
-- `periods` (optional): Multiple periods ["2024-Q1", "2024-Q2"]
-- `metric` (optional): Single metric name (efficient for specific queries)
-- `metric_group` (optional): "all", "profitability", "asset_quality", "growth"
-**Special Features**:
-- Supports YTD queries (e.g., "2025-YTD")
-- Handles sector tickers (Sector, SOCB, Private_1/2/3)
-- Mixed-case ticker handling for compatibility
-**Returns**: DataFrame with requested metrics
-
-### 4. query_forecast_data()
-**Purpose**: Get forecast data for 2025-2026  
-**Parameters**:
-- `tickers` (optional): Array of bank tickers
-**Returns**: 
-- Actual data from latest year
-- Forecast data for all future years
-- Growth rate comparisons
-**Note**: Always returns ALL forecast years (no year filtering)
-
-### 5. get_commentary()
-**Purpose**: Get AI-generated analysis and commentary  
-**Parameters**:
-- `tickers` (required): Array of bank tickers or ["Sector"]
-- `quarter` (required): Quarter like "2024-Q3"
+**Purpose**: Discover live period coverage before any downstream call.  
+**Parameters**: None.  
 **Returns**:
-- For banks: Individual AI commentary
-- For "Sector": Quarterly market analysis
-**Data Source**: banking_comments.xlsx, quarterly_analysis_results.xlsx
+- Current date stamped at runtime.
+- Latest completed quarter and year from `dbo.BankingMetrics`.
+- Recent history windows (8 quarters, 5 years).
+- Forecast years present in the warehouse.  
+**Usage**: Must precede any "latest", "recent", or "current" request so GPT anchors analysis to real data.
 
-### 6. get_valuation_analysis()
-**Purpose**: Statistical valuation analysis with Z-scores  
+### 2. get_consensus_forecast_summary()
+**Purpose**: Compare broker NPATMI medians vs in-house forecasts with YoY context.  
 **Parameters**:
-- `tickers` (required): Array of bank tickers
-- `metric` (optional): "PE" or "PB" (default: "PB")
+- `tickers` (required): Bank tickers to evaluate.  
 **Returns**:
-- Current value vs historical statistics
-- Z-score and percentile rank
-- Interpretation (Undervalued/Fair/Overvalued)
-**Data Source**: Valuation_banking.csv (52K+ data points)
+- Latest broker list with median NPATMI by year and broker coverage counts.
+- In-house forecast alignment and YoY deltas vs actuals.  
+**Data Source**: `dbo.Forecast_Consensus` (latest per broker) blended with `dbo.BankingMetrics` actuals/forecasts.
 
-### 7. get_stock_performance()
-**Purpose**: Get stock price performance between dates  
+### 3. get_bank_sector_info()
+**Purpose**: Surface sector classifications or expand aggregates into component banks.  
 **Parameters**:
-- `tickers` (required): Array of stock tickers
-- `start_date` (required): YYYY-MM-DD format
-- `end_date` (required): YYYY-MM-DD format
+- `tickers` (optional): Bank tickers or sector handles (Sector, SOCB, Private_1/2/3).  
 **Returns**:
-- Start/end prices
-- Performance percentage
-- Ranking for multiple stocks
-**Data Source**: TCBS API (real-time)
+- No params: full sector → bank mapping.
+- Bank ticker: sector label.  
+- Sector handle: component constituents with counts.  
+**Data Source**: Type metadata embedded in `dbo.BankingMetrics`.
 
-### 8. get_earnings_drivers()
-**Purpose**: Analyze what's driving profit changes  
+### 4. query_historical_data()
+**Purpose**: Retrieve curated historical metrics with flexible filters.  
 **Parameters**:
-- `tickers` (required): Array of bank tickers
-- `period` (required): Period like "2024-Q3" or "2024"
-- `timeframe` (optional): "QoQ", "YoY", "T12M" (quarterly only)
-- `frequency` (optional): "quarterly" or "yearly"
+- `frequency` (required): `"quarterly"` or `"yearly"`.
+- `tickers`, `period`, `periods`, `metric`, `metric_group` (optional).  
+**Features**:
+- YTD tokens auto-expand to completed quarters.
+- Supports aggregate tickers alongside banks.
+- Smart metric normalization (aliases, underscores, case).  
+**Returns**: Record-level dicts plus included periods.  
+**Data Source**: `dbo.BankingMetrics` (actual slices via lazy projections).
+
+### 5. query_forecast_data()
+**Purpose**: Blend upcoming forecasts with latest actuals for key ratios.  
+**Parameters**:
+- `tickers` (optional): Filter focus banks; omit for broad view.  
 **Returns**:
-- PBT growth rate
-- Revenue, cost, non-recurring impacts
-- Detailed component breakdown (NII, fees, OPEX, provisions)
-**Data Source**: earnings_quality_quarterly.csv, earnings_quality_yearly.csv
+- Latest actual year snapshot.
+- Forecast series for all available years.
+- Optional single-bank growth comparison vs latest actuals.  
+**Data Source**: `dbo.BankingMetrics` (ACTUAL=0 vs ACTUAL=1).
+
+### 6. get_commentary()
+**Purpose**: Deliver analyst or AI commentary for banks and sector aggregates.  
+**Parameters**:
+- `tickers` (required): Bank codes or `"Sector"`.
+- `quarter` (required): Period such as `"2024-Q3"`.  
+**Returns**:
+- Bank view: commentary text + generated timestamp.
+- Sector view: quarterly narrative snapshot.  
+**Data Source**: `dbo.Banking_Comments` and `dbo.Quarterly_Analysis` (lazy cached).
+
+### 7. get_valuation_analysis()
+**Purpose**: Compute valuation z-scores, percentiles, and relative ranking.  
+**Parameters**:
+- `tickers` (required): Bank or sector handles.
+- `metric` (optional): `"PE"` or `"PB"` (default `"PB"`).  
+**Returns**:
+- Current vs historical mean/median/std.
+- Z-score & percentile with undervalued/fair/overvalued interpretation.
+- Batch comparison sorted by attractiveness.  
+**Data Source**: `dbo.Market_Data` joined with sector tags from `dbo.BankingMetrics`.
+
+### 8. get_stock_performance()
+**Purpose**: Calculate price performance between two dates using TCBS candles.  
+**Parameters**:
+- `tickers` (required): List or single code.
+- `start_date`, `end_date` (required): ISO dates.  
+**Returns**:
+- For each ticker: actual start/end dates, prices, % change.
+- Aggregated ranking & summary statistics when batching.  
+**Data Source**: TCBS `stock-insight` API with per-range caching (`MCP_STOCK_TTL`).
+
+### 9. technical_analysis()
+**Purpose**: Produce short-term, long-term, and overbought/oversold scores.  
+**Parameters**:
+- `tickers` (required): Array of tickers to score.  
+**Returns**:
+- STS/LTS/OBOS composite plus component labels ready for narration.  
+**Data Source**: `utilities/tech_analysis.py` leveraging cached candles from `utilities/stock_candle.py`.
+
+### 10. get_earnings_drivers()
+**Purpose**: Quantify revenue/cost drivers behind PBT changes.  
+**Parameters**:
+- `tickers` (required).
+- `period` (required): Quarter or year.
+- `timeframe` (optional): `"QoQ"`, `"YoY"`, `"T12M"`.
+- `frequency` (optional): `"quarterly"` or `"yearly"`.  
+**Returns**:
+- PBT growth %, topline/cost/non-recurring impacts, component drilldowns (NII, fees, OPEX, provisions).  
+**Data Source**: `dbo.Banking_Drivers` with QoQ/YoY/T12M suffix logic.
+
+### 11. render_chart()
+**Purpose**: Package processed data into a chart spec for the Streamlit UI.  
+**Parameters**:
+- `chart_type`: `line`, `bar`, `scatter`, `area`.
+- `data`: `{ "x": [...], "series": [{"name": ..., "y": [...]}] }`.
+- Optional `title`, `x_label`, `y_label`, `y_format`.  
+**Returns**:
+- Chart id + Vega-lite style payload saved server-side for immediate rendering.  
+**Usage**: Invoke only after data tools so the UI can show visuals without raw table dumps.
+
+### 12. forecast_scenario()
+**Purpose**: Run what-if analysis on PBT given metric adjustments.  
+**Parameters**:
+- `tickers`: Banks or sectors to adjust.
+- `metric`: `"NIM"`, `"NPL"`, `"loan_growth"`, `"OPEX_growth"`, `"NPL_coverage"`, `"new_NPL"`.
+- `adjustment`: Basis points (NIM/NPL/new_NPL) or percentage points (growth metrics).
+- `year`: Forecast year under review.  
+**Returns**:
+- Original vs adjusted PBT, absolute/percentage deltas, carry-forward values (e.g., new NIM).  
+**Data Source**: `dbo.BankingMetrics` actuals/forecasts with fallback heuristics for missing history.
 
 ## Removed/Deprecated Tools
 
@@ -262,6 +279,22 @@ OpenAI chains tools automatically to build complete answers:
 1. `get_bank_sector_info(tickers=["SOCB"])`
 2. Returns: Component banks ["BID", "CTG", "VCB", "AGB"]
 
+### Example 7: Broker Benchmarking
+**User**: "How do broker forecasts for VCB compare with our in-house view?"
+
+**System Flow**:
+1. `get_data_availability()` → Confirm forecast years are available
+2. `get_consensus_forecast_summary(tickers=["VCB"])`
+3. Return: Broker median NPATMI alongside in-house forecast deltas and YoY context
+
+### Example 8: Scenario Shock
+**User**: "What happens to VPB's 2025 PBT if NIM improves by 15 bps?"
+
+**System Flow**:
+1. `get_data_availability()` → Identify the latest actual base year
+2. `forecast_scenario(tickers=["VPB"], metric="NIM", adjustment=15, year=2025)`
+3. Return: Original PBT, adjusted PBT, % change, and updated NIM assumption
+
 ## Adding New Tools
 
 ### Tool Definition Pattern
@@ -312,53 +345,59 @@ def your_tool_name(param1: str, param2: List[str] = None) -> Dict:
 ```
 OPENAI_API_KEY=your-api-key-here
 OPENAI_MODEL=gpt-5  # or gpt-4-turbo-preview
+TARGET_DB_CONNECTION_STRING="Driver=...;Server=...;Database=...;Uid=...;Pwd=..."
+SOURCE_DB_CONNECTION_STRING="Driver=...;Server=...;Database=...;Uid=...;Pwd=..."  # optional legacy reads
+MCP_RESULT_TTL=300     # seconds, optional override
+MCP_STOCK_TTL=1800     # seconds, optional override
 ```
 
 ### Key Settings
 - **Model**: GPT-5 (default) or GPT-4 Turbo
 - **Temperature**: 1.0 (GPT-5 only supports default)
 - **Max Tool Calls**: 20 per conversation turn
-- **Cache TTL**: 300 seconds (5 minutes)
+- **Result Cache TTL**: `MCP_RESULT_TTL` (default 300s)
+- **Price Cache TTL**: `MCP_STOCK_TTL` (default 1800s)
 - **Conversation Memory**: Last 3 exchanges (compressed)
 
 ## Performance Optimizations
 
 ### Data Loading
-- **Lazy Loading**: Files loaded only when first needed
-- **LRU Cache**: @lru_cache decorator on load methods
-- **Pre-aggregated Data**: Sector-level data pre-calculated in database
+- **Lazy SQL fetches**: `@lru_cache` wraps each warehouse query, with column-projection caches to avoid full scans when asking for single metrics.
+- **Key dictionary reuse**: `Key_items.xlsx` is memoized to normalize metric labels across historical + consensus datasets.
+- **Sector rollups**: BankingMetrics already stores sector rows (Sector/SOCB/Private tiers) so no runtime aggregation cost.
 
 ### Tool Execution
-- **Parallel Calls**: Multiple banks processed simultaneously
-- **Result Caching**: 5-minute TTL on identical queries
-- **Compressed Memory**: Conversation history compressed to save tokens
+- **Parallel API calls**: Stock performance requests run via `ThreadPoolExecutor` with per-range caching.
+- **Result caching**: Per-tool TTL caches honor `MCP_RESULT_TTL` to short-circuit identical prompts.
+- **Compressed memory**: Conversation history stays trimmed to 3 exchanges for token efficiency.
 
 ### Pre-calculated Metrics
-The database includes pre-calculated growth metrics:
-- QoQ (Quarter-over-Quarter)
-- YoY (Year-over-Year)
-- T12M (Trailing 12 Months)
-These should be used instead of recalculating.
+`dbo.Banking_Drivers` provides QoQ, YoY, and T12M impacts. Prefer these fields instead of recomputing growth inside the tools.
 
-## Tool Redundancy Analysis
+## Tool Portfolio Highlights
 
-### Completed Optimizations
-1. **Merged list_all_banks into get_bank_sector_info** ✓
-2. **Removed calculate_growth_metrics** ✓ (OpenAI calculates from raw data)
-3. **Tools reduced from 10 → 8**
+### Recent Enhancements
+1. **Broker consensus coverage** ✓ `get_consensus_forecast_summary` reconciles latest broker vs in-house data.
+2. **Technical signal engine** ✓ `technical_analysis` mirrors the Streamlit TA scores inside MCP.
+3. **Scenario + chart outputs** ✓ `forecast_scenario` and `render_chart` unblock the new dashboards.
 
-### Remaining Opportunities
-- Consider combining get_commentary + get_earnings_drivers (both provide analysis)
-- Further optimize data loading strategies
+### Streamlining To Date
+- `list_all_banks` merged into `get_bank_sector_info`.
+- `calculate_growth_metrics` removed in favor of pre-calculated drivers.
+- Sector performance consolidated into `query_historical_data` (no separate tool).
+
+### Upcoming Opportunities
+- Evaluate whether commentary + earnings drivers can share a single narrative payload.
+- Consider pre-warming consensus summaries for heavily-used tickers to reduce recompute cost.
 
 ## Error Handling
 
 ### Common Issues and Solutions
 
 1. **"No data found"**
-   - Verify ticker exists in Bank_Type.xlsx
+   - Verify ticker exists in `dbo.BankingMetrics` (`get_bank_sector_info()` is the quickest check)
    - Check period format (YYYY-Q# or YYYY)
-   - Ensure data files are present
+   - Ensure SQL credentials (`TARGET_DB_CONNECTION_STRING`) point to the refreshed warehouse
 
 2. **Sector ticker issues**
    - Use exact case: "Sector", not "SECTOR"
@@ -399,7 +438,7 @@ Check session state in Streamlit:
 ## Future Enhancements
 
 ### Immediate Priorities
-1. ✓ Tool consolidation complete (10 → 8 tools)
+1. ✓ Consensus, technical, and scenario tooling delivered across MCP + dashboards
 2. Implement streaming responses
 3. Add batch processing for large queries
 

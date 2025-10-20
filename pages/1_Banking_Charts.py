@@ -21,6 +21,88 @@ from utilities.style_utils import apply_google_font
 from utilities.sidebar_style import apply_sidebar_style
 from utilities.data_access import load_banking_metrics, load_banking_forecast
 
+
+AGGREGATED_TYPES = ["Sector", "SOCB", "Private_1", "Private_2", "Private_3"]
+
+
+def filter_incomplete_aggregates(
+    combined_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    aggregated_labels: list[str],
+) -> pd.DataFrame:
+    """Drop aggregated rows for periods where component banks are incomplete."""
+
+    if actual_df is None or actual_df.empty:
+        return combined_df
+
+    candidate_columns = ["Date_Quarter", "Year"]
+    period_column = next((col for col in candidate_columns if col in actual_df.columns), None)
+    if period_column is None:
+        return combined_df
+
+    if "TICKER" not in actual_df.columns or "Type" not in actual_df.columns:
+        return combined_df
+
+    bank_rows = actual_df[actual_df["TICKER"].astype(str).str.len() == 3].copy()
+    if bank_rows.empty:
+        return combined_df
+
+    bank_rows = bank_rows.dropna(subset=[period_column])
+    if bank_rows.empty:
+        return combined_df
+
+    bank_rows["Type"] = bank_rows["Type"].astype(str)
+    bank_rows["period_key"] = bank_rows[period_column].astype(str)
+
+    expected_counts = (
+        bank_rows[bank_rows["Type"].isin(aggregated_labels)]
+        .groupby("Type")["TICKER"]
+        .nunique()
+        .to_dict()
+    )
+
+    # Sector represents all banks irrespective of sub-type
+    if "Sector" in aggregated_labels:
+        expected_counts.setdefault("Sector", bank_rows["TICKER"].nunique())
+
+    if not expected_counts:
+        return combined_df
+
+    reported_counts = (
+        bank_rows[bank_rows["Type"].isin(expected_counts.keys())]
+        .groupby(["Type", "period_key"])["TICKER"]
+        .nunique()
+    )
+
+    if reported_counts.empty:
+        return combined_df
+
+    valid_periods: dict[str, set[str]] = {}
+    for (agg_type, period_key), count in reported_counts.items():
+        expected = expected_counts.get(agg_type)
+        if expected and count >= expected:
+            valid_periods.setdefault(agg_type, set()).add(period_key)
+
+    if not valid_periods:
+        return combined_df
+
+    def _is_valid_row(row: pd.Series) -> bool:
+        ticker = row.get("TICKER")
+        if ticker not in aggregated_labels:
+            return True
+        if row.get("is_forecast") is True:
+            return True
+        period_value = row.get(period_column)
+        if pd.isna(period_value):
+            return False
+        allowed_periods = valid_periods.get(ticker)
+        if not allowed_periods:
+            return False
+        return str(period_value) in allowed_periods
+
+    mask = combined_df.apply(_is_valid_row, axis=1)
+    return combined_df[mask].reset_index(drop=True)
+
 # Apply Google Fonts
 apply_google_font()
 
@@ -182,6 +264,12 @@ else:
         df['is_forecast'] = False
         if 'Year' in df.columns:
             df = df[df['Year'].isna() | (df['Year'] <= last_historical_year)]
+
+df = filter_incomplete_aggregates(
+    df,
+    df_quarter if db_option == "Quarterly" else df_year,
+    AGGREGATED_TYPES,
+)
 
 # Make the data available globally for the Bankplot function
 st.session_state.df = df

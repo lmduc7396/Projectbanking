@@ -87,6 +87,7 @@ def Bankplot(df=None, keyitem=None):
         return df_input.assign(_order=categorical).sort_values('_order').drop(columns='_order')
 
     #Draw chart
+    single_selection = len(X) == 1
 
     for idx, z_name in enumerate(Z):
         # Use the name directly since columns already have descriptive names
@@ -131,158 +132,120 @@ def Bankplot(df=None, keyitem=None):
     
         for i, x in enumerate(X):
             show_legend = (idx == 0)
-            if len(x) == 3:  # Stock ticker
+            color = color_sequence[i % len(color_sequence)]
+
+            if len(x) == 3:
                 matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
-                if not matched_rows.empty:
-                    df_temp = matched_rows.tail(Y)
-                    df_temp = sort_by_period(df_temp)
-                    
-                    # Check if forecast data is included
-                    if include_forecast and 'is_forecast' in df_temp.columns:
-                        # Split into historical and forecast data
-                        df_historical = df_temp[df_temp['is_forecast'] == False]
-                        df_forecast = df_temp[df_temp['is_forecast'] == True]
-                        
-                        # Plot historical data with solid line
-                        if not df_historical.empty:
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=df_historical[date_column],
-                                    y=df_historical[value_col],
-                                    mode='lines+markers',
-                                    name=str(x),
-                                    line=dict(color=color_sequence[i % len(color_sequence)], dash=None),
-                                    showlegend=show_legend
-                                ),
-                                row=row,
-                                col=col
-                            )
-                        
-                        # Plot forecast data with dotted line
-                        if not df_forecast.empty:
-                            # Connect last historical point to first forecast point
-                            if not df_historical.empty:
-                                # Create connecting trace
-                                last_hist = df_historical.iloc[-1]
-                                first_forecast = df_forecast.iloc[0]
-                                fig.add_trace(
-                                    go.Scatter(
-                                        x=[last_hist[date_column], first_forecast[date_column]],
-                                        y=[last_hist[value_col], first_forecast[value_col]],
-                                        mode='lines',
-                                        name=str(x) + ' (forecast)',
-                                        line=dict(color=color_sequence[i % len(color_sequence)], dash='dot'),
-                                        showlegend=False
-                                    ),
-                                    row=row,
-                                    col=col
-                                )
-                            
-                            # Plot forecast points
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=df_forecast[date_column],
-                                    y=df_forecast[value_col],
-                                    mode='lines+markers',
-                                    name=str(x) + ' (forecast)',
-                                    line=dict(color=color_sequence[i % len(color_sequence)], dash='dot'),
-                                    marker=dict(symbol='circle-open'),
-                                    showlegend=show_legend
-                                ),
-                                row=row,
-                                col=col
-                            )
-                    else:
-                        # Normal plotting without forecast distinction
+            else:
+                matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
+
+            if matched_rows.empty:
+                continue
+
+            df_temp = matched_rows.tail(Y)
+            df_temp = sort_by_period(df_temp)
+
+            if include_forecast and 'is_forecast' in df_temp.columns:
+                df_historical = df_temp[df_temp['is_forecast'] == False]
+                df_forecast = df_temp[df_temp['is_forecast'] == True]
+            else:
+                df_historical = df_temp
+                df_forecast = pd.DataFrame(columns=df_temp.columns)
+
+            if single_selection:
+                if not df_historical.empty:
+                    fig.add_trace(
+                        go.Bar(
+                            x=df_historical[date_column],
+                            y=df_historical[value_col],
+                            name=str(x),
+                            marker=dict(color=color),
+                            showlegend=show_legend
+                        ),
+                        row=row,
+                        col=col
+                    )
+
+                if not df_forecast.empty:
+                    fig.add_trace(
+                        go.Bar(
+                            x=df_forecast[date_column],
+                            y=df_forecast[value_col],
+                            name=str(x) + ' (forecast)',
+                            marker=dict(color=color, opacity=0.6, pattern=dict(shape='/')),
+                            showlegend=show_legend
+                        ),
+                        row=row,
+                        col=col
+                    )
+
+                if not df_temp.empty:
+                    ma_series = (
+                        pd.to_numeric(df_temp[value_col], errors='coerce')
+                        .rolling(window=4, min_periods=1)
+                        .mean()
+                    )
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_temp[date_column],
+                            y=ma_series,
+                            mode='lines',
+                            name=f"{x} MA4",
+                            line=dict(color=color, width=2, dash='dash'),
+                            showlegend=show_legend
+                        ),
+                        row=row,
+                        col=col
+                    )
+
+                # Only need to process the single selection once
+                break
+
+            else:
+                if not df_historical.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_historical[date_column],
+                            y=df_historical[value_col],
+                            mode='lines+markers',
+                            name=str(x),
+                            line=dict(color=color, dash=None),
+                            showlegend=show_legend
+                        ),
+                        row=row,
+                        col=col
+                    )
+
+                if not df_forecast.empty:
+                    if not df_historical.empty:
+                        last_hist = df_historical.iloc[-1]
+                        first_forecast = df_forecast.iloc[0]
                         fig.add_trace(
                             go.Scatter(
-                                x=df_temp[date_column],
-                                y=df_temp[value_col],
-                                mode='lines+markers',
-                                name=str(x),
-                                line=dict(color=color_sequence[i % len(color_sequence)]),
-                                showlegend=show_legend
+                                x=[last_hist[date_column], first_forecast[date_column]],
+                                y=[last_hist[value_col], first_forecast[value_col]],
+                                mode='lines',
+                                name=str(x) + ' transition',
+                                line=dict(color=color, dash='dot'),
+                                showlegend=False
                             ),
                             row=row,
                             col=col
                         )
-                        
-            else:  # Bank type
-                # For aggregated bank types, TICKER column contains the bank type name directly
-                matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
-                if not matched_rows.empty:
-                    df_temp = matched_rows.tail(Y)
-                    df_temp = sort_by_period(df_temp)
-                    
-                    # Check if forecast data is included
-                    if include_forecast and 'is_forecast' in df_temp.columns:
-                        # Split into historical and forecast data
-                        df_historical = df_temp[df_temp['is_forecast'] == False]
-                        df_forecast = df_temp[df_temp['is_forecast'] == True]
-                        
-                        # Plot historical data with solid line
-                        if not df_historical.empty:
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=df_historical[date_column],
-                                    y=df_historical[value_col],
-                                    mode='lines+markers',
-                                    name=str(x),
-                                    line=dict(color=color_sequence[i % len(color_sequence)], dash=None),
-                                    showlegend=show_legend
-                                ),
-                                row=row,
-                                col=col
-                            )
-                        
-                        # Plot forecast data with dotted line
-                        if not df_forecast.empty:
-                            # Connect last historical point to first forecast point
-                            if not df_historical.empty:
-                                # Create connecting trace
-                                last_hist = df_historical.iloc[-1]
-                                first_forecast = df_forecast.iloc[0]
-                                fig.add_trace(
-                                    go.Scatter(
-                                        x=[last_hist[date_column], first_forecast[date_column]],
-                                        y=[last_hist[value_col], first_forecast[value_col]],
-                                        mode='lines',
-                                        name=str(x) + ' (forecast)',
-                                        line=dict(color=color_sequence[i % len(color_sequence)], dash='dot'),
-                                        showlegend=False
-                                    ),
-                                    row=row,
-                                    col=col
-                                )
-                            
-                            # Plot forecast points
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=df_forecast[date_column],
-                                    y=df_forecast[value_col],
-                                    mode='lines+markers',
-                                    name=str(x) + ' (forecast)',
-                                    line=dict(color=color_sequence[i % len(color_sequence)], dash='dot'),
-                                    marker=dict(symbol='circle-open'),
-                                    showlegend=show_legend
-                                ),
-                                row=row,
-                                col=col
-                            )
-                    else:
-                        # Normal plotting without forecast distinction
-                        fig.add_trace(
-                            go.Scatter(
-                                x=df_temp[date_column],
-                                y=df_temp[value_col],
-                                mode='lines+markers',
-                                name=str(x),
-                                line=dict(color=color_sequence[i % len(color_sequence)]),
-                                showlegend=show_legend
-                            ),
-                            row=row,
-                            col=col
-                        )
+
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_forecast[date_column],
+                            y=df_forecast[value_col],
+                            mode='lines+markers',
+                            name=str(x) + ' (forecast)',
+                            line=dict(color=color, dash='dot'),
+                            marker=dict(symbol='circle-open'),
+                            showlegend=show_legend
+                        ),
+                        row=row,
+                        col=col
+                    )
         
         # Update y-axis format for this subplot
         fig.update_yaxes(tickformat=tick_format, row=row, col=col)
@@ -293,6 +256,9 @@ def Bankplot(df=None, keyitem=None):
         title_text=f"Banking Metrics: {', '.join(Z)}",
         legend_title="Ticker/Type"
     )
+
+    if single_selection:
+        fig.update_layout(barmode='group')
     
     # Sort x axis - use custom sort to handle mixed quarters and forecast years
     # Fix: Use the dynamic date_column variable instead of hardcoded 'Date_Quarter'
