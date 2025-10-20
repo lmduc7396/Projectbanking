@@ -88,6 +88,21 @@ def Bankplot(df=None, keyitem=None):
 
     #Draw chart
     single_selection = len(X) == 1
+    selected_item = X[0] if single_selection else None
+
+    def prepare_selection_data(selection: str, source: pd.DataFrame) -> pd.DataFrame:
+        matched_rows = sort_by_period(source[source['TICKER'] == selection])
+        if matched_rows.empty:
+            return matched_rows
+        trimmed = matched_rows.tail(Y)
+        return sort_by_period(trimmed)
+
+    def split_actual_forecast(selection_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        if include_forecast and 'is_forecast' in selection_df.columns:
+            historical = selection_df[selection_df['is_forecast'] == False]
+            forecast = selection_df[selection_df['is_forecast'] == True]
+            return historical, forecast
+        return selection_df, pd.DataFrame(columns=selection_df.columns)
 
     for idx, z_name in enumerate(Z):
         # Use the name directly since columns already have descriptive names
@@ -130,122 +145,115 @@ def Bankplot(df=None, keyitem=None):
         else:
             tick_format = ".2%"   # Percent
     
-        for i, x in enumerate(X):
-            show_legend = (idx == 0)
-            color = color_sequence[i % len(color_sequence)]
-
-            if len(x) == 3:
-                matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
-            else:
-                matched_rows = sort_by_period(df_display[df_display['TICKER'] == x])
-
-            if matched_rows.empty:
+        if single_selection and selected_item is not None:
+            df_temp = prepare_selection_data(selected_item, df_display)
+            if df_temp.empty:
                 continue
 
-            df_temp = matched_rows.tail(Y)
-            df_temp = sort_by_period(df_temp)
+            df_historical, df_forecast = split_actual_forecast(df_temp)
+            color = color_sequence[0]
+            legend_name = str(selected_item)
+            show_legend = (idx == 0)
 
-            if include_forecast and 'is_forecast' in df_temp.columns:
-                df_historical = df_temp[df_temp['is_forecast'] == False]
-                df_forecast = df_temp[df_temp['is_forecast'] == True]
-            else:
-                df_historical = df_temp
-                df_forecast = pd.DataFrame(columns=df_temp.columns)
+            if not df_historical.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=df_historical[date_column],
+                        y=df_historical[value_col],
+                        name=legend_name,
+                        marker=dict(color=color),
+                        showlegend=show_legend
+                    ),
+                    row=row,
+                    col=col
+                )
 
-            if single_selection:
+            if not df_forecast.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=df_forecast[date_column],
+                        y=df_forecast[value_col],
+                        name=f"{legend_name} (forecast)",
+                        marker=dict(color=color, opacity=0.6, pattern=dict(shape='/')),
+                        showlegend=show_legend
+                    ),
+                    row=row,
+                    col=col
+                )
+
+            ma_series = (
+                pd.to_numeric(df_temp[value_col], errors='coerce')
+                .rolling(window=4, min_periods=1)
+                .mean()
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=df_temp[date_column],
+                    y=ma_series,
+                    mode='lines',
+                    name=f"{legend_name} MA4",
+                    line=dict(color=color, width=2, dash='dash'),
+                    showlegend=show_legend
+                ),
+                row=row,
+                col=col
+            )
+
+            continue
+
+        for i, selection in enumerate(X):
+            show_legend = (idx == 0)
+            color = color_sequence[i % len(color_sequence)]
+            df_temp = prepare_selection_data(selection, df_display)
+            if df_temp.empty:
+                continue
+
+            df_historical, df_forecast = split_actual_forecast(df_temp)
+
+            if not df_historical.empty:
+                fig.add_trace(
+                    go.Scatter(
+                        x=df_historical[date_column],
+                        y=df_historical[value_col],
+                        mode='lines+markers',
+                        name=str(selection),
+                        line=dict(color=color, dash=None),
+                        showlegend=show_legend
+                    ),
+                    row=row,
+                    col=col
+                )
+
+            if not df_forecast.empty:
                 if not df_historical.empty:
-                    fig.add_trace(
-                        go.Bar(
-                            x=df_historical[date_column],
-                            y=df_historical[value_col],
-                            name=str(x),
-                            marker=dict(color=color),
-                            showlegend=show_legend
-                        ),
-                        row=row,
-                        col=col
-                    )
-
-                if not df_forecast.empty:
-                    fig.add_trace(
-                        go.Bar(
-                            x=df_forecast[date_column],
-                            y=df_forecast[value_col],
-                            name=str(x) + ' (forecast)',
-                            marker=dict(color=color, opacity=0.6, pattern=dict(shape='/')),
-                            showlegend=show_legend
-                        ),
-                        row=row,
-                        col=col
-                    )
-
-                if not df_temp.empty:
-                    ma_series = (
-                        pd.to_numeric(df_temp[value_col], errors='coerce')
-                        .rolling(window=4, min_periods=1)
-                        .mean()
-                    )
+                    last_hist = df_historical.iloc[-1]
+                    first_forecast = df_forecast.iloc[0]
                     fig.add_trace(
                         go.Scatter(
-                            x=df_temp[date_column],
-                            y=ma_series,
+                            x=[last_hist[date_column], first_forecast[date_column]],
+                            y=[last_hist[value_col], first_forecast[value_col]],
                             mode='lines',
-                            name=f"{x} MA4",
-                            line=dict(color=color, width=2, dash='dash'),
-                            showlegend=show_legend
-                        ),
-                        row=row,
-                        col=col
-                    )
-
-                # Only need to process the single selection once
-                break
-
-            else:
-                if not df_historical.empty:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=df_historical[date_column],
-                            y=df_historical[value_col],
-                            mode='lines+markers',
-                            name=str(x),
-                            line=dict(color=color, dash=None),
-                            showlegend=show_legend
-                        ),
-                        row=row,
-                        col=col
-                    )
-
-                if not df_forecast.empty:
-                    if not df_historical.empty:
-                        last_hist = df_historical.iloc[-1]
-                        first_forecast = df_forecast.iloc[0]
-                        fig.add_trace(
-                            go.Scatter(
-                                x=[last_hist[date_column], first_forecast[date_column]],
-                                y=[last_hist[value_col], first_forecast[value_col]],
-                                mode='lines',
-                                name=str(x) + ' transition',
-                                line=dict(color=color, dash='dot'),
-                                showlegend=False
-                            ),
-                            row=row,
-                            col=col
-                        )
-
-                    fig.add_trace(
-                        go.Scatter(
-                            x=df_forecast[date_column],
-                            y=df_forecast[value_col],
-                            mode='lines+markers',
-                            name=str(x) + ' (forecast)',
+                            name=str(selection) + ' transition',
                             line=dict(color=color, dash='dot'),
-                            marker=dict(symbol='circle-open'),
-                            showlegend=show_legend
+                            showlegend=False
                         ),
                         row=row,
                         col=col
                     )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=df_forecast[date_column],
+                        y=df_forecast[value_col],
+                        mode='lines+markers',
+                        name=str(selection) + ' (forecast)',
+                        line=dict(color=color, dash='dot'),
+                        marker=dict(symbol='circle-open'),
+                        showlegend=show_legend
+                    ),
+                    row=row,
+                    col=col
+                )
         
         # Update y-axis format for this subplot
         fig.update_yaxes(tickformat=tick_format, row=row, col=col)
