@@ -64,6 +64,14 @@ def Bankplot(df=None, keyitem=None):
         'Total Liabilities', 'Gross Loan', 'Net Loan', 'Cash',
         'Interbank Assets', 'Securities', 'Other Income'
     ]
+
+    percentage_metrics = {
+        'NIM', 'Loan yield', 'Deposit yield', 'ROA', 'ROE', 'NPL',
+        'GROUP 2', 'LDR', 'NPL Coverage ratio', 'Provision/ Total Loan',
+        'CAR', 'Cost of Fund', 'CASA', 'Credit growth', 'TOI growth',
+        'PBT growth', 'Loan growth', 'Deposit growth', 'ROE (Annualized)',
+        'ROA (Annualized)', 'NPL <=90 days', 'NPL >90 days'
+    }
     
     def sort_by_period(df_input: pd.DataFrame) -> pd.DataFrame:
         if date_column == 'Year':
@@ -112,9 +120,10 @@ def Bankplot(df=None, keyitem=None):
         # Use the name directly since columns already have descriptive names
         value_col = z_name
         
-        # Check if this metric should be in billions
+        # Check if this metric needs special formatting
         is_billion_metric = value_col in billion_scale_metrics
-        
+        is_percentage_metric = value_col in percentage_metrics
+
         # Create a copy of the data for this metric and ensure numeric dtype
         df_display = df.copy()
         df_display[value_col] = pd.to_numeric(df_display[value_col], errors='coerce')
@@ -124,6 +133,9 @@ def Bankplot(df=None, keyitem=None):
                 lambda v: float(v) / 1e9 if pd.notnull(v) else float('nan')
             )
             subplot_title = f"{z_name} (B VND)"
+        elif is_percentage_metric:
+            df_display[value_col] = df_display[value_col] * 100
+            subplot_title = f"{z_name} (%)"
         else:
             subplot_title = z_name
         
@@ -141,13 +153,16 @@ def Bankplot(df=None, keyitem=None):
         col = idx % 2 + 1
         
         # Adjusted formatting logic
+        tick_suffix = None
         if is_billion_metric:
-            # For billion-scale metrics, use comma formatting
-            tick_format = ",.0f"  # Show as whole numbers with commas
+            tick_format = ",.0f"
+        elif is_percentage_metric:
+            tick_format = ",.1f"
+            tick_suffix = "%"
         elif median_value > 10:
-            tick_format = ",.2s"  # SI units: k, M, B (for other large numbers)
+            tick_format = ",.2s"
         else:
-            tick_format = ".2%"   # Percent
+            tick_format = ".2f"
     
         if single_selection and selected_item is not None:
             df_temp = prepare_selection_data(selected_item, df_display)
@@ -266,13 +281,20 @@ def Bankplot(df=None, keyitem=None):
                 )
         
         # Update y-axis format for this subplot
-        fig.update_yaxes(tickformat=tick_format, row=row, col=col)
+        fig.update_yaxes(
+            tickformat=tick_format,
+            ticksuffix=tick_suffix,
+            automargin=True,
+            row=row,
+            col=col
+        )
   
     fig.update_layout(
         width=1400,
-        height=1200,
+        height=max(600, rows * 360),
         title_text=f"Banking Metrics: {', '.join(Z)}",
-        legend_title="Ticker/Type"
+        legend_title="Ticker/Type",
+        margin=dict(l=70, r=30, t=80, b=50)
     )
 
     if single_selection:
