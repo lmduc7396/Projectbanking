@@ -215,7 +215,7 @@ def Bankplot(df=None, keyitem=None):
                     y=ma_series,
                     mode='lines+markers',
                     name=f"{legend_name} MA4",
-                    line=dict(color=ma_line_color, width=2, dash='dash'),
+                    line=dict(color=ma_line_color, width=2, dash='solid'),
                     marker=dict(symbol='diamond', size=7, color=ma_line_color),
                     showlegend=show_legend
                 ),
