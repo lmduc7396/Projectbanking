@@ -99,8 +99,8 @@ def Bankplot(df=None, keyitem=None):
     selected_item = X[0] if single_selection else None
 
     ma_line_color = '#F95D6A'
-    single_actual_color = '#4CAF50'
-    single_forecast_color = '#A5D6A7'
+    single_actual_color = '#61C2A8'
+    single_forecast_color = '#A8E0D1'
 
     def prepare_selection_data(selection: str, source: pd.DataFrame) -> pd.DataFrame:
         matched_rows = sort_by_period(source[source['TICKER'] == selection])
