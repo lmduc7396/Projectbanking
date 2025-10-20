@@ -90,6 +90,8 @@ def Bankplot(df=None, keyitem=None):
     single_selection = len(X) == 1
     selected_item = X[0] if single_selection else None
 
+    ma_line_color = '#2F4B7C'
+
     def prepare_selection_data(selection: str, source: pd.DataFrame) -> pd.DataFrame:
         matched_rows = sort_by_period(source[source['TICKER'] == selection])
         if matched_rows.empty:
@@ -192,7 +194,7 @@ def Bankplot(df=None, keyitem=None):
                     y=ma_series,
                     mode='lines',
                     name=f"{legend_name} MA4",
-                    line=dict(color=color, width=2, dash='dash'),
+                    line=dict(color=ma_line_color, width=2, dash='dash'),
                     showlegend=show_legend
                 ),
                 row=row,
