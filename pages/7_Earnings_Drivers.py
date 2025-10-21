@@ -66,7 +66,7 @@ if quarterly_df is not None and yearly_df is not None:
     
     # Data type selection
     st.sidebar.header("Data Selection")
-    data_type = st.sidebar.radio("Select Data Type", ["Yearly", "Quarterly"])
+    data_type = st.sidebar.radio("Select Data Type", ["Quarterly", "Yearly"])
     
     # Comparison period selection for quarterly data
     comparison_suffix = ""
