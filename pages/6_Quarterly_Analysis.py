@@ -38,24 +38,18 @@ except Exception as exc:  # pymssql or connection string issues
     SQL_IMPORT_ERROR = exc
 
 
-QUARTERLY_ANALYSIS_QUERY = """
-    SELECT quarter,
-           analysis_text,
-           bank_count,
-           generated_date,
-           status
-    FROM dbo.QuarterlyAnalysis
-"""
-
 COMMENTS_QUERY = """
-    SELECT TICKER,
-           SECTOR,
-           QUARTER,
-           COMMENT,
-           GENERATED_DATE,
-           GENERATED_AT
+    SELECT *
     FROM dbo.Banking_Comments
 """
+
+QUARTER_COLUMN_CANDIDATES = [
+    'quarter',
+    'date_quarter',
+    'date',
+    'period',
+    'date_string'
+]
 
 
 def _normalize_generated_columns(df: pd.DataFrame, column_candidates: list[str]) -> pd.Series:
@@ -71,26 +65,8 @@ def _fetch_quarterly_analysis_sql() -> pd.DataFrame:
     if read_sql is None:
         raise RuntimeError("SQL access is not available: pymssql driver missing or connection string unset")
 
-    df = read_sql(QUARTERLY_ANALYSIS_QUERY, db="target")
-    if df.empty:
-        return df
-
-    df = df.rename(columns=str.lower)
-    df['generated_date'] = _normalize_generated_columns(df, ['generated_date', 'generated_at'])
-
-    if 'bank_count' not in df.columns:
-        df['bank_count'] = pd.NA
-    if 'status' not in df.columns:
-        df['status'] = 'success'
-
-    expected_cols = ['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status']
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = pd.NA
-
-    df = df[expected_cols]
-    df['quarter'] = df['quarter'].astype(str)
-    return df
+    comments_df = _fetch_comments_sql()
+    return _build_quarterly_analysis_from_comments(comments_df)
 
 
 @st.cache_data(ttl=600)
@@ -106,6 +82,10 @@ def _fetch_comments_sql() -> pd.DataFrame:
     df['generated_date'] = _normalize_generated_columns(df, ['generated_date', 'generated_at'])
     df['generated_display'] = df['generated_date']
 
+    quarter_col = next((col for col in QUARTER_COLUMN_CANDIDATES if col in df.columns), None)
+    if quarter_col is not None:
+        df['quarter'] = df[quarter_col].astype(str)
+
     expected_cols = ['ticker', 'sector', 'quarter', 'comment', 'generated_date', 'generated_display']
     for col in expected_cols:
         if col not in df.columns:
@@ -113,6 +93,53 @@ def _fetch_comments_sql() -> pd.DataFrame:
 
     df['quarter'] = df['quarter'].astype(str)
     return df
+
+
+def _build_quarterly_analysis_from_comments(comments_df: pd.DataFrame) -> pd.DataFrame:
+    if comments_df.empty:
+        return pd.DataFrame(columns=['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status'])
+
+    required_columns = {'ticker', 'comment', 'quarter'}
+    if not required_columns.issubset(set(comments_df.columns)):
+        return pd.DataFrame(columns=['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status'])
+
+    working_df = comments_df.copy()
+    if 'generated_date' not in working_df.columns:
+        working_df['generated_date'] = pd.NaT
+
+    ticker_series = working_df['ticker'].astype(str).str.lower()
+
+    sector_df = working_df[ticker_series == 'sector'].copy()
+    if sector_df.empty:
+        return pd.DataFrame(columns=['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status'])
+
+    sector_df['analysis_text'] = sector_df['comment']
+    sector_df = sector_df.sort_values(['quarter', 'generated_date'], ascending=[True, True], na_position='last')
+    latest_sector = sector_df.groupby('quarter', as_index=False, sort=False).tail(1)
+
+    analysis_df = latest_sector[['quarter', 'analysis_text', 'generated_date']].copy()
+    analysis_df['status'] = 'success'
+
+    non_sector_df = working_df[ticker_series != 'sector']
+    if 'quarter' in non_sector_df.columns:
+        bank_counts = (
+            non_sector_df.groupby('quarter', dropna=False)
+            .size()
+            .rename('bank_count')
+            .reset_index()
+        )
+        analysis_df = analysis_df.merge(bank_counts, on='quarter', how='left')
+    else:
+        analysis_df['bank_count'] = pd.NA
+
+    expected_cols = ['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status']
+    for col in expected_cols:
+        if col not in analysis_df.columns:
+            analysis_df[col] = pd.NA
+
+    analysis_df['quarter'] = analysis_df['quarter'].astype(str)
+    analysis_df = analysis_df.sort_values('quarter', ascending=False).reset_index(drop=True)
+    return analysis_df[expected_cols]
 
 
 def quarterly_analysis_page():
