@@ -9,9 +9,7 @@ st.set_page_config(
 
 import pandas as pd
 import os
-from datetime import datetime
 import sys
-import openai
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -30,23 +28,90 @@ apply_google_font()
 apply_sidebar_style()
 
 # Import utilities
-from utilities.quarter_utils import quarter_sort_key, sort_quarters
-from utilities.data_access import load_comments, load_quarterly_analysis
+from utilities.quarter_utils import sort_quarters
+
+try:
+    from utilities.db import read_sql
+    SQL_IMPORT_ERROR = None
+except Exception as exc:  # pymssql or connection string issues
+    read_sql = None  # type: ignore
+    SQL_IMPORT_ERROR = exc
+
+
+QUARTERLY_ANALYSIS_QUERY = """
+    SELECT quarter,
+           analysis_text,
+           bank_count,
+           generated_date,
+           status
+    FROM dbo.QuarterlyAnalysis
+"""
+
+COMMENTS_QUERY = """
+    SELECT TICKER,
+           SECTOR,
+           QUARTER,
+           COMMENT,
+           GENERATED_DATE,
+           GENERATED_AT
+    FROM dbo.Banking_Comments
+"""
+
+
+def _normalize_generated_columns(df: pd.DataFrame, column_candidates: list[str]) -> pd.Series:
+    generated = pd.Series(pd.NaT, index=df.index)
+    for col in column_candidates:
+        if col in df.columns:
+            generated = generated.fillna(pd.to_datetime(df[col], errors='coerce'))
+    return generated
 
 
 @st.cache_data(ttl=1800)
-def _load_quarterly_analysis():
-    df = load_quarterly_analysis()
-    if not df.empty and 'generated_date' in df.columns:
-        df['generated_date'] = pd.to_datetime(df['generated_date'], errors='coerce')
+def _fetch_quarterly_analysis_sql() -> pd.DataFrame:
+    if read_sql is None:
+        raise RuntimeError("SQL access is not available: pymssql driver missing or connection string unset")
+
+    df = read_sql(QUARTERLY_ANALYSIS_QUERY, db="target")
+    if df.empty:
+        return df
+
+    df = df.rename(columns=str.lower)
+    df['generated_date'] = _normalize_generated_columns(df, ['generated_date', 'generated_at'])
+
+    if 'bank_count' not in df.columns:
+        df['bank_count'] = pd.NA
+    if 'status' not in df.columns:
+        df['status'] = 'success'
+
+    expected_cols = ['quarter', 'analysis_text', 'bank_count', 'generated_date', 'status']
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = pd.NA
+
+    df = df[expected_cols]
+    df['quarter'] = df['quarter'].astype(str)
     return df
 
 
 @st.cache_data(ttl=600)
-def _load_comments():
-    df = load_comments()
-    if not df.empty and 'GENERATED_DATE' in df.columns:
-        df['generated_display'] = pd.to_datetime(df['GENERATED_DATE'], errors='coerce')
+def _fetch_comments_sql() -> pd.DataFrame:
+    if read_sql is None:
+        raise RuntimeError("SQL access is not available: pymssql driver missing or connection string unset")
+
+    df = read_sql(COMMENTS_QUERY, db="target")
+    if df.empty:
+        return df
+
+    df = df.rename(columns={col: col.lower() for col in df.columns})
+    df['generated_date'] = _normalize_generated_columns(df, ['generated_date', 'generated_at'])
+    df['generated_display'] = df['generated_date']
+
+    expected_cols = ['ticker', 'sector', 'quarter', 'comment', 'generated_date', 'generated_display']
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = pd.NA
+
+    df['quarter'] = df['quarter'].astype(str)
     return df
 
 
@@ -54,8 +119,25 @@ def quarterly_analysis_page():
     st.title("Quarterly Banking Analysis")
     st.markdown("Comprehensive AI-powered analysis of banking comments for specific quarters")
     
-    analysis_df = _load_quarterly_analysis()
-    comments_df = _load_comments()
+    if read_sql is None:
+        st.error("SQL access is unavailable. Please install the SQL driver and set the TARGET_DB connection string.")
+        if SQL_IMPORT_ERROR:
+            st.caption(f"Driver import error: {SQL_IMPORT_ERROR}")
+        return
+
+    try:
+        analysis_df = _fetch_quarterly_analysis_sql()
+    except Exception as exc:
+        st.error("Unable to load quarterly analysis from the SQL database.")
+        st.caption(str(exc))
+        return
+
+    try:
+        comments_df = _fetch_comments_sql()
+    except Exception as exc:
+        st.warning("Banking comments could not be loaded from SQL; continuing without comments.")
+        st.caption(str(exc))
+        comments_df = pd.DataFrame()
 
     if not analysis_df.empty:
         try:
@@ -96,7 +178,7 @@ def quarterly_analysis_page():
                 # Load comments data for raw data viewer (if available)
                 quarter_comments = pd.DataFrame()
                 if not comments_df.empty:
-                    quarter_comments = comments_df[comments_df['QUARTER'] == selected_quarter]
+                    quarter_comments = comments_df[comments_df['quarter'] == selected_quarter]
 
                 st.subheader(f"AI Analysis Results for {selected_quarter}")
 
@@ -114,21 +196,21 @@ def quarterly_analysis_page():
 
                         display_df = quarter_comments.copy()
                         if 'generated_display' in display_df.columns:
-                            display_df['Generated'] = display_df['generated_display'].dt.strftime('%Y-%m-%d %H:%M')
+                            display_df['generated'] = display_df['generated_display'].dt.strftime('%Y-%m-%d %H:%M')
                         else:
-                            display_df['Generated'] = ''
+                            display_df['generated'] = ''
 
-                        display_df = display_df[['TICKER', 'SECTOR', 'COMMENT', 'Generated']]
+                        display_df = display_df[['ticker', 'sector', 'comment', 'generated']]
 
                         st.dataframe(
                             display_df,
                             use_container_width=True,
                             hide_index=True,
                             column_config={
-                                "TICKER": st.column_config.TextColumn("Bank", width="small"),
-                                "SECTOR": st.column_config.TextColumn("Sector", width="small"),
-                                "COMMENT": st.column_config.TextColumn("Analysis Comment", width="large"),
-                                "Generated": st.column_config.TextColumn("Generated", width="small")
+                                "ticker": st.column_config.TextColumn("Bank", width="small"),
+                                "sector": st.column_config.TextColumn("Sector", width="small"),
+                                "comment": st.column_config.TextColumn("Analysis Comment", width="large"),
+                                "generated": st.column_config.TextColumn("Generated", width="small")
                             }
                         )
             
