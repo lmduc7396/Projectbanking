@@ -196,6 +196,8 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
 
         # --- Remove Date_Quarter column (columns already have friendly names) ---
         df_temp_table = df_temp_table.iloc[:, 1:]
+        base_dates = df_temp[[date_column]].reset_index(drop=True)
+        df_temp_table = df_temp_table.reset_index(drop=True)
 
         # --- Only add growth columns for table 1 (Earnings metrics) ---
         if table_name == "Earnings metrics":
@@ -209,16 +211,19 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
             # --- Combine Data Based on User Choice (QoQ or YoY) ---
             if Z == 'QoQ' and is_quarterly:
                 growth_values = pd.DataFrame()
+                growth_values = pd.DataFrame(index=base_dates.index)
+                expected_cols = [f"{name} QoQ (%)" for name in cols_names['Name'].tolist()]
                 if not QoQ_change.empty:
+                    aligned = QoQ_change.copy()
+                    aligned[date_column] = aligned[date_column].astype(str)
+                    target_keys = base_dates[date_column].astype(str)
                     growth_values = (
-                        pd.merge(
-                            df_temp[[date_column]],
-                            QoQ_change,
-                            on=date_column,
-                            how='left'
-                        ).drop(columns=[date_column])
+                        aligned.set_index(date_column)
+                        .reindex(pd.Index(target_keys))
                     )
-                df_out = pd.concat([df_temp[[date_column]], df_temp_table, growth_values], axis=1)
+                    growth_values.index = base_dates.index
+                growth_values = growth_values.reindex(columns=expected_cols, fill_value=pd.NA)
+                df_out = pd.concat([base_dates, df_temp_table, growth_values], axis=1)
                 # Create column order dynamically
                 col_order = [date_column]
                 for i, name in enumerate(cols_names['Name'].tolist()):
@@ -228,16 +233,19 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
             else:
                 # For yearly data or when YoY is selected
                 growth_values = pd.DataFrame()
+                growth_values = pd.DataFrame(index=base_dates.index)
+                expected_cols = [f"{name} YoY (%)" for name in cols_names['Name'].tolist()]
                 if not YoY_change.empty:
+                    aligned = YoY_change.copy()
+                    aligned[date_column] = aligned[date_column].astype(str)
+                    target_keys = base_dates[date_column].astype(str)
                     growth_values = (
-                        pd.merge(
-                            df_temp[[date_column]],
-                            YoY_change,
-                            on=date_column,
-                            how='left'
-                        ).drop(columns=[date_column])
+                        aligned.set_index(date_column)
+                        .reindex(pd.Index(target_keys))
                     )
-                df_out = pd.concat([df_temp[[date_column]], df_temp_table, growth_values], axis=1)
+                    growth_values.index = base_dates.index
+                growth_values = growth_values.reindex(columns=expected_cols, fill_value=pd.NA)
+                df_out = pd.concat([base_dates, df_temp_table, growth_values], axis=1)
                 # Create column order dynamically
                 col_order = [date_column]
                 for i, name in enumerate(cols_names['Name'].tolist()):
@@ -246,7 +254,7 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
                         col_order.append(f"{name} YoY (%)")
         else:
             # For table 2 (Ratios), don't add growth columns
-            df_out = pd.concat([df_temp[[date_column]], df_temp_table], axis=1)
+            df_out = pd.concat([base_dates, df_temp_table], axis=1)
             col_order = [date_column] + cols_names['Name'].tolist()
 
         # --- Reindex, Select Last Y Periods, Transpose for Display ---
