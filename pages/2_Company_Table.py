@@ -12,6 +12,7 @@ import plotly.express as px
 import numpy as np
 import sys
 import os
+from utilities.quarter_utils import sort_quarters
 
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,6 +22,193 @@ sys.path.append(project_root)
 from utilities.style_utils import apply_google_font
 from utilities.sidebar_style import apply_sidebar_style
 from utilities.data_access import load_banking_metrics, load_banking_forecast
+
+
+AGGREGATED_TYPES = ['Sector', 'SOCB', 'Private_1', 'Private_2', 'Private_3']
+
+
+SUM_AGG_COLUMNS = {
+    'Loan',
+    'TOI',
+    'Provision expense',
+    'PBT',
+    'NPATMI',
+    'Total Assets',
+    'Total Equity',
+    'Net Interest Income',
+    'Deposit',
+    'OPEX',
+    'PPOP',
+    'Fees Income',
+    'Provision on Balance Sheet',
+    'Write-off'
+}
+
+
+WEIGHTED_RATIO_METRICS = {
+    'Loan yield': 'Loan',
+    'NPL': 'Loan',
+    'GROUP 2': 'Loan',
+    'New NPL': 'Loan',
+    'New G2': 'Loan',
+    'NPL Coverage ratio': 'Loan',
+    'Provision/ Total Loan': 'Loan'
+}
+
+
+def _first_valid(series: pd.Series):
+    valid = series.dropna()
+    if valid.empty:
+        return pd.NA
+    return valid.iloc[0]
+
+
+def _safe_sum(series: pd.Series):
+    if series.empty:
+        return pd.NA
+    total = series.sum(min_count=1)
+    return total if not pd.isna(total) else pd.NA
+
+
+def _ratio(group: pd.DataFrame, numerator: str, denominator: str):
+    if numerator not in group.columns or denominator not in group.columns:
+        return pd.NA
+    num = _safe_sum(pd.to_numeric(group[numerator], errors='coerce'))
+    den = _safe_sum(pd.to_numeric(group[denominator], errors='coerce'))
+    if pd.isna(num) or pd.isna(den) or den == 0:
+        return pd.NA
+    return num / den
+
+
+def _weighted_avg(group: pd.DataFrame, value_col: str, weight_col: str):
+    if value_col not in group.columns or weight_col not in group.columns:
+        return pd.NA
+    values = pd.to_numeric(group[value_col], errors='coerce')
+    weights = pd.to_numeric(group[weight_col], errors='coerce')
+    mask = (~values.isna()) & (~weights.isna()) & (weights != 0)
+    if not mask.any():
+        return pd.NA
+    total_weight = weights[mask].sum()
+    if pd.isna(total_weight) or total_weight == 0:
+        return pd.NA
+    return (values[mask] * weights[mask]).sum() / total_weight
+
+
+def _aggregate_subset(subset: pd.DataFrame, label: str, period_col: str, is_quarterly: bool) -> pd.DataFrame:
+    if subset.empty:
+        return pd.DataFrame()
+
+    group_cols = [period_col]
+    if 'is_forecast' in subset.columns:
+        group_cols.append('is_forecast')
+
+    aggregated_rows: list[dict] = []
+    for keys, group in subset.groupby(group_cols, dropna=False):
+        if isinstance(keys, tuple):
+            period_value, is_forecast = keys
+        else:
+            period_value = keys
+            is_forecast = False
+
+        row = {
+            'TICKER': label,
+            'Type': label,
+            period_col: period_value,
+            'is_forecast': bool(is_forecast) if 'is_forecast' in subset.columns else False
+        }
+
+        if 'Year' in group.columns:
+            row['Year'] = _first_valid(group['Year'])
+        if 'Quarter' in group.columns:
+            row['Quarter'] = _first_valid(group['Quarter'])
+        if 'YEARREPORT' in group.columns:
+            row['YEARREPORT'] = _first_valid(group['YEARREPORT'])
+        if 'LENGTHREPORT' in group.columns:
+            row['LENGTHREPORT'] = _first_valid(group['LENGTHREPORT'])
+        if 'ENDDATE_x' in group.columns:
+            row['ENDDATE_x'] = _first_valid(group['ENDDATE_x'])
+
+        for col in SUM_AGG_COLUMNS:
+            if col in group.columns:
+                row[col] = _safe_sum(pd.to_numeric(group[col], errors='coerce'))
+
+        row['ROA'] = _ratio(group, 'NPATMI', 'Total Assets')
+        row['ROE'] = _ratio(group, 'NPATMI', 'Total Equity')
+        row['NIM'] = _ratio(group, 'Net Interest Income', 'Loan')
+
+        for metric, weight_col in WEIGHTED_RATIO_METRICS.items():
+            row[metric] = _weighted_avg(group, metric, weight_col)
+
+        aggregated_rows.append(row)
+
+    result = pd.DataFrame(aggregated_rows)
+
+    if result.empty:
+        return result
+
+    if is_quarterly and period_col == 'Date_Quarter':
+        order = sort_quarters(result[period_col].astype(str).tolist())
+        category = pd.Categorical(result[period_col].astype(str), categories=order, ordered=True)
+        result = result.assign(_order=category).sort_values('_order').drop(columns=['_order'])
+    else:
+        result = result.sort_values(period_col)
+
+    return result.reset_index(drop=True)
+
+
+def rebuild_dynamic_aggregates(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+
+    df = df.copy()
+    if 'is_forecast' not in df.columns:
+        df['is_forecast'] = False
+
+    period_col = 'Date_Quarter' if 'Date_Quarter' in df.columns else 'Year'
+    is_quarterly = period_col == 'Date_Quarter'
+
+    base_mask = df['TICKER'].astype(str).str.len() == 3
+    base_df = df[base_mask].copy()
+
+    aggregated_frames: list[pd.DataFrame] = []
+
+    for label in AGGREGATED_TYPES:
+        subset = base_df if label == 'Sector' else base_df[base_df['Type'] == label]
+        if subset.empty:
+            continue
+
+        actual_subset = subset[subset['is_forecast'] == False]
+        coverage_tickers = subset['TICKER'].unique()
+
+        if not actual_subset.empty:
+            period_series = actual_subset[period_col].dropna().astype(str)
+            if not period_series.empty:
+                if is_quarterly:
+                    ordered_periods = sort_quarters(period_series.unique().tolist())
+                    if ordered_periods:
+                        latest_period = ordered_periods[-1]
+                        coverage_tickers = actual_subset[
+                            actual_subset[period_col].astype(str) == latest_period
+                        ]['TICKER'].unique()
+                else:
+                    numeric_periods = pd.to_numeric(period_series, errors='coerce').dropna()
+                    if not numeric_periods.empty:
+                        latest_value = numeric_periods.max()
+                        coverage_tickers = actual_subset[
+                            pd.to_numeric(actual_subset[period_col], errors='coerce') == latest_value
+                        ]['TICKER'].unique()
+
+        if len(coverage_tickers) == 0:
+            coverage_tickers = subset['TICKER'].unique()
+
+        filtered = subset[subset['TICKER'].isin(coverage_tickers)]
+        aggregated_frames.append(_aggregate_subset(filtered, label, period_col, is_quarterly))
+
+    aggregated_df = pd.concat(aggregated_frames, ignore_index=True) if aggregated_frames else pd.DataFrame()
+    non_aggregated_df = df[~df['TICKER'].isin(AGGREGATED_TYPES)]
+
+    combined = pd.concat([non_aggregated_df, aggregated_df], ignore_index=True)
+    return combined
 
 # Apply Google Fonts
 apply_google_font()
@@ -113,6 +301,8 @@ else:
         df['is_forecast'] = False
         if 'Year' in df.columns:
             df = df[df['Year'].isna() | (df['Year'] <= last_historical_year)]
+
+df = rebuild_dynamic_aggregates(df)
 
 # Conditional format function
 def conditional_format(df):

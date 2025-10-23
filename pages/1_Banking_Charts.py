@@ -74,14 +74,23 @@ def filter_incomplete_aggregates(
         .nunique()
     )
 
-    if reported_counts.empty:
-        return combined_df
-
     valid_periods: dict[str, set[str]] = {}
-    for (agg_type, period_key), count in reported_counts.items():
-        expected = expected_counts.get(agg_type)
-        if expected and count >= expected:
-            valid_periods.setdefault(agg_type, set()).add(period_key)
+    if not reported_counts.empty:
+        for (agg_type, period_key), count in reported_counts.items():
+            expected = expected_counts.get(agg_type)
+            if expected and count >= expected:
+                valid_periods.setdefault(agg_type, set()).add(period_key)
+
+    if "Sector" in expected_counts:
+        sector_expected = expected_counts["Sector"]
+        sector_counts = (
+            bank_rows.groupby("period_key")["TICKER"]
+            .nunique()
+            .to_dict()
+        )
+        for period_key, count in sector_counts.items():
+            if count >= sector_expected:
+                valid_periods.setdefault("Sector", set()).add(period_key)
 
     if not valid_periods:
         return combined_df
