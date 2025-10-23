@@ -170,45 +170,78 @@ def rebuild_dynamic_aggregates(df: pd.DataFrame) -> pd.DataFrame:
     base_mask = df['TICKER'].astype(str).str.len() == 3
     base_df = df[base_mask].copy()
 
-    aggregated_frames: list[pd.DataFrame] = []
+    actual_base = base_df[base_df['is_forecast'] == False]
+    if actual_base.empty or actual_base[period_col].dropna().empty:
+        return df
+
+    period_series = actual_base[period_col].dropna().astype(str)
+    if is_quarterly:
+        ordered_periods = sort_quarters(period_series.unique().tolist())
+        if not ordered_periods:
+            return df
+        latest_period_key = ordered_periods[-1]
+    else:
+        numeric_periods = pd.to_numeric(period_series, errors='coerce').dropna()
+        if numeric_periods.empty:
+            return df
+        latest_period_key = str(int(numeric_periods.max()))
+
+    dynamic_rows: list[pd.DataFrame] = []
 
     for label in AGGREGATED_TYPES:
         subset = base_df if label == 'Sector' else base_df[base_df['Type'] == label]
         if subset.empty:
             continue
 
-        actual_subset = subset[subset['is_forecast'] == False]
-        coverage_tickers = subset['TICKER'].unique()
+        subset_latest = subset[
+            (subset['is_forecast'] == False)
+            & (subset[period_col].astype(str) == latest_period_key)
+        ]
+        coverage_tickers = subset_latest['TICKER'].unique()
+        if coverage_tickers.size == 0:
+            continue
 
-        if not actual_subset.empty:
-            period_series = actual_subset[period_col].dropna().astype(str)
-            if not period_series.empty:
-                if is_quarterly:
-                    ordered_periods = sort_quarters(period_series.unique().tolist())
-                    if ordered_periods:
-                        latest_period = ordered_periods[-1]
-                        coverage_tickers = actual_subset[
-                            actual_subset[period_col].astype(str) == latest_period
-                        ]['TICKER'].unique()
-                else:
-                    numeric_periods = pd.to_numeric(period_series, errors='coerce').dropna()
-                    if not numeric_periods.empty:
-                        latest_value = numeric_periods.max()
-                        coverage_tickers = actual_subset[
-                            pd.to_numeric(actual_subset[period_col], errors='coerce') == latest_value
-                        ]['TICKER'].unique()
+        filtered = subset[
+            subset['TICKER'].isin(coverage_tickers)
+            & (subset[period_col].astype(str) == latest_period_key)
+        ]
 
-        if len(coverage_tickers) == 0:
-            coverage_tickers = subset['TICKER'].unique()
+        aggregated = _aggregate_subset(filtered, label, period_col, is_quarterly)
+        if aggregated.empty:
+            continue
 
-        filtered = subset[subset['TICKER'].isin(coverage_tickers)]
-        aggregated_frames.append(_aggregate_subset(filtered, label, period_col, is_quarterly))
+        aggregated = aggregated[aggregated[period_col].astype(str) == latest_period_key]
+        if aggregated.empty:
+            continue
 
-    aggregated_df = pd.concat(aggregated_frames, ignore_index=True) if aggregated_frames else pd.DataFrame()
-    non_aggregated_df = df[~df['TICKER'].isin(AGGREGATED_TYPES)]
+        dynamic_rows.append(aggregated)
 
-    combined = pd.concat([non_aggregated_df, aggregated_df], ignore_index=True)
-    return combined
+    if not dynamic_rows:
+        return df
+
+    replacement_rows = pd.concat(dynamic_rows, ignore_index=True)
+
+    drop_mask = (
+        df['TICKER'].isin(AGGREGATED_TYPES)
+        & (df['is_forecast'] == False)
+        & (df[period_col].astype(str) == latest_period_key)
+    )
+
+    preserved = df[~drop_mask].copy()
+    combined = pd.concat([preserved, replacement_rows], ignore_index=True)
+
+    if is_quarterly:
+        order = sort_quarters(combined[period_col].dropna().astype(str).unique().tolist())
+        category = pd.Categorical(combined[period_col].astype(str), categories=order, ordered=True)
+        combined = (
+            combined.assign(_order=category)
+            .sort_values(['_order', 'TICKER'])
+            .drop(columns=['_order'])
+        )
+    else:
+        combined = combined.sort_values([period_col, 'TICKER'])
+
+    return combined.reset_index(drop=True)
 
 # Apply Google Fonts
 apply_google_font()

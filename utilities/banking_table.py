@@ -54,19 +54,52 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
         df_temp = df[df['TICKER'] == X]
 
     # --- Calculate Growth Tables ---
-    def get_growth_table(df_, period, suffix, cols_names):
+    def get_growth_table(df_, period, suffix, cols_names, growth_source=None):
         """Calculate growth (%) and return formatted DataFrame."""
+
         cols_keep_final = [date_column] + cols_names['Name'].tolist()
-        df_filtered = df_[cols_keep_final]
-        growth = df_filtered.iloc[:, 1:].pct_change(periods=period, fill_method=None)
-        growth = growth.add_suffix(f' {suffix} (%)')
-        return pd.concat([df_filtered[date_column], growth], axis=1)
+        source = growth_source if growth_source is not None else df_
+
+        source_filtered = source[[date_column]].copy()
+        for col in cols_names['Name']:
+            if col in source.columns:
+                source_filtered[col] = source[col]
+            else:
+                source_filtered[col] = pd.NA
+
+        source_filtered = source_filtered.dropna(subset=[date_column])
+        if source_filtered.empty:
+            growth_cols = [f"{col} {suffix} (%)" for col in cols_names['Name']]
+            return pd.DataFrame(columns=[date_column] + growth_cols)
+
+        if is_quarterly:
+            order = sort_quarters(source_filtered[date_column].astype(str).tolist())
+            category = pd.Categorical(
+                source_filtered[date_column].astype(str),
+                categories=order,
+                ordered=True
+            )
+            source_filtered = (
+                source_filtered.assign(_order=category)
+                .sort_values('_order')
+                .drop(columns=['_order'])
+            )
+        else:
+            source_filtered = source_filtered.sort_values(date_column)
+
+        growth_values = source_filtered.iloc[:, 1:].pct_change(periods=period, fill_method=None)
+        growth_values = growth_values.add_suffix(f' {suffix} (%)')
+
+        return pd.concat([
+            source_filtered[[date_column]].reset_index(drop=True),
+            growth_values.reset_index(drop=True)
+        ], axis=1)
 
     def get_ytd_growth_table(df_, cols_names):
         """Calculate YTD growth (%) from current quarter to Q4 of previous year."""
         cols_keep_final = [date_column] + cols_names['Name'].tolist()
         df_filtered = df_[cols_keep_final].copy()
-        
+
         if is_quarterly:
             # Extract year and quarter from Date_Quarter (format: YYYY-Q#)
             df_filtered['Year'] = df_filtered[date_column].str.extract(r'(\d{4})-Q').astype(int)
@@ -102,25 +135,90 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
         
         return ytd_growth[[date_column] + [col for col in ytd_growth.columns if 'YTD (%)' in col]]
 
-    def create_table(cols_names, table_name):
+    def build_growth_aggregate(subset_df: pd.DataFrame, label: str) -> pd.DataFrame:
+        if subset_df.empty:
+            return pd.DataFrame()
+
+        numeric_prep = subset_df.copy()
+        numeric_columns = [
+            'Loan', 'TOI', 'Provision expense', 'PBT',
+            'NPATMI', 'Total Assets', 'Total Equity'
+        ]
+        for col in numeric_columns:
+            if col in numeric_prep.columns:
+                numeric_prep[col] = pd.to_numeric(numeric_prep[col], errors='coerce')
+
+        aggregated_rows: list[dict] = []
+        for period_value, group in numeric_prep.groupby(date_column):
+            row = {date_column: period_value}
+
+            def sum_column(column: str):
+                if column in group.columns:
+                    return group[column].sum(min_count=1)
+                return pd.NA
+
+            row['Loan'] = sum_column('Loan')
+            row['TOI'] = sum_column('TOI')
+            row['Provision expense'] = sum_column('Provision expense')
+            row['PBT'] = sum_column('PBT')
+
+            npatmi = sum_column('NPATMI')
+            total_assets = sum_column('Total Assets')
+            total_equity = sum_column('Total Equity')
+
+            row['ROA'] = (npatmi / total_assets) if pd.notna(npatmi) and pd.notna(total_assets) and total_assets not in (0, 0.0) else pd.NA
+            row['ROE'] = (npatmi / total_equity) if pd.notna(npatmi) and pd.notna(total_equity) and total_equity not in (0, 0.0) else pd.NA
+
+            aggregated_rows.append(row)
+
+        if not aggregated_rows:
+            return pd.DataFrame()
+
+        result = pd.DataFrame(aggregated_rows)
+
+        required_cols = ['Loan', 'TOI', 'Provision expense', 'PBT', 'ROA', 'ROE']
+        for col in required_cols:
+            if col not in result.columns:
+                result[col] = pd.NA
+
+        if is_quarterly:
+            order = sort_quarters(result[date_column].astype(str).tolist())
+            category = pd.Categorical(result[date_column].astype(str), categories=order, ordered=True)
+            result = result.assign(_order=category).sort_values('_order').drop(columns=['_order'])
+        else:
+            result = result.sort_values(date_column)
+
+        return result.reset_index(drop=True)
+
+    def create_table(cols_names, table_name, growth_override=None):
         cols_keep_final = [date_column] + cols_names['Name'].tolist()
         df_temp_table = df_temp[cols_keep_final]
-        
+
         # --- Remove Date_Quarter column (columns already have friendly names) ---
         df_temp_table = df_temp_table.iloc[:, 1:]
 
         # --- Only add growth columns for table 1 (Earnings metrics) ---
         if table_name == "Earnings metrics":
             if is_quarterly:
-                QoQ_change = get_growth_table(df_temp, 1, 'QoQ', cols_names)
-                YoY_change = get_growth_table(df_temp, 4, 'YoY', cols_names)
+                QoQ_change = get_growth_table(df_temp, 1, 'QoQ', cols_names, growth_override)
+                YoY_change = get_growth_table(df_temp, 4, 'YoY', cols_names, growth_override)
             else:
                 # For yearly data, YoY is comparing with previous year (period=1)
-                YoY_change = get_growth_table(df_temp, 1, 'YoY', cols_names)
-            
+                YoY_change = get_growth_table(df_temp, 1, 'YoY', cols_names, growth_override)
+
             # --- Combine Data Based on User Choice (QoQ or YoY) ---
             if Z == 'QoQ' and is_quarterly:
-                df_out = pd.concat([df_temp[[date_column]], df_temp_table, QoQ_change.iloc[:, 1:]], axis=1)
+                growth_values = pd.DataFrame()
+                if not QoQ_change.empty:
+                    growth_values = (
+                        pd.merge(
+                            df_temp[[date_column]],
+                            QoQ_change,
+                            on=date_column,
+                            how='left'
+                        ).drop(columns=[date_column])
+                    )
+                df_out = pd.concat([df_temp[[date_column]], df_temp_table, growth_values], axis=1)
                 # Create column order dynamically
                 col_order = [date_column]
                 for i, name in enumerate(cols_names['Name'].tolist()):
@@ -129,7 +227,17 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
                         col_order.append(f"{name} QoQ (%)")
             else:
                 # For yearly data or when YoY is selected
-                df_out = pd.concat([df_temp[[date_column]], df_temp_table, YoY_change.iloc[:, 1:]], axis=1)
+                growth_values = pd.DataFrame()
+                if not YoY_change.empty:
+                    growth_values = (
+                        pd.merge(
+                            df_temp[[date_column]],
+                            YoY_change,
+                            on=date_column,
+                            how='left'
+                        ).drop(columns=[date_column])
+                    )
+                df_out = pd.concat([df_temp[[date_column]], df_temp_table, growth_values], axis=1)
                 # Create column order dynamically
                 col_order = [date_column]
                 for i, name in enumerate(cols_names['Name'].tolist()):
@@ -167,8 +275,49 @@ def Banking_table(X, Y, Z, df=None, keyitem=None):
         # Return the table without displaying the title here
         return df_out
 
+    growth_override = None
+    if X in bank_type:
+        base_units = df[
+            (df['TICKER'].astype(str).str.len() == 3)
+            & (df['is_forecast'] == False)
+        ]
+
+        if not base_units.empty:
+            period_values = base_units[date_column].dropna().astype(str)
+            latest_period_key = None
+
+            if not period_values.empty:
+                if is_quarterly:
+                    ordered_periods = sort_quarters(period_values.unique().tolist())
+                    if ordered_periods:
+                        latest_period_key = ordered_periods[-1]
+                else:
+                    numeric_periods = pd.to_numeric(period_values, errors='coerce').dropna()
+                    if not numeric_periods.empty:
+                        latest_period_key = str(int(numeric_periods.max()))
+
+            if latest_period_key is not None:
+                coverage_mask = base_units[date_column].astype(str) == latest_period_key
+                if X != 'Sector':
+                    coverage_mask &= (base_units['Type'] == X)
+
+                coverage_tickers = base_units[coverage_mask]['TICKER'].unique()
+
+                if coverage_tickers.size > 0:
+                    subset_for_growth = base_units[base_units['TICKER'].isin(coverage_tickers)]
+                    if X != 'Sector':
+                        subset_for_growth = subset_for_growth[subset_for_growth['Type'] == X]
+
+                    growth_candidate = build_growth_aggregate(
+                        subset_for_growth,
+                        X
+                    )
+
+                    if not growth_candidate.empty:
+                        growth_override = growth_candidate
+
     # Create and display both tables
-    df_table1 = create_table(cols_keep_table1, "Earnings metrics")
+    df_table1 = create_table(cols_keep_table1, "Earnings metrics", growth_override)
     df_table2 = create_table(cols_keep_table2, "Ratios")
     
     # Identify forecast columns if forecast is included

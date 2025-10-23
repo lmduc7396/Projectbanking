@@ -97,6 +97,8 @@ def filter_incomplete_aggregates(
 
     def _is_valid_row(row: pd.Series) -> bool:
         ticker = row.get("TICKER")
+        if ticker == "Sector":
+            return True
         if ticker not in aggregated_labels:
             return True
         if row.get("is_forecast") is True:
