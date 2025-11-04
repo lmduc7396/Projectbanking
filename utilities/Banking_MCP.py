@@ -1008,99 +1008,99 @@ class BankingToolSystem:
             results = {}
             errors = []
             
+            comments_df_cache: Optional[pd.DataFrame] = None
+            ticker_col: Optional[str] = None
+            quarter_col: Optional[str] = None
+            comment_col: Optional[str] = None
+            generated_col: Optional[str] = None
+
+            def ensure_comments_loaded() -> bool:
+                nonlocal comments_df_cache, ticker_col, quarter_col, comment_col, generated_col
+                if comments_df_cache is not None:
+                    return True
+
+                df = self._load_comments()
+                if df is None or df.empty:
+                    return False
+
+                comments_df_cache = df.copy()
+
+                ticker_candidates = ['TICKER', 'ticker']
+                quarter_candidates = ['QUARTER', 'quarter']
+                comment_candidates = ['COMMENT', 'comment']
+                generated_candidates = ['GENERATED_DATE', 'generated_date', 'GENERATED_AT', 'generated_at']
+
+                ticker_col = next((col for col in ticker_candidates if col in comments_df_cache.columns), None)
+                quarter_col = next((col for col in quarter_candidates if col in comments_df_cache.columns), None)
+                comment_col = next((col for col in comment_candidates if col in comments_df_cache.columns), None)
+                generated_col = next((col for col in generated_candidates if col in comments_df_cache.columns), None)
+
+                if ticker_col is None or quarter_col is None:
+                    comments_df_cache = None
+                    return False
+
+                comments_df_cache[ticker_col] = comments_df_cache[ticker_col].astype(str)
+                comments_df_cache[quarter_col] = comments_df_cache[quarter_col].astype(str)
+                comments_df_cache['_ticker_lower'] = comments_df_cache[ticker_col].str.lower()
+                comments_df_cache['_quarter_str'] = comments_df_cache[quarter_col].astype(str)
+
+                if generated_col:
+                    comments_df_cache['_generated_dt'] = pd.to_datetime(comments_df_cache[generated_col], errors='coerce')
+
+                return True
+
             for ticker in tickers:
                 ticker = ticker.upper()
-                
-                if ticker == "SECTOR":
-                    # Get sector commentary from comments table (latest per quarter)
-                    df = self._load_comments()
-                    if df is None or df.empty:
-                        errors.append("Comments data not available")
-                        continue
 
-                    comments_df = df.copy()
+                if not ensure_comments_loaded():
+                    errors.append("Comments data not available")
+                    continue
 
-                    ticker_col = 'TICKER' if 'TICKER' in comments_df.columns else 'ticker' if 'ticker' in comments_df.columns else None
-                    quarter_col = 'QUARTER' if 'QUARTER' in comments_df.columns else 'quarter' if 'quarter' in comments_df.columns else None
-                    if ticker_col is None or quarter_col is None:
-                        errors.append("Comments data lacks required columns")
-                        continue
+                if comments_df_cache is None:
+                    errors.append("Comments data unavailable")
+                    continue
 
-                    comments_df[ticker_col] = comments_df[ticker_col].astype(str)
-                    comments_df[quarter_col] = comments_df[quarter_col].astype(str)
+                quarter_str = str(quarter)
+                ticker_mask = comments_df_cache['_ticker_lower'] == ticker.lower()
+                quarter_mask = comments_df_cache['_quarter_str'] == quarter_str
+                subset = comments_df_cache[ticker_mask & quarter_mask].copy()
 
-                    quarter_df = comments_df[comments_df[quarter_col] == str(quarter)].copy()
-                    if quarter_df.empty:
-                        errors.append(f"No sector commentary for {quarter}")
-                        continue
+                if subset.empty:
+                    errors.append(f"No commentary for {ticker} in {quarter}")
+                    continue
 
-                    quarter_df['_ticker_lower'] = quarter_df[ticker_col].str.lower()
-                    sector_df = quarter_df[quarter_df['_ticker_lower'] == 'sector'].copy()
-                    if sector_df.empty:
-                        errors.append(f"No sector commentary for {quarter}")
-                        continue
-
-                    generated_col = next((col for col in ['GENERATED_DATE', 'generated_date', 'GENERATED_AT', 'generated_at'] if col in sector_df.columns), None)
-                    if generated_col:
-                        sector_df['_generated_dt'] = pd.to_datetime(sector_df[generated_col], errors='coerce')
-                        sector_df = sector_df.sort_values('_generated_dt', ascending=False, na_position='last')
-                    else:
-                        sector_df = sector_df.sort_index(ascending=False)
-
-                    latest_row = sector_df.iloc[0]
-                    comment_col = 'COMMENT' if 'COMMENT' in sector_df.columns else 'comment' if 'comment' in sector_df.columns else None
-                    comment_text = latest_row.get(comment_col) if comment_col else ""
-                    if pd.isna(comment_text):
-                        comment_text = ""
-
-                    generated_value = latest_row.get(generated_col) if generated_col else None
-                    if generated_value is not None and not pd.isna(generated_value):
-                        if isinstance(generated_value, pd.Timestamp):
-                            generated_str = generated_value.isoformat()
-                        else:
-                            generated_str = str(generated_value)
-                    else:
-                        generated_str = ""
-
-                    bank_count = int((quarter_df['_ticker_lower'] != 'sector').sum())
-
-                    analysis_payload = {
-                        "quarter": quarter,
-                        "analysis_text": comment_text,
-                        "generated_date": generated_str,
-                        "bank_count": bank_count,
-                        "status": "success"
-                    }
-
-                    results[ticker] = {
-                        "type": "sector",
-                        "quarter": quarter,
-                        "comment": comment_text,
-                        "generated_date": generated_str,
-                        "bank_count": bank_count,
-                        "analysis": analysis_payload
-                    }
+                if '_generated_dt' in subset.columns:
+                    subset = subset.sort_values('_generated_dt', ascending=False, na_position='last')
                 else:
-                    # Get bank-specific commentary
-                    df = self._load_comments()
-                    if df is None:
-                        errors.append(f"Comments data not available")
-                        continue
-                    comment = df[(df['TICKER'] == ticker) & (df['QUARTER'] == quarter)]
-                    
-                    if not comment.empty:
-                        comment_row = comment.iloc[0]
-                        comment_text = comment_row.get('COMMENT', comment_row.get('comment'))
-                        generated_date = comment_row.get('GENERATED_DATE')
-                        results[ticker] = {
-                            "type": "bank",
-                            "ticker": ticker,
-                            "quarter": quarter,
-                            "comment": comment_text,
-                            "generated_date": str(generated_date) if generated_date is not None else ""
-                        }
+                    subset = subset.sort_index(ascending=False)
+
+                latest_row = subset.iloc[0]
+
+                comment_value: Any = latest_row.get(comment_col) if comment_col else ""
+                if pd.isna(comment_value):
+                    comment_value = ""
+                comment_text = str(comment_value)
+
+                generated_value = latest_row.get(generated_col) if generated_col else None
+                if generated_value is not None and not pd.isna(generated_value):
+                    if isinstance(generated_value, (pd.Timestamp, datetime)):
+                        generated_str = generated_value.isoformat()
                     else:
-                        errors.append(f"No commentary for {ticker} in {quarter}")
+                        generated_str = str(generated_value)
+                else:
+                    generated_str = ""
+
+                entry_type = "sector" if ticker == "SECTOR" else "bank"
+
+                result_payload = {
+                    "type": entry_type,
+                    "ticker": ticker,
+                    "quarter": quarter,
+                    "comment": comment_text,
+                    "generated_date": generated_str
+                }
+
+                results[ticker] = result_payload
             
             # Return simplified format for single ticker
             if len(tickers) == 1:
