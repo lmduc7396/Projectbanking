@@ -1,11 +1,12 @@
 #%%
 import pandas as pd
 import re
+from contextlib import contextmanager
 from pathlib import Path
 import platform
 from typing import Optional
 
-from utilities.db import create_connection_from_string
+from utilities.db import create_connection_from_string, get_connection as db_get_connection
 
 # Helper functions
 def get_base_path():
@@ -13,10 +14,6 @@ def get_base_path():
         return Path("C:/Users/ducle/OneDrive/Work-related/VS - Code Project")
     else:
         return Path("OneDrive/Work-related/VS - Code Project")
-
-# Connection string
-DB_AILAB_STR = "DRIVER={ODBC Driver 18 for SQL Server};SERVER=tcp:dcdwhprod.database.windows.net,1433;DATABASE=dclab;UID=dclab_readonly;PWD=DHS#@vGESADdf!;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-
 
 VALID_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -26,10 +23,18 @@ def _format_identifier(identifier: str) -> str:
         raise ValueError(f"Invalid identifier: {identifier}")
     return f"[{identifier}]"
 
-
-def get_connection(connection_str: str = DB_AILAB_STR):
-    """Return a live pymssql connection using the provided connection string."""
-    return create_connection_from_string(connection_str)
+@contextmanager
+def get_connection(connection_str: Optional[str] = None):
+    """Yield a live pymssql connection using secrets or an explicit string."""
+    if connection_str:
+        connection = create_connection_from_string(connection_str)
+        try:
+            yield connection
+        finally:
+            connection.close()
+    else:
+        with db_get_connection(db="target") as connection:
+            yield connection
 
 
 def fetch_tables(schema: Optional[str] = None) -> pd.DataFrame:

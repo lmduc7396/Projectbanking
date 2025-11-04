@@ -1012,21 +1012,74 @@ class BankingToolSystem:
                 ticker = ticker.upper()
                 
                 if ticker == "SECTOR":
-                    # Get sector analysis
-                    df = self._load_quarterly_analysis()
-                    if df is None:
-                        errors.append(f"Quarterly analysis data not available")
+                    # Get sector commentary from comments table (latest per quarter)
+                    df = self._load_comments()
+                    if df is None or df.empty:
+                        errors.append("Comments data not available")
                         continue
-                    analysis = df[df['QUARTER'] == quarter] if 'QUARTER' in df.columns else pd.DataFrame()
-                    
-                    if not analysis.empty:
-                        results[ticker] = {
-                            "type": "sector",
-                            "quarter": quarter,
-                            "analysis": analysis.iloc[0].to_dict()
-                        }
+
+                    comments_df = df.copy()
+
+                    ticker_col = 'TICKER' if 'TICKER' in comments_df.columns else 'ticker' if 'ticker' in comments_df.columns else None
+                    quarter_col = 'QUARTER' if 'QUARTER' in comments_df.columns else 'quarter' if 'quarter' in comments_df.columns else None
+                    if ticker_col is None or quarter_col is None:
+                        errors.append("Comments data lacks required columns")
+                        continue
+
+                    comments_df[ticker_col] = comments_df[ticker_col].astype(str)
+                    comments_df[quarter_col] = comments_df[quarter_col].astype(str)
+
+                    quarter_df = comments_df[comments_df[quarter_col] == str(quarter)].copy()
+                    if quarter_df.empty:
+                        errors.append(f"No sector commentary for {quarter}")
+                        continue
+
+                    quarter_df['_ticker_lower'] = quarter_df[ticker_col].str.lower()
+                    sector_df = quarter_df[quarter_df['_ticker_lower'] == 'sector'].copy()
+                    if sector_df.empty:
+                        errors.append(f"No sector commentary for {quarter}")
+                        continue
+
+                    generated_col = next((col for col in ['GENERATED_DATE', 'generated_date', 'GENERATED_AT', 'generated_at'] if col in sector_df.columns), None)
+                    if generated_col:
+                        sector_df['_generated_dt'] = pd.to_datetime(sector_df[generated_col], errors='coerce')
+                        sector_df = sector_df.sort_values('_generated_dt', ascending=False, na_position='last')
                     else:
-                        errors.append(f"No sector analysis for {quarter}")
+                        sector_df = sector_df.sort_index(ascending=False)
+
+                    latest_row = sector_df.iloc[0]
+                    comment_col = 'COMMENT' if 'COMMENT' in sector_df.columns else 'comment' if 'comment' in sector_df.columns else None
+                    comment_text = latest_row.get(comment_col) if comment_col else ""
+                    if pd.isna(comment_text):
+                        comment_text = ""
+
+                    generated_value = latest_row.get(generated_col) if generated_col else None
+                    if generated_value is not None and not pd.isna(generated_value):
+                        if isinstance(generated_value, pd.Timestamp):
+                            generated_str = generated_value.isoformat()
+                        else:
+                            generated_str = str(generated_value)
+                    else:
+                        generated_str = ""
+
+                    bank_count = int((quarter_df['_ticker_lower'] != 'sector').sum())
+
+                    analysis_payload = {
+                        "quarter": quarter,
+                        "analysis_text": comment_text,
+                        "generated_date": generated_str,
+                        "bank_count": bank_count,
+                        "status": "success"
+                    }
+
+                    results[ticker] = {
+                        "type": "sector",
+                        "quarter": quarter,
+                        "comment": comment_text,
+                        "generated_date": generated_str,
+                        "bank_count": bank_count,
+                        "analysis": analysis_payload
+                    }
                 else:
                     # Get bank-specific commentary
                     df = self._load_comments()

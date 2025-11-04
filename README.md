@@ -69,7 +69,7 @@ pip install -r requirements.txt
 ```
 OPENAI_API_KEY=your_api_key_here
 SOURCE_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
-TARGET_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
+TARGET_DB_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=sqls-dclab.database.windows.net,1433;DATABASE=dclab;UID=dclab_readonly;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 ```
 Connection strings may retain `DRIVER=...` segments for compatibility, but only the fields above are consumed by the pymssql client.
 

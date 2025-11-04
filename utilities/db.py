@@ -120,6 +120,18 @@ def _build_connection_kwargs(params: Dict[str, str], autocommit: bool) -> Dict[s
         except ValueError:
             pass
 
+    conn_properties = []
+    encrypt = params.get('ENCRYPT')
+    if encrypt:
+        conn_properties.append(f"Encrypt={encrypt}")
+
+    trust_cert = params.get('TRUSTSERVERCERTIFICATE')
+    if trust_cert:
+        conn_properties.append(f"TrustServerCertificate={trust_cert}")
+
+    if conn_properties:
+        kwargs['conn_properties'] = ';'.join(conn_properties)
+
     return kwargs
 
 
