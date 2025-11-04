@@ -71,6 +71,17 @@ def _parse_connection_string(conn_str: str) -> Dict[str, str]:
     return params
 
 
+def _parse_bool(value: Optional[str]) -> Optional[bool]:
+    if value is None:
+        return None
+    lowered = value.strip().lower()
+    if lowered in {"yes", "true", "1"}:
+        return True
+    if lowered in {"no", "false", "0"}:
+        return False
+    return None
+
+
 def _build_connection_kwargs(params: Dict[str, str], autocommit: bool) -> Dict[str, object]:
     server_val = params.get('SERVER') or params.get('HOST') or params.get('ADDRESS')
     if not server_val:
@@ -120,17 +131,13 @@ def _build_connection_kwargs(params: Dict[str, str], autocommit: bool) -> Dict[s
         except ValueError:
             pass
 
-    conn_properties = []
-    encrypt = params.get('ENCRYPT')
-    if encrypt:
-        conn_properties.append(f"Encrypt={encrypt}")
+    encrypt_value = _parse_bool(params.get('ENCRYPT'))
+    if encrypt_value is not None:
+        kwargs['encrypt'] = encrypt_value
 
-    trust_cert = params.get('TRUSTSERVERCERTIFICATE')
-    if trust_cert:
-        conn_properties.append(f"TrustServerCertificate={trust_cert}")
-
-    if conn_properties:
-        kwargs['conn_properties'] = ';'.join(conn_properties)
+    trust_cert_value = _parse_bool(params.get('TRUSTSERVERCERTIFICATE'))
+    if trust_cert_value is not None:
+        kwargs['trust_server_certificate'] = trust_cert_value
 
     return kwargs
 

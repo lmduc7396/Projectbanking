@@ -1013,14 +1013,21 @@ class BankingToolSystem:
             quarter_col: Optional[str] = None
             comment_col: Optional[str] = None
             generated_col: Optional[str] = None
+            load_error_message: Optional[str] = None
 
             def ensure_comments_loaded() -> bool:
                 nonlocal comments_df_cache, ticker_col, quarter_col, comment_col, generated_col
                 if comments_df_cache is not None:
                     return True
 
-                df = self._load_comments()
+                try:
+                    df = self._load_comments()
+                except Exception as exc:  # pragma: no cover - defensive path
+                    load_error_message = str(exc)
+                    return False
+
                 if df is None or df.empty:
+                    load_error_message = "Comments table returned no data"
                     return False
 
                 comments_df_cache = df.copy()
@@ -1037,6 +1044,7 @@ class BankingToolSystem:
 
                 if ticker_col is None or quarter_col is None:
                     comments_df_cache = None
+                    load_error_message = "Comments data lacks required columns"
                     return False
 
                 comments_df_cache[ticker_col] = comments_df_cache[ticker_col].astype(str)
@@ -1053,11 +1061,12 @@ class BankingToolSystem:
                 ticker = ticker.upper()
 
                 if not ensure_comments_loaded():
-                    errors.append("Comments data not available")
+                    message = load_error_message or "Comments data not available"
+                    errors.append(message)
                     continue
 
                 if comments_df_cache is None:
-                    errors.append("Comments data unavailable")
+                    errors.append(load_error_message or "Comments data unavailable")
                     continue
 
                 quarter_str = str(quarter)
