@@ -71,17 +71,6 @@ def _parse_connection_string(conn_str: str) -> Dict[str, str]:
     return params
 
 
-def _parse_bool(value: Optional[str]) -> Optional[bool]:
-    if value is None:
-        return None
-    lowered = value.strip().lower()
-    if lowered in {"yes", "true", "1"}:
-        return True
-    if lowered in {"no", "false", "0"}:
-        return False
-    return None
-
-
 def _build_connection_kwargs(params: Dict[str, str], autocommit: bool) -> Dict[str, object]:
     server_val = params.get('SERVER') or params.get('HOST') or params.get('ADDRESS')
     if not server_val:
@@ -124,20 +113,18 @@ def _build_connection_kwargs(params: Dict[str, str], autocommit: bool) -> Dict[s
         except ValueError:
             pass
 
-    login_timeout = params.get('LOGIN TIMEOUT')
+    login_timeout = params.get('LOGIN TIMEOUT') or params.get('LOGIN_TIMEOUT')
     if login_timeout:
         try:
             kwargs['login_timeout'] = int(login_timeout)
         except ValueError:
             pass
 
-    encrypt_value = _parse_bool(params.get('ENCRYPT'))
-    if encrypt_value is not None:
-        kwargs['encrypt'] = encrypt_value
-
-    trust_cert_value = _parse_bool(params.get('TRUSTSERVERCERTIFICATE'))
-    if trust_cert_value is not None:
-        kwargs['trust_server_certificate'] = trust_cert_value
+    tds_version = params.get('TDS_VERSION') or params.get('TDSVERSION')
+    if tds_version:
+        kwargs['tds_version'] = tds_version
+    else:
+        kwargs['tds_version'] = '7.4'
 
     return kwargs
 
