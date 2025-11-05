@@ -56,11 +56,13 @@ SOURCE_CONNECTION_KEYS: Sequence[str] = (
     "LEGACY_DB_CONNECTION_STRING",
 )
 
+DEFAULT_DRIVER_NAME = "ODBC Driver 17 for SQL Server"
+
 DRIVER_LIBRARY_CANDIDATES: Sequence[Path] = (
-    Path("/opt/homebrew/lib/libmsodbcsql.18.dylib"),
-    Path("/usr/local/lib/libmsodbcsql.18.dylib"),
     Path("/opt/homebrew/lib/libmsodbcsql.17.dylib"),
     Path("/usr/local/lib/libmsodbcsql.17.dylib"),
+    Path("/opt/homebrew/lib/libmsodbcsql.18.dylib"),
+    Path("/usr/local/lib/libmsodbcsql.18.dylib"),
 )
 
 
@@ -103,7 +105,7 @@ def _install_driver() -> bool:
         return False
 
     try:
-        LOGGER.info("Attempting to install Microsoft ODBC Driver 18 via %s", INSTALLER_SCRIPT)
+        LOGGER.info("Attempting to install Microsoft ODBC Driver 17 via %s", INSTALLER_SCRIPT)
         subprocess.run(["/bin/bash", str(INSTALLER_SCRIPT)], check=True)
         return True
     except subprocess.CalledProcessError as exc:  # pragma: no cover - external process
@@ -116,7 +118,7 @@ def _ensure_driver_available(conn_str: str) -> None:
     if not token:
         return
 
-    # Token is a named driver: {ODBC Driver 18 for SQL Server}
+    # Token is a named driver: {ODBC Driver X for SQL Server}
     if token.startswith("{") and token.endswith("}"):
         driver_name = token.strip("{}")
         installed = {driver.lower() for driver in pyodbc.drivers()}
@@ -130,9 +132,9 @@ def _ensure_driver_available(conn_str: str) -> None:
 
         raise RuntimeError(
             "ODBC driver '{driver}' not found. Install the Microsoft ODBC driver "
-            "for SQL Server (msodbcsql18) and unixODBC libraries. "
+            "for SQL Server (msodbcsql17) and unixODBC libraries. "
             "See https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-"
-            "microsoft-odbc-driver-18-sql-server for installation instructions."
+            "microsoft-odbc-driver-17-sql-server for installation instructions."
             .format(driver=driver_name)
         )
 
@@ -157,18 +159,20 @@ def _ensure_driver_path(conn_str: str) -> str:
     if platform.system() != "Darwin":
         return conn_str
 
-    marker = "{ODBC Driver 18 for SQL Server}"
-    if marker not in conn_str:
-        return conn_str
+    for marker in ("{ODBC Driver 17 for SQL Server}", "{ODBC Driver 18 for SQL Server}"):
+        if marker not in conn_str:
+            continue
 
-    for candidate in DRIVER_LIBRARY_CANDIDATES:
-        if candidate.exists():
-            LOGGER.debug("Using explicit driver library: %s", candidate)
-            return conn_str.replace(f"DRIVER={marker}", f"DRIVER={candidate}")
+        for candidate in DRIVER_LIBRARY_CANDIDATES:
+            if candidate.exists():
+                LOGGER.debug("Using explicit driver library: %s", candidate)
+                return conn_str.replace(f"DRIVER={marker}", f"DRIVER={candidate}")
 
-    LOGGER.warning(
-        "ODBC Driver 18 dylib not found; leaving logical driver name in place."
-    )
+        LOGGER.warning(
+            "ODBC driver dylib not found for marker %s; leaving logical name in place.",
+            marker,
+        )
+        break
     return conn_str
 
 

@@ -4,7 +4,7 @@ set -euo pipefail
 
 # If the driver is already registered, nothing to do.
 if command -v odbcinst >/dev/null 2>&1; then
-    if odbcinst -q -d 2>/dev/null | grep -qi "ODBC Driver 18 for SQL Server"; then
+    if odbcinst -q -d 2>/dev/null | grep -qi "ODBC Driver 17 for SQL Server"; then
         exit 0
     fi
 fi
@@ -23,11 +23,11 @@ if [ ! -f /etc/apt/sources.list.d/msprod.list ]; then
 fi
 
 apt-get update
-ACCEPT_EULA=Y apt-get install -y msodbcsql18
+ACCEPT_EULA=Y apt-get install -y msodbcsql17
 
 # Verify installation succeeded.
-if ! (odbcinst -q -d 2>/dev/null | grep -qi "ODBC Driver 18 for SQL Server"); then
-    echo "Failed to install Microsoft ODBC Driver 18 for SQL Server" >&2
+if ! (odbcinst -q -d 2>/dev/null | grep -qi "ODBC Driver 17 for SQL Server"); then
+    echo "Failed to install Microsoft ODBC Driver 17 for SQL Server" >&2
     exit 1
 fi
 
