@@ -72,7 +72,7 @@ SOURCE_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connect
 TARGET_DB_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=sqls-dclab.database.windows.net,1433;DATABASE=dclab;UID=dclab_readonly;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 ```
 Connection strings may retain `DRIVER=...` segments for compatibility, but only the fields above are consumed by the pyodbc client.
-Ensure the Microsoft ODBC Driver 17 or 18 for SQL Server is installed so the connector can establish connections successfully.
+Ensure the Microsoft ODBC Driver 17 or 18 for SQL Server is installed so the connector can establish connections successfully. If your secret references Driver 17 but only Driver 18 is available, the app now falls back automatically.
 
 For Streamlit deployments, set the same value in `.streamlit/secrets.toml` using the `AZURE_SQL_ODBC` key:
 ```

@@ -1,80 +1,65 @@
-"""Unified Azure SQL access helpers for the DC Lab workspace.
+"""Lightweight Azure SQL helpers built around pyodbc.
 
-This module standardises how the project authenticates to Azure SQL using
-`pyodbc`, ensures the Homebrew ODBC driver is discovered on macOS, and
-exposes convenience helpers that mirror the tables documented in
-`Database_Scheme.md` (Banking_Comments, Banking_Drivers, BankingMetrics).
+This module centralises how the Streamlit app locates connection strings and
+opens database connections. It prefers Streamlit secrets (so deployments on
+Streamlit Cloud just work) but gracefully falls back to environment variables.
+
+Compared with the previous pymssql implementation, pyodbc relies on an ODBC
+driver being installed on the host machine. We don't hard-fail if the requested
+driver is missing; instead we attempt to reuse any SQL Server driver that pyodbc
+can see. If none are present, the eventual connection attempt will raise the
+native pyodbc error, which keeps the behaviour close to stock pyodbc.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-import platform
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Iterator, List, Optional, Sequence
+from typing import Iterator, Optional, Sequence
 
 import pandas as pd
 import pyodbc
-from dotenv import load_dotenv
 
-try:  # Streamlit is optional
+try:
     import streamlit as st  # type: ignore
-except Exception:  # pragma: no cover - streamlit unavailable locally
+except Exception:  # pragma: no cover - streamlit isn't available in local CLI runs
     st = None
 
 
 LOGGER = logging.getLogger(__name__)
 
-# Ensure unixODBC looks in Homebrew's configuration directory on macOS.
-os.environ.setdefault("ODBCSYSINI", "/opt/homebrew/etc")
-os.environ.setdefault("ODBCINI", "/opt/homebrew/etc/odbc.ini")
-
-# Eagerly load environment variables so downstream imports have access.
-PROJECT_ROOT = Path(__file__).resolve().parent
-ROOT_DOTENV = PROJECT_ROOT / ".env"
-if ROOT_DOTENV.exists():
-    load_dotenv(ROOT_DOTENV)
-else:
-    load_dotenv()
-
-
-# Environment variables and secrets that may hold the Azure SQL connection string.
-TARGET_CONNECTION_KEYS: Sequence[str] = (
+# Streamlit secret / environment keys searched in priority order.
+TARGET_DB_KEYS: Sequence[str] = (
     "AZURE_SQL_ODBC",
+    "DB_AILAB_CONN",
     "AZURE_SQL_CONNECTION_STRING",
     "TARGET_DB_CONNECTION_STRING",
     "DC_DB_STRING_MASTER",
-    "DB_AILAB_CONN",
 )
 
-SOURCE_CONNECTION_KEYS: Sequence[str] = (
+SOURCE_DB_KEYS: Sequence[str] = (
     "SOURCE_DB_CONNECTION_STRING",
     "LEGACY_DB_CONNECTION_STRING",
 )
 
-DRIVER_LIBRARY_CANDIDATES: Sequence[Path] = (
-    Path("/opt/homebrew/lib/libmsodbcsql.17.dylib"),
-    Path("/usr/local/lib/libmsodbcsql.17.dylib"),
-    Path("/opt/homebrew/lib/libmsodbcsql.18.dylib"),
-    Path("/usr/local/lib/libmsodbcsql.18.dylib"),
-)
+# Separator used in ODBC connection strings.
+ODBC_DELIMITER = ";"
 
 
-def _get_secret_value(key: str) -> Optional[str]:
+def _streamlit_secret(name: str) -> Optional[str]:
     if st is None:
         return None
-
     try:
         secrets_obj = getattr(st, "secrets", None)
         if secrets_obj is None:
             return None
+        # Support dict-like and Mapping-like interfaces.
         if hasattr(secrets_obj, "get"):
-            value = secrets_obj.get(key)
+            value = secrets_obj.get(name)
         else:
-            value = secrets_obj[key]
-    except Exception:  # pragma: no cover - Streamlit secrets access can fail silently
+            value = secrets_obj[name]
+    except Exception:  # pragma: no cover - runtime secrets errors shouldn't abort
         return None
 
     if isinstance(value, str) and value.strip():
@@ -82,116 +67,96 @@ def _get_secret_value(key: str) -> Optional[str]:
     return None
 
 
-def normalize_connection_string(raw: str) -> str:
-    """Collapse whitespace and quote characters into a clean ODBC string."""
-
+def _normalize_connection_string(raw: str) -> str:
     cleaned = raw.strip().strip('"').strip("'")
     if not cleaned:
         return cleaned
 
-    # Remove newline breaks while preserving delimiters.
-    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
-    cleaned = "".join(lines)
+    # Remove stray newlines and duplicated whitespace.
+    parts = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    cleaned = "".join(parts)
 
-    # Normalise spacing and case for driver tokens.
-    cleaned = cleaned.replace("; ", ";")
-    cleaned = cleaned.replace("Driver=", "DRIVER=")
+    # Normalise DRIVER casing for easier substitutions later.
     cleaned = cleaned.replace("driver=", "DRIVER=")
 
-    # Ensure we have a trailing semicolon so pyodbc treats it as DSN-less.
-    if not cleaned.endswith(";"):
-        cleaned += ";"
-
+    if not cleaned.endswith(ODBC_DELIMITER):
+        cleaned += ODBC_DELIMITER
     return cleaned
 
 
 def _extract_driver_token(conn_str: str) -> Optional[str]:
-    for segment in conn_str.split(";"):
+    for segment in conn_str.split(ODBC_DELIMITER):
         if not segment.strip():
             continue
         key, _, value = segment.partition("=")
         if key.strip().upper() == "DRIVER" and value:
             return value.strip()
     return None
-def _ensure_driver_available(conn_str: str) -> None:
+
+
+def _detect_sql_server_driver() -> Optional[str]:
+    for driver in pyodbc.drivers():
+        if "sql server" in driver.lower():
+            return driver
+    return None
+
+
+def _coerce_driver(conn_str: str) -> str:
+    """Ensure the connection string references an installed SQL Server driver."""
+
     token = _extract_driver_token(conn_str)
-    if not token:
-        return
+    available = {driver.lower(): driver for driver in pyodbc.drivers()}
 
-    # Token is a named driver: {ODBC Driver X for SQL Server}
-    if token.startswith("{") and token.endswith("}"):
-        driver_name = token.strip("{}")
-        installed = {driver.lower() for driver in pyodbc.drivers()}
-        if driver_name.lower() in installed:
-            return
+    if token and token.startswith("{") and token.endswith("}"):
+        requested = token.strip("{}")
+        if requested.lower() in available:
+            return conn_str
 
-        raise RuntimeError(
-            "ODBC driver '{driver}' not found. Install the Microsoft ODBC driver "
-            "for SQL Server (msodbcsql17) and unixODBC libraries. "
-            "See https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-"
-            "microsoft-odbc-driver-17-sql-server for installation instructions."
-            .format(driver=driver_name)
-        )
-
-    # Token is an explicit filesystem path to a driver library
-    elif any(token.startswith(prefix) for prefix in ("/", "~")):
-        driver_path = Path(token).expanduser()
-        if driver_path.exists():
-            return
-
-        raise RuntimeError(
-            f"ODBC driver library not found at '{driver_path}'. Verify the SQL Server "
-            "driver installation on the host and update the connection string."
-        )
-
-
-def _ensure_driver_path(conn_str: str) -> str:
-    """Replace the logical driver name with the actual dylib path on macOS."""
-
-    if platform.system() != "Darwin":
+        fallback = _detect_sql_server_driver()
+        if fallback:
+            LOGGER.warning(
+                "Requested ODBC driver '%s' was not found; using '%s' instead.",
+                requested,
+                fallback,
+            )
+            return conn_str.replace(f"DRIVER={token}", f"DRIVER={{{fallback}}}")
         return conn_str
 
-    for marker in ("{ODBC Driver 17 for SQL Server}", "{ODBC Driver 18 for SQL Server}"):
-        if marker not in conn_str:
-            continue
-
-        for candidate in DRIVER_LIBRARY_CANDIDATES:
-            if candidate.exists():
-                LOGGER.debug("Using explicit driver library: %s", candidate)
-                return conn_str.replace(f"DRIVER={marker}", f"DRIVER={candidate}")
-
-        LOGGER.warning(
-            "ODBC driver dylib not found for marker %s; leaving logical name in place.",
-            marker,
-        )
-        break
+    if not token:
+        fallback = _detect_sql_server_driver()
+        if fallback:
+            LOGGER.info(
+                "No DRIVER specified in connection string; using '%s'.",
+                fallback,
+            )
+            return f"DRIVER={{{fallback}}};{conn_str}"
     return conn_str
 
 
-def _resolve_connection_string(keys: Sequence[str]) -> Optional[str]:
+def _resolve_connection_string(*keys: str) -> Optional[str]:
     for key in keys:
-        secret_value = _get_secret_value(key)
+        secret_value = _streamlit_secret(key)
         if secret_value:
-            LOGGER.debug("Resolved connection string via st.secrets[%s]", key)
-            return _ensure_driver_path(normalize_connection_string(secret_value))
+            LOGGER.debug("Loaded connection string from Streamlit secrets key '%s'.", key)
+            return _coerce_driver(_normalize_connection_string(secret_value))
 
         env_value = os.getenv(key)
         if env_value:
-            LOGGER.debug("Resolved connection string via %s", key)
-            return _ensure_driver_path(normalize_connection_string(env_value))
+            LOGGER.debug("Loaded connection string from environment variable '%s'.", key)
+            return _coerce_driver(_normalize_connection_string(env_value))
     return None
 
 
 def _default_connection_string(role: str = "target") -> str:
-    keys = TARGET_CONNECTION_KEYS if role == "target" else SOURCE_CONNECTION_KEYS
-    conn_str = _resolve_connection_string(keys)
+    keys = TARGET_DB_KEYS if role == "target" else SOURCE_DB_KEYS
+    conn_str = _resolve_connection_string(*keys)
     if conn_str:
         return conn_str
 
     available = ", ".join(keys)
     raise RuntimeError(
-        "Database connection string not configured. Set one of "
-        f"[{available}] via Streamlit secrets or environment variables."
+        f"Database connection string not configured. Expected one of [{available}] "
+        "to be defined via Streamlit secrets or environment variables."
     )
 
 
@@ -200,37 +165,27 @@ def get_sql_connection(
     *,
     autocommit: bool = False,
 ) -> pyodbc.Connection:
-    normalized = (
-        _ensure_driver_path(normalize_connection_string(connection_str))
+    """Create a live pyodbc connection."""
+
+    resolved = (
+        _coerce_driver(_normalize_connection_string(connection_str))
         if connection_str
         else _default_connection_string("target")
     )
-    _ensure_driver_available(normalized)
-    return pyodbc.connect(normalized, autocommit=autocommit)
+    return pyodbc.connect(resolved, autocommit=autocommit)
 
 
-def resolve_connection_string(role: str = "target", *, strict: bool = True) -> str:
-    """Return the connection string for the requested role (target/source)."""
-
-    try:
-        return _default_connection_string(role)
-    except RuntimeError:
-        if strict:
-            raise
-        return ""
+def resolve_connection_string(role: str = "target") -> str:
+    return _default_connection_string(role)
 
 
 def establish_connection(role: str = "target", *, autocommit: bool = False) -> pyodbc.Connection:
-    """Create a live pyodbc connection for the requested database role."""
-
     conn_str = resolve_connection_string(role)
     return get_sql_connection(conn_str, autocommit=autocommit)
 
 
 @contextmanager
 def connection(role: str = "target", *, autocommit: bool = False) -> Iterator[pyodbc.Connection]:
-    """Context manager that yields a pyodbc connection and closes it safely."""
-
     conn = establish_connection(role=role, autocommit=autocommit)
     try:
         yield conn
@@ -239,22 +194,18 @@ def connection(role: str = "target", *, autocommit: bool = False) -> Iterator[py
 
 
 def _translate_param_markers(sql: str) -> str:
-    """Convert legacy %s style parameters to ? for pyodbc."""
+    """Convert legacy %s placeholders into pyodbc-style ? markers."""
 
     return sql.replace("%s", "?")
 
 
 def read_sql(sql: str, *, params: Optional[Sequence] = None, role: str = "target") -> pd.DataFrame:
-    """Execute a SELECT query and return the results as a DataFrame."""
-
     translated = _translate_param_markers(sql)
     with connection(role=role) as conn:
         return pd.read_sql(translated, conn, params=params)
 
 
 def execute(sql: str, params: Optional[Sequence] = None, *, role: str = "target", autocommit: bool = False) -> None:
-    """Execute a non-query statement (INSERT/UPDATE/DELETE)."""
-
     translated = _translate_param_markers(sql)
     with connection(role=role, autocommit=autocommit) as conn:
         cursor = conn.cursor()
@@ -270,21 +221,17 @@ def execute(sql: str, params: Optional[Sequence] = None, *, role: str = "target"
 
 
 def fetch_table(table: str, *, schema: str = "dbo", role: str = "target") -> pd.DataFrame:
-    """Convenience helper to fetch all rows from a table."""
-
     qualified = f"[{schema}].[{table}]" if schema else table
     return read_sql(f"SELECT * FROM {qualified}", role=role)
 
 
 def list_tables(*, schema: Optional[str] = None, role: str = "target") -> pd.DataFrame:
-    """Return INFORMATION_SCHEMA metadata for available tables."""
-
     sql = (
         "SELECT TABLE_SCHEMA, TABLE_NAME "
         "FROM INFORMATION_SCHEMA.TABLES "
         "WHERE TABLE_TYPE = 'BASE TABLE'"
     )
-    params: Optional[List[str]] = None
+    params: Optional[Sequence[str]] = None
     if schema:
         sql += " AND TABLE_SCHEMA = ?"
         params = [schema]
@@ -293,104 +240,14 @@ def list_tables(*, schema: Optional[str] = None, role: str = "target") -> pd.Dat
     return tables.reset_index(drop=True)
 
 
-def load_banking_comments(*, ticker: Optional[str] = None, role: str = "target") -> pd.DataFrame:
-    """Load commentary records documented in Database_Scheme.md."""
-
-    sql = "SELECT TICKER, SECTOR, DATE, COMMENT FROM dbo.Banking_Comments"
-    params: Optional[List[str]] = None
-    if ticker:
-        sql += " WHERE TICKER = ?"
-        params = [ticker]
-
-    df = read_sql(sql + " ORDER BY DATE DESC", params=params, role=role)
-    if not df.empty:
-        df['DATE'] = df['DATE'].astype(str)
-    return df
-
-
-def load_banking_drivers(
-    *,
-    period_type: Optional[str] = None,
-    ticker: Optional[str] = None,
-    role: str = "target",
-) -> pd.DataFrame:
-    """Load banking driver metrics with optional filters."""
-
-    sql = "SELECT * FROM dbo.Banking_Drivers"
-    clauses: List[str] = []
-    params: List[str] = []
-
-    if period_type:
-        clauses.append("PERIOD_TYPE = ?")
-        params.append(period_type.upper())
-    if ticker:
-        clauses.append("TICKER = ?")
-        params.append(ticker.upper())
-
-    if clauses:
-        sql += " WHERE " + " AND ".join(clauses)
-
-    sql += " ORDER BY DATE DESC, TICKER"
-    return read_sql(sql, params=params or None, role=role)
-
-
-def load_banking_metrics(
-    *,
-    period_type: Optional[str] = None,
-    actual: Optional[bool] = True,
-    ticker: Optional[str] = None,
-    role: str = "target",
-) -> pd.DataFrame:
-    """Load rows from dbo.BankingMetrics with helpful filters."""
-
-    sql = "SELECT * FROM dbo.BankingMetrics"
-    clauses: List[str] = []
-    params: List = []
-
-    if actual is not None:
-        clauses.append("ACTUAL = ?")
-        params.append(int(bool(actual)))
-    if period_type:
-        clauses.append("PERIOD_TYPE = ?")
-        params.append(period_type.upper())
-    if ticker:
-        clauses.append("TICKER = ?")
-        params.append(ticker.upper())
-
-    if clauses:
-        sql += " WHERE " + " AND ".join(clauses)
-
-    sql += " ORDER BY DATE DESC, TICKER"
-    df = read_sql(sql, params=params or None, role=role)
-
-    if not df.empty and 'DATE' in df.columns:
-        df['DATE'] = pd.to_datetime(df['DATE'], errors='coerce')
-
-    return df
-
-
 __all__ = [
-    "normalize_connection_string",
-    "get_sql_connection",
-    "resolve_connection_string",
-    "establish_connection",
     "connection",
-    "read_sql",
+    "establish_connection",
     "execute",
     "fetch_table",
+    "get_sql_connection",
     "list_tables",
-    "load_banking_comments",
-    "load_banking_drivers",
-    "load_banking_metrics",
+    "read_sql",
+    "resolve_connection_string",
 ]
 
-
-if __name__ == "__main__":
-    comments = load_banking_comments()
-    print(f"Banking_Comments rows: {len(comments)}")
-
-    drivers = load_banking_drivers(period_type="Q")
-    print(f"Banking_Drivers rows (Q): {len(drivers)}")
-
-    metrics = load_banking_metrics(period_type="Q")
-    print(f"BankingMetrics rows (actual, Q): {len(metrics)}")
