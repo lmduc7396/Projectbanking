@@ -3,3 +3,4 @@ unixodbc-dev
 curl
 gnupg
 apt-transport-https
+msodbcsql17
