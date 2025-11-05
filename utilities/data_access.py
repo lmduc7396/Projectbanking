@@ -9,7 +9,7 @@ from typing import Optional
 import pandas as pd
 from dotenv import load_dotenv
 
-from utilities.db import get_connection
+from utilities.db import get_connection, read_sql
 
 # Ensure environment variables from .env are available before any DB calls
 load_dotenv()
@@ -34,8 +34,7 @@ def _rename_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _load_dataframe(query: str, params: Optional[list] = None) -> pd.DataFrame:
-    with get_connection(db="target") as conn:
-        return pd.read_sql(query, conn, params=params)
+    return read_sql(query, params=params, db="target")
 
 
 def _normalize_period_columns(df: pd.DataFrame, period: str) -> pd.DataFrame:

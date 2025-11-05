@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from utilities.data_catalog import get_table
-from utilities.db import get_connection, upsert_dataframe
+from utilities.db import get_connection, read_sql, upsert_dataframe
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -30,8 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 
 def fetch_from_source(query: str, params: Optional[Dict] = None) -> pd.DataFrame:
     """Execute a query against the legacy source database."""
-    with get_connection(db="source") as conn:
-        return pd.read_sql(query, conn, params=params)
+    return read_sql(query, params=params, db="source")
 
 
 def _clean_ticker(value: str) -> Optional[str]:

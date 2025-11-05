@@ -22,7 +22,7 @@ def load_keycode_mapping() -> dict:
 
 def load_banking_metrics(period_type: str) -> pd.DataFrame:
     """Fetch banking metrics from the warehouse and prepare for analysis."""
-    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = %s"
+    query = "SELECT * FROM dbo.BankingMetrics WHERE PERIOD_TYPE = ?"
     with get_connection(db="target") as conn:
         df = pd.read_sql(query, conn, params=[period_type])
 

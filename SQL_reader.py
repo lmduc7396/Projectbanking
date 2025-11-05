@@ -46,7 +46,7 @@ def fetch_tables(schema: Optional[str] = None) -> pd.DataFrame:
     )
     params = None
     if schema:
-        query += " AND TABLE_SCHEMA = %s"
+        query += " AND TABLE_SCHEMA = ?"
         params = (schema,)
 
     with get_connection() as conn:
@@ -96,7 +96,7 @@ def fetch_table_columns(table: str, schema: Optional[str] = None) -> pd.DataFram
     query = (
         "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH, ORDINAL_POSITION "
         "FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_NAME = %s"
+        "WHERE TABLE_NAME = ?"
     )
     if schema:
         query += " AND TABLE_SCHEMA = ?"

@@ -80,3 +80,4 @@ Data/IRIS_KEYCODE.csv
 banking_comments_temp_*.xlsx
 *_backup.*
 *.bak
+.azure_cli/
