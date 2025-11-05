@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import os
 import platform
-import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, List, Optional, Sequence
@@ -35,7 +34,6 @@ os.environ.setdefault("ODBCINI", "/opt/homebrew/etc/odbc.ini")
 # Eagerly load environment variables so downstream imports have access.
 PROJECT_ROOT = Path(__file__).resolve().parent
 ROOT_DOTENV = PROJECT_ROOT / ".env"
-INSTALLER_SCRIPT = PROJECT_ROOT / ".streamlit" / "install_msodbcsql.sh"
 if ROOT_DOTENV.exists():
     load_dotenv(ROOT_DOTENV)
 else:
@@ -97,22 +95,6 @@ def _extract_driver_token(conn_str: str) -> Optional[str]:
         if key.strip().upper() == "DRIVER" and value:
             return value.strip()
     return None
-
-
-def _install_driver() -> bool:
-    if not INSTALLER_SCRIPT.exists():
-        LOGGER.error("Driver installer script missing at %s", INSTALLER_SCRIPT)
-        return False
-
-    try:
-        LOGGER.info("Attempting to install Microsoft ODBC Driver 17 via %s", INSTALLER_SCRIPT)
-        subprocess.run(["/bin/bash", str(INSTALLER_SCRIPT)], check=True)
-        return True
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - external process
-        LOGGER.error("Driver installation failed: %s", exc)
-        return False
-
-
 def _ensure_driver_available(conn_str: str) -> None:
     token = _extract_driver_token(conn_str)
     if not token:
@@ -124,11 +106,6 @@ def _ensure_driver_available(conn_str: str) -> None:
         installed = {driver.lower() for driver in pyodbc.drivers()}
         if driver_name.lower() in installed:
             return
-
-        if _install_driver():
-            installed = {driver.lower() for driver in pyodbc.drivers()}
-            if driver_name.lower() in installed:
-                return
 
         raise RuntimeError(
             "ODBC driver '{driver}' not found. Install the Microsoft ODBC driver "
@@ -142,9 +119,6 @@ def _ensure_driver_available(conn_str: str) -> None:
     elif any(token.startswith(prefix) for prefix in ("/", "~")):
         driver_path = Path(token).expanduser()
         if driver_path.exists():
-            return
-
-        if _install_driver() and driver_path.exists():
             return
 
         raise RuntimeError(
