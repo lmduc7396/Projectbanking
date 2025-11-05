@@ -40,21 +40,19 @@ else:
     load_dotenv()
 
 
-# Environment variables that may hold the Azure SQL connection string.
+# Environment variables and secrets that may hold the Azure SQL connection string.
 TARGET_CONNECTION_KEYS: Sequence[str] = (
-    "AZURE_SQL_CONNECTION_STRING",
     "AZURE_SQL_ODBC",
+    "AZURE_SQL_CONNECTION_STRING",
     "TARGET_DB_CONNECTION_STRING",
     "DC_DB_STRING_MASTER",
+    "DB_AILAB_CONN",
 )
 
-# Legacy pipelines can still read from a "source" database if required.
 SOURCE_CONNECTION_KEYS: Sequence[str] = (
     "SOURCE_DB_CONNECTION_STRING",
     "LEGACY_DB_CONNECTION_STRING",
 )
-
-DEFAULT_DRIVER_NAME = "ODBC Driver 17 for SQL Server"
 
 DRIVER_LIBRARY_CANDIDATES: Sequence[Path] = (
     Path("/opt/homebrew/lib/libmsodbcsql.17.dylib"),
@@ -62,6 +60,26 @@ DRIVER_LIBRARY_CANDIDATES: Sequence[Path] = (
     Path("/opt/homebrew/lib/libmsodbcsql.18.dylib"),
     Path("/usr/local/lib/libmsodbcsql.18.dylib"),
 )
+
+
+def _get_secret_value(key: str) -> Optional[str]:
+    if st is None:
+        return None
+
+    try:
+        secrets_obj = getattr(st, "secrets", None)
+        if secrets_obj is None:
+            return None
+        if hasattr(secrets_obj, "get"):
+            value = secrets_obj.get(key)
+        else:
+            value = secrets_obj[key]
+    except Exception:  # pragma: no cover - Streamlit secrets access can fail silently
+        return None
+
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
 
 
 def normalize_connection_string(raw: str) -> str:
@@ -152,48 +170,61 @@ def _ensure_driver_path(conn_str: str) -> str:
 
 def _resolve_connection_string(keys: Sequence[str]) -> Optional[str]:
     for key in keys:
-        value = os.getenv(key)
-        if value:
-            LOGGER.debug("Resolved connection string via %s", key)
-            return _ensure_driver_path(normalize_connection_string(value))
+        secret_value = _get_secret_value(key)
+        if secret_value:
+            LOGGER.debug("Resolved connection string via st.secrets[%s]", key)
+            return _ensure_driver_path(normalize_connection_string(secret_value))
 
-        if st is not None:
-            try:
-                secrets_obj = getattr(st, "secrets", None)
-                if secrets_obj and key in secrets_obj:
-                    secrets_value = secrets_obj[key]
-                    if isinstance(secrets_value, str) and secrets_value.strip():
-                        LOGGER.debug("Resolved connection string via st.secrets[%s]", key)
-                        return _ensure_driver_path(normalize_connection_string(secrets_value))
-            except Exception:  # pragma: no cover - secrets access failures
-                continue
+        env_value = os.getenv(key)
+        if env_value:
+            LOGGER.debug("Resolved connection string via %s", key)
+            return _ensure_driver_path(normalize_connection_string(env_value))
     return None
 
 
-def resolve_connection_string(role: str = "target", *, strict: bool = True) -> str:
-    """Return the connection string for the requested role (target/source)."""
-
+def _default_connection_string(role: str = "target") -> str:
     keys = TARGET_CONNECTION_KEYS if role == "target" else SOURCE_CONNECTION_KEYS
     conn_str = _resolve_connection_string(keys)
     if conn_str:
         return conn_str
 
-    if strict:
-        available = ", ".join(keys)
-        raise ValueError(
-            f"No connection string found for '{role}'. "
-            f"Set one of: {available}."
-        )
+    available = ", ".join(keys)
+    raise RuntimeError(
+        "Database connection string not configured. Set one of "
+        f"[{available}] via Streamlit secrets or environment variables."
+    )
 
-    return ""
+
+def get_sql_connection(
+    connection_str: Optional[str] = None,
+    *,
+    autocommit: bool = False,
+) -> pyodbc.Connection:
+    normalized = (
+        _ensure_driver_path(normalize_connection_string(connection_str))
+        if connection_str
+        else _default_connection_string("target")
+    )
+    _ensure_driver_available(normalized)
+    return pyodbc.connect(normalized, autocommit=autocommit)
+
+
+def resolve_connection_string(role: str = "target", *, strict: bool = True) -> str:
+    """Return the connection string for the requested role (target/source)."""
+
+    try:
+        return _default_connection_string(role)
+    except RuntimeError:
+        if strict:
+            raise
+        return ""
 
 
 def establish_connection(role: str = "target", *, autocommit: bool = False) -> pyodbc.Connection:
     """Create a live pyodbc connection for the requested database role."""
 
     conn_str = resolve_connection_string(role)
-    _ensure_driver_available(conn_str)
-    return pyodbc.connect(conn_str, autocommit=autocommit)
+    return get_sql_connection(conn_str, autocommit=autocommit)
 
 
 @contextmanager
@@ -340,6 +371,7 @@ def load_banking_metrics(
 
 __all__ = [
     "normalize_connection_string",
+    "get_sql_connection",
     "resolve_connection_string",
     "establish_connection",
     "connection",
