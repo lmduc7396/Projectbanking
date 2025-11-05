@@ -25,7 +25,7 @@ def _format_identifier(identifier: str) -> str:
 
 @contextmanager
 def get_connection(connection_str: Optional[str] = None):
-    """Yield a live pymssql connection using secrets or an explicit string."""
+    """Yield a live pyodbc connection using secrets or an explicit string."""
     if connection_str:
         connection = create_connection_from_string(connection_str)
         try:

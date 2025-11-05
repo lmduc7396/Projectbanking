@@ -33,7 +33,7 @@ from utilities.quarter_utils import sort_quarters
 try:
     from utilities.db import read_sql
     SQL_IMPORT_ERROR = None
-except Exception as exc:  # pymssql or connection string issues
+except Exception as exc:  # pyodbc or connection string issues
     read_sql = None  # type: ignore
     SQL_IMPORT_ERROR = exc
 
@@ -63,7 +63,7 @@ def _normalize_generated_columns(df: pd.DataFrame, column_candidates: list[str])
 @st.cache_data(ttl=1800)
 def _fetch_quarterly_analysis_sql() -> pd.DataFrame:
     if read_sql is None:
-        raise RuntimeError("SQL access is not available: pymssql driver missing or connection string unset")
+        raise RuntimeError("SQL access is not available: pyodbc driver missing or connection string unset")
 
     comments_df = _fetch_comments_sql()
     return _build_quarterly_analysis_from_comments(comments_df)
@@ -72,7 +72,7 @@ def _fetch_quarterly_analysis_sql() -> pd.DataFrame:
 @st.cache_data(ttl=600)
 def _fetch_comments_sql() -> pd.DataFrame:
     if read_sql is None:
-        raise RuntimeError("SQL access is not available: pymssql driver missing or connection string unset")
+        raise RuntimeError("SQL access is not available: pyodbc driver missing or connection string unset")
 
     df = read_sql(COMMENTS_QUERY, db="target")
     if df.empty:

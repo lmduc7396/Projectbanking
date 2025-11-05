@@ -94,7 +94,7 @@ Notes:
 - `dbo.Banking_Comments`, `dbo.QuarterlyAnalysis` – AI commentary caches migrated from parquet files.
 - `_load_earnings_quality_*` tables (quarterly/yearly) – earnings driver impacts used by MCP tools.
 
-All connection handling is centralized in `utilities/db.py` using `pymssql`. Connection strings may still contain `DRIVER=...` segments (for backward compatibility) but only `SERVER`, `DATABASE`, `UID`, `PWD`, `Connection Timeout`, and optional `ssl`/`TDS_Version` values are consumed. For table-specific details, consult `DATABASE_SCHEMA.md`.
+All connection handling is centralized in `utilities/db.py` using `pyodbc`. Connection strings should include a valid Microsoft SQL Server ODBC driver plus standard fields (`SERVER`, `DATABASE`, `UID`, `PWD`, `Connection Timeout`). Set `AZURE_SQL_ODBC` (preferred) or one of the fallback keys (`AZURE_SQL_CONNECTION_STRING`, `TARGET_DB_CONNECTION_STRING`, `DC_DB_STRING_MASTER`, `DB_AILAB_CONN`) via Streamlit secrets or environment variables. For table-specific details, consult `DATABASE_SCHEMA.md`.
 
 ## 5) Core Utilities (How Things Work)
 - `quarter_utils.py`: Convert/sort quarters; numeric encodings for ordering and ranges.

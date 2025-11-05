@@ -71,7 +71,14 @@ OPENAI_API_KEY=your_api_key_here
 SOURCE_DB_CONNECTION_STRING="SERVER=tcp:...;DATABASE=...;UID=...;PWD=...;Connection Timeout=30;"
 TARGET_DB_CONNECTION_STRING="DRIVER={ODBC Driver 18 for SQL Server};SERVER=sqls-dclab.database.windows.net,1433;DATABASE=dclab;UID=dclab_readonly;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 ```
-Connection strings may retain `DRIVER=...` segments for compatibility, but only the fields above are consumed by the pymssql client.
+Connection strings may retain `DRIVER=...` segments for compatibility, but only the fields above are consumed by the pyodbc client.
+Ensure the Microsoft ODBC Driver 17 or 18 for SQL Server is installed so the connector can establish connections successfully.
+
+For Streamlit deployments, set the same value in `.streamlit/secrets.toml` using the `AZURE_SQL_ODBC` key:
+```
+AZURE_SQL_ODBC = "DRIVER={ODBC Driver 17 for SQL Server};SERVER=sqls-dclab.database.windows.net,1433;DATABASE=dclab;UID=dclab_readonly;PWD=your_password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+```
+Additional fallback keys include `AZURE_SQL_CONNECTION_STRING`, `TARGET_DB_CONNECTION_STRING`, `DC_DB_STRING_MASTER`, and `DB_AILAB_CONN`.
 
 ### Running the Application
 

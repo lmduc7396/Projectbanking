@@ -9,12 +9,7 @@ import numpy as np
 import pandas as pd
 import pyodbc
 
-from dclab_sql import (
-    establish_connection,
-    execute as _execute,
-    normalize_connection_string,
-    read_sql as _read_sql,
-)
+from dclab_sql import establish_connection, execute as _execute, get_sql_connection, read_sql as _read_sql
 
 
 DEFAULT_SCHEMA = "dbo"
@@ -27,8 +22,7 @@ def _translate_role(db: str) -> str:
 def create_connection_from_string(conn_str: str, autocommit: bool = False) -> pyodbc.Connection:
     """Instantiate a pyodbc connection from an arbitrary connection string."""
 
-    normalized = normalize_connection_string(conn_str)
-    return pyodbc.connect(normalized, autocommit=autocommit)
+    return get_sql_connection(conn_str, autocommit=autocommit)
 
 
 @contextmanager

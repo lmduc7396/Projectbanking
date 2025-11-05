@@ -7,5 +7,4 @@ tabulate
 python-dotenv
 numpy
 scipy
-pymssql
 pyodbc
