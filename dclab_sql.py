@@ -85,6 +85,44 @@ def normalize_connection_string(raw: str) -> str:
     return cleaned
 
 
+def _extract_driver_token(conn_str: str) -> Optional[str]:
+    for segment in conn_str.split(";"):
+        if not segment.strip():
+            continue
+        key, _, value = segment.partition("=")
+        if key.strip().upper() == "DRIVER" and value:
+            return value.strip()
+    return None
+
+
+def _ensure_driver_available(conn_str: str) -> None:
+    token = _extract_driver_token(conn_str)
+    if not token:
+        return
+
+    # Token is a named driver: {ODBC Driver 18 for SQL Server}
+    if token.startswith("{") and token.endswith("}"):
+        driver_name = token.strip("{}")
+        installed = {driver.lower() for driver in pyodbc.drivers()}
+        if driver_name.lower() not in installed:
+            raise RuntimeError(
+                "ODBC driver '{driver}' not found. Install the Microsoft ODBC driver "
+                "for SQL Server (msodbcsql18) and unixODBC libraries. "
+                "See https://learn.microsoft.com/sql/connect/odbc/linux-mac/"
+                "installing-microsoft-odbc-driver-18-sql-server for installation instructions."
+                .format(driver=driver_name)
+            )
+
+    # Token is an explicit filesystem path to a driver library
+    elif any(token.startswith(prefix) for prefix in ("/", "~")):
+        driver_path = Path(token).expanduser()
+        if not driver_path.exists():
+            raise RuntimeError(
+                f"ODBC driver library not found at '{driver_path}'. Verify the SQL Server "
+                "driver installation on the host and update the connection string."
+            )
+
+
 def _ensure_driver_path(conn_str: str) -> str:
     """Replace the logical driver name with the actual dylib path on macOS."""
 
@@ -148,6 +186,7 @@ def establish_connection(role: str = "target", *, autocommit: bool = False) -> p
     """Create a live pyodbc connection for the requested database role."""
 
     conn_str = resolve_connection_string(role)
+    _ensure_driver_available(conn_str)
     return pyodbc.connect(conn_str, autocommit=autocommit)
 
 
